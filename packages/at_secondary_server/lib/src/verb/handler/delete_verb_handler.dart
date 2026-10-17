@@ -4,8 +4,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
-import 'package:at_secondary/src/enroll/apsk_links.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -109,7 +107,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     bool cramSecretExisted = false;
     final String removedKey = deleteKey;
     try {
-      await _serialisedIfApsk(removedKey, () async {
+      await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .serialiseIfApsk(removedKey, () async {
         // NOTE cached data is exempt: another atSign's cached copy may always
         // be deleted.
         if (verbParams['isCached'] != 'true') {
@@ -202,18 +202,6 @@ class DeleteVerbHandler extends ChangeVerbHandler {
                 ..updatedAt = deletedAt.toUtcMillisecondsPrecision()))
         .build();
     await notificationManager.notify(atNotification);
-  }
-
-  /// Runs [removal] of [key] under the enrollment lock when [key] is an
-  /// approved enrollment's `_apsk` record, which `enroll:link` writes under
-  /// that lock, and straight through otherwise.
-  Future<void> _serialisedIfApsk(String key, Future<void> Function() removal) {
-    final EnrollmentManager enMgr =
-        AtSecondaryServerImpl.getInstance().enrollmentManager;
-    if (ApskLinks.enrollmentIdOf(key, enMgr.atSign) == null) {
-      return removal();
-    }
-    return enMgr.serialiseMutation(removal);
   }
 
   /// The atServer's own protected keys, folded as the keystore folds keys.

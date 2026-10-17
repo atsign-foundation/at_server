@@ -7,6 +7,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -803,6 +804,24 @@ void main() {
       }
     });
 
+    test(
+        'a keys:delete of B\'s _apsk waits for an enrollment write in '
+        'progress, and then removes it', () async {
+      await put(b, jsonEncode({...k1AndK2, 'enrollmentId': b}));
+      final Completer<void> release = Completer<void>();
+      final Future<void> held = enMgr.serialiseMutation(() => release.future);
+      connectAs(b);
+      final Future<void> deleting = KeysVerbHandler(keyValueStore, enMgr, alice)
+          .process('keys:delete:keyName:${apskKey(b)}', inboundConnection);
+      await Future.delayed(Duration(milliseconds: 50));
+      expect(await keyValueStore.exists(apskKey(b)), true,
+          reason: 'the keys:delete has not removed it while the lock is held');
+      release.complete();
+      await held;
+      await deleting;
+      expect(await keyValueStore.exists(apskKey(b)), false);
+    });
+
     /// Sends an `enroll:link` for K1 and [removeK1] while an enrollment write
     /// is in progress, then lets them run.
     Future<void> together(Future<void> Function() removeK1) async {
@@ -892,30 +911,29 @@ void main() {
       expect(await linksOn(b), isNull);
     });
 
-    // One key, the bytes 0xfb 0xff, spelt in each base64 alphabet.
-    const String standard = '+/8=';
-    const String urlSafe = '-_8=';
-    const String kidOfBoth = 'db8fed54159afe40';
+    const String fbffStandard = '+/8=';
+    const String fbffUrlSafe = '-_8=';
+    const String kidOfFbff = 'db8fed54159afe40';
 
     for (final (String form, String pub) in [
-      ('in the other base64 alphabet', urlSafe),
+      ('in the other base64 alphabet', fbffUrlSafe),
       ('without padding', '+/8'),
     ]) {
       test(
           'an authentication key the list form spells $form is refused a '
           'link, and nothing is written', () async {
         final b = await enrollment('b',
-            apkamPublicKey: standard,
+            apkamPublicKey: fbffStandard,
             signingAlgo: 'mldsa65',
-            apsk: listForm([entry(kidOfBoth, 'mldsa65', pub)]));
+            apsk: listForm([entry(kidOfFbff, 'mldsa65', pub)]));
         await expectLater(
             link(etu.primaryEnId, b, {
-              kidOfBoth: {
-                'link': chainLink(payload(b, kidOfBoth, 'mldsa65', pub)),
+              kidOfFbff: {
+                'link': chainLink(payload(b, kidOfFbff, 'mldsa65', pub)),
                 'expect': null
               }
             }),
-            refusedNaming<IllegalArgumentException>(kidOfBoth));
+            refusedNaming<IllegalArgumentException>(kidOfFbff));
         expect(await linksOn(b), isNull);
       });
     }
@@ -923,16 +941,16 @@ void main() {
     test(
         'a bare _apsk spelling the authentication key in the other base64 '
         'alphabet is refused a link, and nothing is written', () async {
-      final b =
-          await enrollment('b', apkamPublicKey: standard, apskLegacy: urlSafe);
+      final b = await enrollment('b',
+          apkamPublicKey: fbffStandard, apskLegacy: fbffUrlSafe);
       await expectLater(
           link(etu.primaryEnId, b, {
-            kidOfBoth: {
-              'link': chainLink(payload(b, kidOfBoth, 'rsa2048', urlSafe)),
+            kidOfFbff: {
+              'link': chainLink(payload(b, kidOfFbff, 'rsa2048', fbffUrlSafe)),
               'expect': null
             }
           }),
-          refusedNaming<IllegalArgumentException>(kidOfBoth));
+          refusedNaming<IllegalArgumentException>(kidOfFbff));
       expect(await linksOn(b), isNull);
     });
   });

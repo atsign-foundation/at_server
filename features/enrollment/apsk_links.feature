@@ -18,8 +18,8 @@ Feature: Links vouch for an enrollment's signing keys, one per key
   takes no link, whether the record carries it bare or in the list form.
 
   Races: enroll:link, and every other write of an approved enrollment's
-  _apsk record, run under the atSign's enrollment-mutation lock, so each
-  lands wholly before or after another. A link replaces the stored one only
+  _apsk record a client can send, a delete included, run under the atSign's
+  enrollment-mutation lock, so each lands wholly before or after another. A link replaces the stored one only
   when the request's expect equals it as JSON, so two writers of one key's
   link cannot lose each other's write.
   Replay: a link names its enrollment and key, so it can be stored only on
