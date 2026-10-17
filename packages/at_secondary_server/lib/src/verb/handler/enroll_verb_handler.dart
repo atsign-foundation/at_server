@@ -665,29 +665,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           '${AtServerTelemetryKeyGuard.namespaceRefusal}');
     }
 
-    // NOTE a target holding NO namespaces passes the loop below vacuously,
-    // so it is refused here; the self and CRAM clauses stay open.
-    final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
-    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
-        callerIdForAuthz != enId &&
-        enVal!.namespaces.isEmpty) {
-      throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
-          ' It holds no namespaces, so no caller can demonstrate authority'
-          ' over it. Act on it from the enrollment itself, or from a CRAM'
-          ' connection');
-    }
-
-    for (MapEntry<String, String> entry in enVal!.namespaces.entries) {
-      bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
-          namespace: entry.key,
-          enrolledNamespaceAccess: entry.value,
-          operation: operation);
-
-      if (isAuthorised == false) {
-        throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
-            ' Client is not authorized for namespaces in the enrollment request');
-      }
-    }
+    await _requireApproveGate(
+        inboundConnectionMetadata, enId, enVal!, operation);
 
     // Everything below is decided BEFORE anything is written.
     List<String> cascadeIds = const [];
@@ -825,6 +804,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       responseJson['cascadedEnrollmentIds'] = cascaded;
     }
     return cascadeIds;
+  }
+
+  /// Throws [UnAuthorizedException] unless the connection [md] may
+  /// [operation] enrollment [enId] as `enroll:approve` requires: a CRAM
+  /// connection, or an approved enrollment holding `__manage` explicitly and
+  /// every namespace [enVal] holds, at the access [enVal] holds it.
+  Future<void> _requireApproveGate(InboundConnectionMetadata md, String enId,
+      EnrollDataStoreValue enVal, String operation) async {
+    // NOTE a target holding NO namespaces passes the loop below vacuously,
+    // so it is refused here; the self and CRAM clauses stay open.
+    if (!AbstractVerbHandler.isCramConnection(md) &&
+        md.enrollmentId != enId &&
+        enVal.namespaces.isEmpty) {
+      throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
+          ' It holds no namespaces, so no caller can demonstrate authority'
+          ' over it. Act on it from the enrollment itself, or from a CRAM'
+          ' connection');
+    }
+
+    for (MapEntry<String, String> entry in enVal.namespaces.entries) {
+      bool isAuthorised = await isAuthorized(md,
+          namespace: entry.key,
+          enrolledNamespaceAccess: entry.value,
+          operation: operation);
+
+      if (isAuthorised == false) {
+        throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
+            ' Client is not authorized for namespaces in the enrollment request');
+      }
+    }
   }
 
   /// Settles when the approval of [enId] ends it: the expiry its request
