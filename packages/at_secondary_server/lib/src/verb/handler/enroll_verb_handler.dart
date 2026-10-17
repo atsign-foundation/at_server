@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
@@ -15,6 +16,7 @@ import 'package:at_secondary/src/telemetry/at_server_telemetry_key_guard.dart';
 import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
@@ -210,6 +212,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           response,
         );
         break;
+      case 'link':
+        await _handleLink(
+          enMgr,
+          (atConnection.metaData as InboundConnectionMetadata),
+          enrollVerbParams!,
+          currentAtSign,
+          responseJson,
+        );
+        break;
+      default:
+        throw InvalidSyntaxException(
+            'enroll:$operation is not an operation this atServer supports');
     }
     response.data = jsonEncode(responseJson);
     return;
@@ -1040,6 +1054,119 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['status'] = current.name;
   }
 
+  /// `enroll:link`: stores links vouching for keys an approved enrollment's
+  /// `_apsk` advertises, one per kid, all or none.
+  ///
+  /// Admits the target itself and any caller `enroll:approve` would admit.
+  /// Checks each link's structure, never its signature, and replaces a stored
+  /// link only when the request's `expect` equals it as JSON.
+  Future<void> _handleLink(
+    EnrollmentManager enMgr,
+    InboundConnectionMetadata connectionMetadata,
+    EnrollParams enrollParams,
+    String currentAtSign,
+    Map<dynamic, dynamic> responseJson,
+  ) async {
+    _validateEnrollParams(enrollParams);
+    return enMgr.serialiseMutation(() => _linkUnderLock(enMgr,
+        connectionMetadata, enrollParams, currentAtSign, responseJson));
+  }
+
+  /// The read-decide-write half of [_handleLink], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _linkUnderLock(
+    EnrollmentManager enMgr,
+    InboundConnectionMetadata connectionMetadata,
+    EnrollParams enrollParams,
+    String currentAtSign,
+    Map<dynamic, dynamic> responseJson,
+  ) async {
+    final String enId = enrollParams.enrollmentId!;
+    final EnrollDataStoreValue enVal;
+    try {
+      enVal = await enMgr.getEnrollmentById(enId);
+    } on KeyNotFoundException {
+      throw AtEnrollmentException(
+          'enroll:link: enrollment $enId does not exist');
+    }
+    if (connectionMetadata.enrollmentId != enId) {
+      await _requireApproveGate(connectionMetadata, enId, enVal, 'link');
+    }
+    final String? state = enVal.approval?.state;
+    if (state != EnrollmentStatus.approved.name) {
+      throw AtEnrollmentException('enroll:link: enrollment $enId is $state,'
+          ' and only an approved enrollment takes links');
+    }
+
+    final String apskKey = ApskLinks.keyFor(enId, currentAtSign);
+    final AtData? record = await _storedOrNull(apskKey);
+    final Map<String, ApskKey> advertised =
+        ApskLinks.advertisedKeys(record?.data);
+    final Map<String, dynamic> stored =
+        ApskLinks.linksIn(record?.metaData?.appMetadata);
+
+    // ignore: experimental_member_use
+    final Map<String, dynamic> requested = enrollParams.links!;
+    final Map<String, dynamic> written = {};
+    for (final MapEntry<String, dynamic> request in requested.entries) {
+      final String kid = request.key;
+      final ApskKey? key = advertised[kid];
+      // NOTE an authentication key takes no link.
+      if (key == null || key.pub == enVal.apkamPublicKey) {
+        throw IllegalArgumentException('enroll:link: $enId advertises no key'
+            ' $kid that can take a link; an authentication key takes none');
+      }
+      final Object? link = (request.value as Map)['link'];
+      if (utf8.encode(jsonEncode(link)).length > ApskLinks.maxLinkBytes) {
+        throw IllegalArgumentException('enroll:link: the link for $kid is over'
+            ' ${ApskLinks.maxLinkBytes} bytes encoded');
+      }
+      final Map<String, dynamic>? payload = ApskLinks.payloadOf(link);
+      if (payload == null ||
+          payload['enrollmentId'] != enId ||
+          payload['kid'] != kid ||
+          payload['alg'] != key.alg ||
+          payload['pub'] != key.pub) {
+        throw IllegalArgumentException('enroll:link: the link for $kid does'
+            ' not name enrollment $enId and that key: its payload must carry'
+            ' this enrollmentId and the kid, alg and pub $enId advertises');
+      }
+      if (!const DeepCollectionEquality()
+          .equals((request.value as Map)['expect'], stored[kid])) {
+        throw IllegalStateException('enroll:link: the link stored for $kid'
+            ' is not the one this request expects; read it again');
+      }
+      written[kid] = link;
+    }
+
+    final AtMetaData metaData = record!.metaData!
+      ..appMetadata = ApskLinks.withLinks(record.metaData!.appMetadata,
+          {...ApskLinks.pruned(stored, advertised), ...written});
+    await keyStore.put(
+        apskKey,
+        AtData()
+          ..data = record.data
+          ..metaData = metaData,
+        assertedTimestamps: metaData.expiresAt == null &&
+                metaData.availableAt == null
+            ? null
+            : AtAssertedTimestamps(
+                expiresAt: metaData.expiresAt,
+                availableAt: metaData.availableAt));
+
+    responseJson['enrollmentId'] = enId;
+    responseJson['linked'] = written.keys.toList();
+  }
+
+  /// The record stored at [key], or null when there is none.
+  Future<AtData?> _storedOrNull(String key) async {
+    try {
+      return await keyStore.get(key);
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
   /// Verifies that whoever sent this `enroll:update` holds the private half of
   /// the [apkamPublicKey] it is asking to install.
   ///
@@ -1210,16 +1337,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// verifier can reach it via plookup.
   ///
   /// A no-op when [enVal] carries neither shape. Takes the RECORD rather than
-  /// a value, so an approver cannot substitute its own.
+  /// a value, so an approver cannot substitute its own. Keeps the stored
+  /// links for the keys [enVal] still advertises.
   Future<void> _publishApskSigningKey(
       String enrollmentId, EnrollDataStoreValue enVal, currentAtSign) async {
     final value = _apskRecordValue(enVal);
     if (value == null) {
       return;
     }
-    final apskKey = 'public:_apsk.$enrollmentId'
-        '.${EnrollmentConstants.perEnrollmentApproved}$currentAtSign';
-    await keyStore.put(apskKey, AtData()..data = value);
+    final apskKey = ApskLinks.keyFor(enrollmentId, currentAtSign);
+    final AtMetaData? stored = (await _storedOrNull(apskKey))?.metaData;
+    if (stored != null) {
+      stored.appMetadata = ApskLinks.carriedOver(
+          written: null, stored: stored.appMetadata, value: value);
+    }
+    await keyStore.put(
+        apskKey,
+        AtData()
+          ..data = value
+          ..metaData = stored);
   }
 
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -1618,6 +1754,28 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'enroll:update cannot change namespaces: an enrollment amending '
               'itself must not be able to widen its own grant');
         }
+        break;
+      case 'link':
+        if (enrollParams!.enrollmentId.isNullOrEmpty) {
+          throw IllegalArgumentException(
+              'enrollmentId is mandatory for enroll:link');
+        }
+        // ignore: experimental_member_use
+        final Map<String, dynamic>? links = enrollParams.links;
+        if (links == null || links.isEmpty) {
+          throw IllegalArgumentException(
+              'enroll:link must carry at least one link');
+        }
+        links.forEach((kid, request) {
+          if (request is! Map ||
+              request['link'] is! Map ||
+              !request.containsKey('expect') ||
+              (request['expect'] != null && request['expect'] is! Map)) {
+            throw IllegalArgumentException('enroll:link: each kid maps to'
+                ' {"link": <link>, "expect": <link or null>}, and $kid does'
+                ' not');
+          }
+        });
         break;
       // list, listns and infons carry no enrollParams.
     }
