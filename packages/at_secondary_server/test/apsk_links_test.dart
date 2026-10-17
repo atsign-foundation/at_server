@@ -468,6 +468,42 @@ void main() {
       expect(await linksOn(b), {k1: k1Link});
     });
 
+    test(
+        'a call that would take B\'s _apsk record to exactly 500 KiB is '
+        'written, and one a byte larger is refused', () async {
+      final String value = jsonEncode({...k1AndK2, 'padding': 'x' * 400000});
+      final String other = 'y' * 100000;
+      await put(b, value,
+          appMetadata:
+              AppMetadata(providerId: 'acme', additional: {'other': other}));
+      final int recordWithOneByteLink = utf8.encode(value).length +
+          utf8
+              .encode(jsonEncode({
+                'providerId': 'acme',
+                'other': other,
+                'apskLinks': {k1: 0}
+              }))
+              .length;
+      final int linkBytes = 500 * 1024 - recordWithOneByteLink + 1;
+      expect(linkBytes, inInclusiveRange(1000, 16 * 1024),
+          reason: 'precondition: the link is within its own bound');
+      await expectLater(
+          link(etu.primaryEnId, b, {
+            k1: {
+              'link': sizedLink(k1, 'mldsa65', p1, linkBytes + 1),
+              'expect': null
+            }
+          }),
+          refusedNaming<IllegalArgumentException>('_apsk record would be'));
+      expect(await linksOn(b), isNull);
+      final Map<String, dynamic> exact =
+          sizedLink(k1, 'mldsa65', p1, linkBytes);
+      await link(etu.primaryEnId, b, {
+        k1: {'link': exact, 'expect': null}
+      });
+      expect(await linksOn(b), {k1: exact});
+    });
+
     /// Lists, beside K1 and K2, the key 0xfb 0xff spelt as [pub].
     Future<void> listFbffAs(String pub) => put(
         b,
@@ -1000,6 +1036,65 @@ void main() {
               'advertises no key $kFbff that can take a link'));
       expect(await linksOn(b), isNull);
     });
+
+    const String hexThatIsAlsoBase64 =
+        '00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc2e70c31567b'
+        'a0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b';
+    const String kEcc = '0123456789abcdef';
+
+    for (final (
+          String form,
+          String apkamPublicKey,
+          String signingAlgo,
+          String alg,
+          String kid,
+          String pub
+        ) in [
+      (
+        'in base64, its entry naming the ECC algorithm',
+        '-_8=',
+        'mldsa65',
+        'ecc_secp256r1',
+        kFbff,
+        pFbff
+      ),
+      (
+        'in base64, its record holding the ECC key in hex and its entry '
+            'naming the ECC algorithm',
+        'fbff',
+        'ecc_secp256r1',
+        'ecc_secp256r1',
+        kFbff,
+        pFbff
+      ),
+      (
+        'in hex, its entry naming another algorithm',
+        hexThatIsAlsoBase64,
+        'ecc_secp256r1',
+        'mldsa65',
+        kEcc,
+        hexThatIsAlsoBase64
+      ),
+    ]) {
+      test(
+          'an authentication key listed $form is refused a link, and nothing '
+          'is written', () async {
+        final b = await enrollment('b',
+            apkamPublicKey: apkamPublicKey,
+            signingAlgo: signingAlgo,
+            apsk: listForm([entry(kid, alg, pub)]));
+        await expectLater(
+            link(etu.primaryEnId, b, {
+              kid: {
+                'link': chainLink(payload(b, kid, alg, pub)),
+                'expect': null
+              }
+            }),
+            refusedNaming<IllegalArgumentException>(
+                'advertises no key $kid that can take a link'));
+        expect(await linksOn(b), isNull);
+      });
+    }
   });
 
   group('a bare RSA signing key is linked like a listed one', () {

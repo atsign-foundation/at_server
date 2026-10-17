@@ -1115,9 +1115,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final ApskKey? key = advertised[kid];
       // NOTE an authentication key takes no link, and any other key takes
       // one only when spelt in padded standard base64.
-      if (key == null ||
-          EnrollmentManager.sameApkamKeyMaterial(
-              key.pub, key.alg, enVal.apkamPublicKey, enVal.signingAlgo)) {
+      if (key == null || _isAuthenticationKey(key.pub, enVal)) {
         throw IllegalArgumentException('enroll:link: $enId advertises no key'
             ' $kid that can take a link; an authentication key takes none');
       }
@@ -1174,6 +1172,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enId;
     responseJson['linked'] = written.keys.toList();
   }
+
+  /// Whether [pub] is the key [enVal] authenticates with, read both as base64
+  /// and as hex, whatever algorithm the `_apsk` entry names.
+  static bool _isAuthenticationKey(String pub, EnrollDataStoreValue enVal) =>
+      EnrollmentManager.sameApkamKeyMaterial(
+          pub, null, enVal.apkamPublicKey, enVal.signingAlgo) ||
+      EnrollmentManager.sameApkamKeyMaterial(
+          pub,
+          ApkamSignatureVerifier.eccAlgo,
+          enVal.apkamPublicKey,
+          enVal.signingAlgo);
 
   /// The record stored at [key], or null when there is none.
   Future<AtData?> _storedOrNull(String key) async {
