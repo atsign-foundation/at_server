@@ -13,7 +13,7 @@ class AtConfig {
   final String configKey;
 
   final AtKeyValueStore _keyStore;
-  final String? _atSign;
+  final Atsign? _atSign;
 
   AtConfig(this._keyStore, this._atSign)
       : configKey = 'private:blocklist$_atSign';
