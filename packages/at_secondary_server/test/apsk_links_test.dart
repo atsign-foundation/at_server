@@ -1099,8 +1099,9 @@ void main() {
     }
   });
 
-  group('an enroll:update cannot make B\'s signing key its authentication key',
-      () {
+  group(
+      'an enroll:update cannot make B\'s client data signing key its '
+      'authentication key', () {
     late String pubK;
     late String kidK;
     late Uint8List secretK;
@@ -1257,7 +1258,7 @@ void main() {
     });
   });
 
-  group('a bare RSA signing key is linked like a listed one', () {
+  group('a bare RSA client data signing key is linked like a listed one', () {
     late String b;
     late Map<String, dynamic> bareLink;
 

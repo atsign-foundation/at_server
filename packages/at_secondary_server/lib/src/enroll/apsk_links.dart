@@ -7,8 +7,9 @@ import 'package:crypto/crypto.dart';
 /// A key an `_apsk` record advertises.
 typedef ApskKey = ({String alg, String pub});
 
-/// The links that vouch for an enrollment's signing keys: one per key its
-/// `_apsk` record advertises, keyed by kid, in that record's appMetadata.
+/// The links that vouch for an enrollment's client data signing keys: one per
+/// key its `_apsk` record advertises, keyed by kid, in that record's
+/// appMetadata.
 ///
 /// The atServer checks a link's structure and never its signature; whoever
 /// reads a link verifies it.

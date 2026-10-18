@@ -1,4 +1,4 @@
-Feature: Links vouch for an enrollment's signing keys, one per key
+Feature: Links vouch for an enrollment's client data signing keys, one per key
 
   Each enrollment publishes the keys it signs with at
   public:_apsk.<enrollmentId>.a.__e@<atSign>, in the list form or as one
@@ -65,18 +65,18 @@ Feature: Links vouch for an enrollment's signing keys, one per key
     And when an enroll:link for K1 and a republish that removes K1 arrive together, the atServer handles one and then the other, so afterwards K1 has no link and no other link has been lost
 
   Scenario: an enrollment's authentication key takes no links
-    Given B holding no signing key of its own, so its _apsk is its APKAM authentication key, published bare or listed alone in the list form
+    Given B holding no client data signing key of its own, so its _apsk is its APKAM authentication key, published bare or listed alone in the list form
     When enroll:link is asked to link that key
     Then the atServer refuses it, since the key is the one B's enrollment record holds as its apkamPublicKey, and nothing is written
 
-  Scenario: an enroll:update cannot make B's signing key its authentication key
+  Scenario: an enroll:update cannot make B's client data signing key its authentication key
     Given B's enrollment and its _apsk
     When an enroll:update by B would leave K1 both as B's apkamPublicKey and listed in B's _apsk beside another key, or carrying a link, whether it installs K1, republishes the _apsk, or both
     Then the atServer refuses the update, naming K1, and nothing is written
-    And an update that leaves K1 as the only key B's _apsk lists, with no link, is accepted, as for an enrollment holding no signing key of its own
+    And an update that leaves K1 as the only key B's _apsk lists, with no link, is accepted, as for an enrollment holding no client data signing key of its own
 
-  Scenario: a bare RSA signing key is linked like a listed one
-    Given B on the pqReady posture, authenticating with ML-DSA-65, whose _apsk is the RSA-2048 signing key it minted, published bare
+  Scenario: a bare RSA client data signing key is linked like a listed one
+    Given B on the pqReady posture, authenticating with ML-DSA-65, whose _apsk is the RSA-2048 client data signing key it minted, published bare
     When enroll:link links that key
     Then the atServer treats the bare value as one rsa2048 entry, whose kid it derives from the key the way every other kid is derived, and the link is written
     And when B lists that key in the list form beside an ML-DSA-65 key, retiring the RSA one, the RSA key keeps the same kid and keeps its link

@@ -79,9 +79,9 @@
   them, and any other write of that `_apsk` record keeps the links for the
   keys it still lists.
 
-- fix: an `enroll:update` is refused when it would leave the enrollment's
-  authentication key listed in its `_apsk` beside another key, or carrying a
-  link.
+- fix: an `enroll:update` is refused with AT0022 when it would leave the
+  enrollment's client authentication signing key listed in its `_apsk`
+  beside another key, or carrying a link.
 
 - build: `at_commons` 5.23.0. An atSign of more than 55 characters after
   its `@` is now refused; a `notify` to one, for example, is answered with
