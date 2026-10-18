@@ -129,13 +129,16 @@ void main() {
     expect(await next(), 'data:+44 1234');
   }, timeout: Timeout(Duration(minutes: 2)));
 
-  /// @carol is an atSign named only in the key, so it holds no record here.
+  /// @sitaram🛠 plays @carol.
   group('A peer that has proved itself by pol names the key it looks up bare',
       () {
+    const String sitaram = '@sitaram🛠';
     final String key = 'phone${Uuid().v4().substring(0, 8)}.wavi';
 
     setUpAll(() async {
       expect(await send(xavierClient, 'update:public:$key$xavier +44 1234'),
+          startsWith('data:'));
+      expect(await send(xavierClient, 'update:$sitaram:$key$xavier +44 9012'),
           startsWith('data:'));
       expect(await send(xavierClient, 'update:$jeremy:$key$xavier +44 5678'),
           startsWith('data:'));
@@ -143,12 +146,13 @@ void main() {
 
     tearDownAll(() async {
       await send(xavierClient, 'delete:public:$key$xavier');
+      await send(xavierClient, 'delete:$sitaram:$key$xavier');
       await send(xavierClient, 'delete:$jeremy:$key$xavier');
     });
 
     for (final (String lookup, String named) in [
       ('lookup:public:$key$xavier', 'public:$key$xavier'),
-      ('lookup:@carol:$key$xavier', '@carol:$key$xavier'),
+      ('lookup:$sitaram:$key$xavier', '$sitaram:$key$xavier'),
       ('lookup:$jeremy:$key$xavier', '$jeremy:$key$xavier'),
       ('lookup:all:public:$key$xavier', 'public:$key$xavier'),
     ]) {
