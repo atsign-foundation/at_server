@@ -27,6 +27,13 @@ Feature: A client names another atSign's key bare when it looks it up
       | lookup:@carol:phone.wavi@bob     | @carol:phone.wavi@bob |
       | lookup:all:public:phone.wavi@bob | public:phone.wavi@bob |
 
+  Scenario: A client's scoped lookup of another atSign's key in a batch is refused without asking that atSign's atServer
+    Given a client authenticated as @alice
+    When it sends a batch whose one command is lookup:public:phone.wavi@bob
+    Then that command is answered with AT0009
+    And @alice's atServer sends nothing to @bob's atServer
+    And the connection stays open
+
   Scenario: A client still looks up another atSign's key named bare
     Given @bob's atServer holds @alice:phone.wavi@bob
     And a client authenticated as @alice
