@@ -278,7 +278,10 @@ void main() {
           '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'dummy_session_id', 'dummy-app', 'dummy-device', 'dummy-apkam-key')
-        ..namespaces = {EnrollmentConstants.enrollManageNamespace: 'rw'}
+        ..namespaces = {
+          EnrollmentConstants.allNamespaces: 'rw',
+          EnrollmentConstants.enrollManageNamespace: 'rw'
+        }
         ..approval = EnrollApproval(EnrollmentStatus.approved.name);
       await keyValueStore.put(
           enrollmentKey, AtData()..data = jsonEncode(enrollDataStoreValue));
@@ -385,6 +388,30 @@ void main() {
 
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       expect(await otpVerbHandler.isPasscodeValid(testOtp), true);
+    });
+
+    test('otp:put is refused for an enrollment without full privilege',
+        () async {
+      await keyValueStore.put(
+          'manage-only.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(
+                EnrollDataStoreValue('sid', 'app', 'device', 'apkam-key')
+                  ..namespaces = {
+                    EnrollmentConstants.enrollManageNamespace: 'rw'
+                  }
+                  ..approval = EnrollApproval(EnrollmentStatus.approved.name)));
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = 'manage-only';
+      inboundConnection.metaData.authType = AuthType.apkam;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      await expectLater(
+          otpVerbHandler.processVerb(
+              Response(),
+              getVerbParam(VerbSyntax.otp, 'otp:put:abc123'),
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+      expect(await otpVerbHandler.isPasscodeValid('abc123'), false);
     });
     tearDown(() async => await verbTestsTearDown());
   });

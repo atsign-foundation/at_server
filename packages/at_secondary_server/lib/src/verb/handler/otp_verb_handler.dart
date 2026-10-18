@@ -62,12 +62,12 @@ class OtpVerbHandler extends AbstractVerbHandler {
         response.data = otp;
         break;
       case 'put':
-        // Only client connections which have access to the __manage namespace
-        // are allowed to store the semi-permanent passcode.
-        if (!(await _hasManageNamespaceAccess(
+        // The SPP is reusable and can admit an enrollment for any namespace,
+        // so only a full-privilege connection may set it.
+        if (!(await isRootPrivilegedConnection(
             atConnection.metaData as InboundConnectionMetadata))) {
-          throw InvalidRequestException(
-              'Client not allowed to not store semi permanent pass code');
+          throw UnAuthorizedException(
+              'otp:put requires full privilege (*:rw and __manage:rw)');
         }
         int sppTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ?? -1;
         String? spp = verbParams['otp'];
