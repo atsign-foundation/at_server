@@ -90,7 +90,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     final String owner;
     try {
       params = parse(command);
-      owner = AtUtils.fixAtSign(params[AtConstants.atSign]!);
+      owner = params[AtConstants.atSign]!.toAtsign();
     } on Exception {
       return null;
     }
