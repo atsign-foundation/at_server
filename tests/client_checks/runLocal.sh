@@ -21,18 +21,23 @@ set -euo pipefail
 # beside this checkout). AT_CLIENT_SDK_REF names the commit to test (default:
 # origin/trunk, fetched first). The packs run from a detached worktree of that
 # commit, removed afterwards; the clone's working tree and branches are never
-# touched. A commit whose pack runners do not take VIRTUALENV_IMAGE and name
-# their compose project is refused, since it would run an image this script
-# did not build, or share containers with another run.
+# touched. A commit whose pack runners do not take VIRTUALENV_IMAGE, and name
+# their compose project after the base port, is refused, since it would run
+# an image this script did not build, or share containers with another run.
+# With no BASE_PORT, every pack uses its default project name and ports, as
+# any other default-port run of that pack does.
 #
 # buildve.sh builds the atServer image under this checkout's own tag, which
 # is passed to each pack as VIRTUALENV_IMAGE; at_virtual_env:local is never
 # touched. HOME points at a scratch directory for the run, and PUB_CACHE and
 # DOCKER_CONFIG keep their values.
 #
-# Each pack runs in its own process group. An interrupt, TERM, HUP or ALRM
-# stops the running pack, and every container a pack left running is taken
-# down before the worktree is removed.
+# Each pack runs in its own process group, with stdin from /dev/null. An
+# interrupt, TERM, HUP or ALRM stops the running pack, and every container a
+# pack left running is taken down before the worktree is removed; a further
+# signal during that cleanup is reported and does not cut it short. A signal
+# during the build takes effect once the build ends. KILL ends the runner
+# alone, leaving the running pack, its containers and the worktree behind.
 #
 # Exits non-zero if any pack fails, after running the rest.
 
@@ -84,7 +89,7 @@ if [[ "$sdkRef" == origin/* ]]; then
   fetchRef="${fetchRef%%[~^]*}"
   echo "*** Fetching origin ${fetchRef} in ${sdkDir}"
   git -C "$sdkDir" fetch origin "$fetchRef" ||
-    git -C "$sdkDir" fetch origin "$fetchRef"
+    { sleep 2 && git -C "$sdkDir" fetch origin "$fetchRef"; }
 fi
 sdkCommit=$(git -C "$sdkDir" rev-parse --verify "${sdkRef}^{commit}")
 
@@ -115,6 +120,7 @@ stopPack() {
   fi
   if kill -0 -- "-${packPid}" 2>/dev/null; then
     kill -TERM -- "-${packPid}" || true
+    kill -CONT -- "-${packPid}" || true
     local waited=0
     while kill -0 -- "-${packPid}" 2>/dev/null && ((waited < 30)); do
       sleep 1
@@ -140,11 +146,13 @@ downPackContainers() {
     done | sort -u) || true
   for project in $projects; do
     echo "*** Taking down ${project}, which a pack left running"
-    docker compose -p "$project" down || true
+    perl -e 'alarm 120; exec @ARGV' -- \
+      docker compose -p "$project" down --remove-orphans || true
   done
 }
 
 cleanup() {
+  trap 'echo "*** Still cleaning up" >&2' INT TERM HUP ALRM
   stopPack
   downPackContainers
   if [[ -d "$sdkWorktree" ]]; then
@@ -153,7 +161,7 @@ cleanup() {
   rm -rf "$runDir"
 }
 onSignal() {
-  trap - INT TERM HUP ALRM
+  trap 'echo "*** Still cleaning up" >&2' INT TERM HUP ALRM
   stopPack
   exit "$1"
 }
@@ -177,14 +185,15 @@ mkdir -p "${runDir}/home"
 export HOME="${runDir}/home"
 export VIRTUALENV_IMAGE="$image"
 
-set -m
 results=()
 failed=0
 for pack in "${packs[@]}"; do
   echo "*** Running at_client_sdk's ${pack} pack against ${image}"
+  set -m
   (cd "${sdkWorktree}/tests/$(packDir "$pack")" &&
-    exec ./runLocal.sh ${basePort:+"$basePort"}) &
+    exec ./runLocal.sh ${basePort:+"$basePort"} </dev/null) &
   packPid=$!
+  set +m
   if wait "$packPid"; then
     status=0
   else
