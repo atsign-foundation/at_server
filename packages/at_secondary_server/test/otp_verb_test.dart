@@ -388,4 +388,102 @@ void main() {
     });
     tearDown(() async => await verbTestsTearDown());
   });
+
+  group('A group of tests related to otp:list and otp:delete', () {
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+    });
+    tearDown(() async => await verbTestsTearDown());
+
+    Future<Response> run(String command) async {
+      Response response = Response();
+      await OtpVerbHandler(keyValueStore).processVerb(
+          response, getVerbParam(VerbSyntax.otp, command), inboundConnection);
+      return response;
+    }
+
+    Future<void> useManageOnlyEnrollment() async {
+      inboundConnection.metaData.enrollmentId = 'manage-only';
+      inboundConnection.metaData.authType = AuthType.apkam;
+      await keyValueStore.put(
+          'manage-only.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(
+                EnrollDataStoreValue('sid', 'app', 'device', 'apkam-key')
+                  ..namespaces = {
+                    EnrollmentConstants.enrollManageNamespace: 'rw'
+                  }
+                  ..approval = EnrollApproval(EnrollmentStatus.approved.name)));
+    }
+
+    List<String> entries(Response response) =>
+        (jsonDecode(response.data!) as List)
+            .map((e) => '${e['type']}:${e['value']}')
+            .toList();
+
+    test('otp:list returns live OTPs, as issued, and the SPP', () async {
+      String otp = (await run('otp:get')).data!;
+      await run('otp:put:abc123');
+      expect(entries(await run('otp:list')),
+          unorderedEquals(['otp:$otp', 'spp:abc123']));
+    });
+
+    test('otp:list skips an expired OTP', () async {
+      await run('otp:get:ttl:1');
+      await Future.delayed(Duration(milliseconds: 5));
+      expect(entries(await run('otp:list')), isEmpty);
+    });
+
+    test('otp:list shows the legacy SPP when there is no current one',
+        () async {
+      await keyValueStore.put('private:spp$alice', AtData()..data = 'old123');
+      expect(entries(await run('otp:list')), ['spp:old123']);
+    });
+
+    test('otp:list is refused without full privilege', () async {
+      await useManageOnlyEnrollment();
+      expect(run('otp:list'), throwsA(isA<UnAuthorizedException>()));
+    });
+
+    test('otp:delete removes an OTP', () async {
+      String otp = (await run('otp:get')).data!;
+      expect((await run('otp:delete:$otp')).data, 'ok');
+      expect(await OtpVerbHandler(keyValueStore).isPasscodeValid(otp), false);
+    });
+
+    test('otp:delete:spp removes the current and the legacy SPP', () async {
+      await run('otp:put:abc123');
+      await keyValueStore.put('private:spp$alice', AtData()..data = 'old123');
+      expect((await run('otp:delete:SPP')).data, 'ok');
+      OtpVerbHandler handler = OtpVerbHandler(keyValueStore);
+      expect(await handler.isPasscodeValid('abc123'), false);
+      expect(await handler.isPasscodeValid('old123'), false);
+    });
+
+    test('otp:delete of an unknown OTP answers ok', () async {
+      expect((await run('otp:delete:NOSUCH1')).data, 'ok');
+    });
+
+    test('otp:delete without full privilege answers ok and deletes nothing',
+        () async {
+      String otp = (await run('otp:get')).data!;
+      await useManageOnlyEnrollment();
+      expect((await run('otp:delete:$otp')).data, 'ok');
+      expect(await OtpVerbHandler(keyValueStore).isPasscodeValid(otp), true);
+    });
+
+    test('otp:delete removes a legacy OTP key only if it holds the passcode',
+        () async {
+      await keyValueStore.put('private:abcd12$alice', AtData()..data = 'other');
+      await run('otp:delete:ABCD12');
+      expect(await keyValueStore.exists('private:abcd12$alice'), true);
+
+      await keyValueStore.put(
+          'private:abcd12$alice', AtData()..data = 'ABCD12');
+      await run('otp:delete:ABCD12');
+      expect(await keyValueStore.exists('private:abcd12$alice'), false);
+    });
+  });
 }

@@ -1,10 +1,12 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -71,6 +73,27 @@ class OtpVerbHandler extends AbstractVerbHandler {
         await savePasscode(spp, ttl: sppTtl, isSpp: true);
         response.data = 'ok';
         break;
+      case 'list':
+        // NOTE full privilege only until OTPs carry namespaces.
+        if (!(await isRootPrivilegedConnection(
+            atConnection.metaData as InboundConnectionMetadata))) {
+          throw UnAuthorizedException('otp:list requires full privilege');
+        }
+        response.data = jsonEncode(await listPasscodes());
+        break;
+      case 'delete':
+        String? passcode = verbParams['otp'];
+        if (passcode == null) {
+          throw InvalidRequestException('otp:delete requires a passcode');
+        }
+        // NOTE a caller not allowed to delete still gets ok, so delete
+        // never reveals which passcodes exist.
+        if (await isRootPrivilegedConnection(
+            atConnection.metaData as InboundConnectionMetadata)) {
+          await deletePasscode(passcode);
+        }
+        response.data = 'ok';
+        break;
       default:
         throw InvalidSyntaxException('$operation is not a valid operation');
     }
@@ -123,6 +146,72 @@ class OtpVerbHandler extends AbstractVerbHandler {
         AtData()
           ..data = passcode
           ..metaData = (AtMetaData()..ttl = ttl));
+  }
+
+  /// The live OTPs and the SPP, as `otp:list` returns them.
+  @visibleForTesting
+  Future<List<Map<String, dynamic>>> listPasscodes() async {
+    final String atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    final String sppKey = passcodeKey('spp', isSpp: true);
+    final String legacySppKey = 'private:spp$atSign';
+    final List<String> keys = await (await keyStore.getKeys(
+            regex: '^private:[^:@]+\\.$otpNamespace${RegExp.escape(atSign)}\$'))
+        .toList();
+    // NOTE isPasscodeValid falls back to the legacy SPP key only when the
+    // current one is absent, so list does the same.
+    if (!keys.contains(sppKey)) {
+      keys.add(legacySppKey);
+    }
+    final List<Map<String, dynamic>> passcodes = [];
+    for (final String key in keys) {
+      final AtData? atData = await _getOrNull(key);
+      if (atData?.data == null || !SecondaryUtil.isActiveKey(atData)) {
+        continue;
+      }
+      passcodes.add({
+        // NOTE exact match: an OTP may itself start with "spp".
+        'type': (key == sppKey || key == legacySppKey) ? 'spp' : 'otp',
+        'value': atData!.data,
+        'expiresAt': atData.metaData?.expiresAt?.millisecondsSinceEpoch ?? -1,
+      });
+    }
+    return passcodes;
+  }
+
+  /// Removes [passcode], or the SPP when [passcode] is `spp` in any case,
+  /// including the namespace-less keys older clients stored.
+  @visibleForTesting
+  Future<void> deletePasscode(String passcode) async {
+    final String atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    if (passcode.toLowerCase() == 'spp') {
+      await _removeIfExists(passcodeKey(passcode, isSpp: true));
+      await _removeIfExists('private:spp$atSign');
+      return;
+    }
+    await _removeIfExists(passcodeKey(passcode, isSpp: false));
+    // NOTE private:<otp>@ is also an ordinary key name, so it is removed
+    // only when it holds this passcode.
+    final String legacyKey = 'private:${passcode.toLowerCase()}$atSign';
+    final AtData? legacy = await _getOrNull(legacyKey);
+    if (legacy?.data?.toLowerCase() == passcode.toLowerCase()) {
+      await keyStore.remove(legacyKey);
+    }
+  }
+
+  /// Removes [key] only if present, since remove() records a delete in the
+  /// commit log even for a key that was never there.
+  Future<void> _removeIfExists(String key) async {
+    if (await keyStore.exists(key)) {
+      await keyStore.remove(key);
+    }
+  }
+
+  Future<AtData?> _getOrNull(String key) async {
+    try {
+      return await keyStore.get(key);
+    } on KeyNotFoundException {
+      return null;
+    }
   }
 
   String _generateRandomAlphabet() {
