@@ -54,7 +54,11 @@ class OtpVerbHandler extends AbstractVerbHandler {
         // Extract the ttl from the verb parameters if supplied, or use the default value.
         int otpTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
             defaultOtpExpiry.inMilliseconds;
-        await savePasscode(otp, ttl: otpTtl, isSpp: false);
+        await savePasscode(otp,
+            ttl: otpTtl,
+            isSpp: false,
+            namespaces: await _enrollmentNamespaces(
+                atConnection.metaData as InboundConnectionMetadata));
         response.data = otp;
         break;
       case 'put':
@@ -74,23 +78,31 @@ class OtpVerbHandler extends AbstractVerbHandler {
         response.data = 'ok';
         break;
       case 'list':
-        // NOTE full privilege only until OTPs carry namespaces.
-        if (!(await isRootPrivilegedConnection(
-            atConnection.metaData as InboundConnectionMetadata))) {
-          throw UnAuthorizedException('otp:list requires full privilege');
+        final listMetaData = atConnection.metaData as InboundConnectionMetadata;
+        if (await isRootPrivilegedConnection(listMetaData)) {
+          response.data = jsonEncode(await listPasscodes());
+        } else if (await _hasManageNamespaceAccess(listMetaData)) {
+          response.data = jsonEncode(await listPasscodes(
+              scope: await _enrollmentNamespaces(listMetaData) ?? {}));
+        } else {
+          throw UnAuthorizedException(
+              'otp:list requires access to the __manage namespace');
         }
-        response.data = jsonEncode(await listPasscodes());
         break;
       case 'delete':
         String? passcode = verbParams['otp'];
         if (passcode == null) {
           throw InvalidRequestException('otp:delete requires a passcode');
         }
+        final deleteMetaData =
+            atConnection.metaData as InboundConnectionMetadata;
         // NOTE a caller not allowed to delete still gets ok, so delete
         // never reveals which passcodes exist.
-        if (await isRootPrivilegedConnection(
-            atConnection.metaData as InboundConnectionMetadata)) {
+        if (await isRootPrivilegedConnection(deleteMetaData)) {
           await deletePasscode(passcode);
+        } else if (await _hasManageNamespaceAccess(deleteMetaData)) {
+          await deletePasscode(passcode,
+              scope: await _enrollmentNamespaces(deleteMetaData) ?? {});
         }
         response.data = 'ok';
         break;
@@ -139,18 +151,31 @@ class OtpVerbHandler extends AbstractVerbHandler {
             '${AtSecondaryServerImpl.getInstance().currentAtSign}';
   }
 
+  /// Stores [passcode]. An OTP's value also records [namespaces], the grants
+  /// of the enrollment that issued it. The SPP's value stays the bare
+  /// passcode, which isPasscodeValid compares.
   Future<void> savePasscode(String passcode,
-      {required int ttl, required bool isSpp}) async {
+      {required int ttl,
+      required bool isSpp,
+      Map<String, String>? namespaces}) async {
     await keyStore.put(
         passcodeKey(passcode, isSpp: isSpp),
         AtData()
-          ..data = passcode
+          ..data = isSpp
+              ? passcode
+              : jsonEncode({
+                  'passcode': passcode,
+                  if (namespaces != null) 'namespaces': namespaces,
+                })
           ..metaData = (AtMetaData()..ttl = ttl));
   }
 
-  /// The live OTPs and the SPP, as `otp:list` returns them.
+  /// The live OTPs and the SPP, as `otp:list` returns them. A [scope] limits
+  /// them to the OTPs it covers and leaves out the SPP; without one, as for
+  /// a full-privilege caller, every passcode is listed.
   @visibleForTesting
-  Future<List<Map<String, dynamic>>> listPasscodes() async {
+  Future<List<Map<String, dynamic>>> listPasscodes(
+      {Map<String, String>? scope}) async {
     final String atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     final String sppKey = passcodeKey('spp', isSpp: true);
     final String legacySppKey = 'private:spp$atSign';
@@ -168,22 +193,52 @@ class OtpVerbHandler extends AbstractVerbHandler {
       if (atData?.data == null || !SecondaryUtil.isActiveKey(atData)) {
         continue;
       }
+      final int expiresAt =
+          atData!.metaData?.expiresAt?.millisecondsSinceEpoch ?? -1;
+      // NOTE exact match: an OTP may itself start with "spp".
+      if (key == sppKey || key == legacySppKey) {
+        if (scope == null) {
+          passcodes.add(
+              {'type': 'spp', 'value': atData.data, 'expiresAt': expiresAt});
+        }
+        continue;
+      }
+      final otp = readOtp(atData.data!);
+      if (scope != null && !_mayManage(scope, otp.namespaces)) {
+        continue;
+      }
       passcodes.add({
-        // NOTE exact match: an OTP may itself start with "spp".
-        'type': (key == sppKey || key == legacySppKey) ? 'spp' : 'otp',
-        'value': atData!.data,
-        'expiresAt': atData.metaData?.expiresAt?.millisecondsSinceEpoch ?? -1,
+        'type': 'otp',
+        'value': otp.passcode,
+        'expiresAt': expiresAt,
+        if (otp.namespaces != null) 'namespaces': otp.namespaces,
       });
     }
     return passcodes;
   }
 
   /// Removes [passcode], or the SPP when [passcode] is `spp` in any case,
-  /// including the namespace-less keys older clients stored.
+  /// including the namespace-less keys older clients stored. A [scope]
+  /// limits it to an OTP that scope covers; the SPP and namespace-less keys
+  /// then stay.
   @visibleForTesting
-  Future<void> deletePasscode(String passcode) async {
+  Future<void> deletePasscode(String passcode,
+      {Map<String, String>? scope}) async {
     final String atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    if (passcode.toLowerCase() == 'spp') {
+    final bool isSpp = passcode.toLowerCase() == 'spp';
+    if (scope != null) {
+      if (isSpp) {
+        return;
+      }
+      final String otpKey = passcodeKey(passcode, isSpp: false);
+      final AtData? atData = await _getOrNull(otpKey);
+      if (atData?.data != null &&
+          _mayManage(scope, readOtp(atData!.data!).namespaces)) {
+        await keyStore.remove(otpKey);
+      }
+      return;
+    }
+    if (isSpp) {
       await _removeIfExists(passcodeKey(passcode, isSpp: true));
       await _removeIfExists('private:spp$atSign');
       return;
@@ -241,5 +296,59 @@ class OtpVerbHandler extends AbstractVerbHandler {
       InboundConnectionMetadata atConnectionMetadata) async {
     return super.isAuthorized(atConnectionMetadata,
         namespace: EnrollmentConstants.enrollManageNamespace);
+  }
+
+  /// The grants of the enrollment this connection carries, or null for a
+  /// CRAM connection or one carrying none.
+  Future<Map<String, String>?> _enrollmentNamespaces(
+      InboundConnectionMetadata atConnectionMetadata) async {
+    final String? enrollmentId = atConnectionMetadata.enrollmentId;
+    if (AbstractVerbHandler.isCramConnection(atConnectionMetadata) ||
+        enrollmentId == null) {
+      return null;
+    }
+    return (await resolveEnrollment(enrollmentId))?.namespaces;
+  }
+
+  /// An OTP record's value: `{"passcode", "namespaces"}`, or, for an OTP
+  /// stored before OTPs carried namespaces, the bare passcode.
+  @visibleForTesting
+  static ({String passcode, Map<String, String>? namespaces}) readOtp(
+      String data) {
+    if (!data.startsWith('{')) {
+      return (passcode: data, namespaces: null);
+    }
+    final Map<String, dynamic> json = jsonDecode(data);
+    return (
+      passcode: json['passcode'] as String,
+      namespaces: (json['namespaces'] as Map?)?.cast<String, String>(),
+    );
+  }
+
+  /// Whether [scope] may manage an OTP issued with [namespaces]. One with
+  /// none, issued before OTPs carried namespaces or by a CRAM connection, is
+  /// for full-privilege connections only.
+  bool _mayManage(Map<String, String> scope, Map<String, String>? namespaces) =>
+      namespaces != null && namespaces.isNotEmpty && covers(scope, namespaces);
+
+  /// Whether [held] is a superset of [wanted]: each namespace held with at
+  /// least the same letters ("rw" covers "r"). `*` covers any other
+  /// namespace, while `*` and `__manage` must be held literally, as in
+  /// EnrollVerbHandler.verifyNoEscalation.
+  @visibleForTesting
+  static bool covers(Map<String, String> held, Map<String, String> wanted) {
+    for (final entry in wanted.entries) {
+      String? access = held[entry.key];
+      final bool isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
+          entry.key == EnrollmentConstants.enrollManageNamespace;
+      if (access == null && !isSpecial) {
+        access = held[EnrollmentConstants.allNamespaces];
+      }
+      if (access == null ||
+          !entry.value.split('').every(access.split('').contains)) {
+        return false;
+      }
+    }
+    return true;
   }
 }

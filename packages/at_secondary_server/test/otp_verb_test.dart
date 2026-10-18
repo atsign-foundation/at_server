@@ -418,6 +418,24 @@ void main() {
                   ..approval = EnrollApproval(EnrollmentStatus.approved.name)));
     }
 
+    Future<void> useEnrollment(
+        String id, Map<String, String> namespaces) async {
+      inboundConnection.metaData.enrollmentId = id;
+      inboundConnection.metaData.authType = AuthType.apkam;
+      await keyValueStore.put(
+          '$id.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(
+                EnrollDataStoreValue('sid', 'app', 'device', 'apkam-key')
+                  ..namespaces = namespaces
+                  ..approval = EnrollApproval(EnrollmentStatus.approved.name)));
+    }
+
+    void useCram() {
+      inboundConnection.metaData.enrollmentId = null;
+      inboundConnection.metaData.authType = AuthType.cram;
+    }
+
     List<String> entries(Response response) =>
         (jsonDecode(response.data!) as List)
             .map((e) => '${e['type']}:${e['value']}')
@@ -442,8 +460,8 @@ void main() {
       expect(entries(await run('otp:list')), ['spp:old123']);
     });
 
-    test('otp:list is refused without full privilege', () async {
-      await useManageOnlyEnrollment();
+    test('otp:list is refused without __manage', () async {
+      await useEnrollment('wavi-only', {'wavi': 'rw'});
       expect(run('otp:list'), throwsA(isA<UnAuthorizedException>()));
     });
 
@@ -484,6 +502,87 @@ void main() {
           'private:abcd12$alice', AtData()..data = 'ABCD12');
       await run('otp:delete:ABCD12');
       expect(await keyValueStore.exists('private:abcd12$alice'), false);
+    });
+
+    test("otp:get records the issuing enrollment's namespaces", () async {
+      await useEnrollment('app1', {'app_1': 'rw', '__manage': 'rw'});
+      String otp = (await run('otp:get')).data!;
+      AtData? atData = await keyValueStore
+          .get(OtpVerbHandler.passcodeKey(otp, isSpp: false));
+      expect(jsonDecode(atData!.data!), {
+        'passcode': otp,
+        'namespaces': {'app_1': 'rw', '__manage': 'rw'}
+      });
+    });
+
+    test('otp:list shows a __manage enrollment only the OTPs it covers',
+        () async {
+      await run('otp:put:abc123');
+      String cramOtp = (await run('otp:get')).data!;
+      await useEnrollment(
+          'both', {'app_1': 'rw', 'app_2': 'rw', '__manage': 'rw'});
+      String bothOtp = (await run('otp:get')).data!;
+      await useEnrollment('two', {'app_2': 'rw', '__manage': 'rw'});
+      String twoOtp = (await run('otp:get')).data!;
+
+      expect(entries(await run('otp:list')), ['otp:$twoOtp']);
+      await useEnrollment(
+          'both', {'app_1': 'rw', 'app_2': 'rw', '__manage': 'rw'});
+      expect(entries(await run('otp:list')),
+          unorderedEquals(['otp:$bothOtp', 'otp:$twoOtp']));
+      useCram();
+      expect(
+          entries(await run('otp:list')),
+          unorderedEquals(
+              ['spp:abc123', 'otp:$cramOtp', 'otp:$bothOtp', 'otp:$twoOtp']));
+    });
+
+    test('otp:delete by a __manage enrollment removes only OTPs it covers',
+        () async {
+      await useEnrollment(
+          'both', {'app_1': 'rw', 'app_2': 'rw', '__manage': 'rw'});
+      String bothOtp = (await run('otp:get')).data!;
+      await useEnrollment('two', {'app_2': 'rw', '__manage': 'rw'});
+      String twoOtp = (await run('otp:get')).data!;
+
+      expect((await run('otp:delete:$bothOtp')).data, 'ok');
+      expect((await run('otp:delete:$twoOtp')).data, 'ok');
+      OtpVerbHandler handler = OtpVerbHandler(keyValueStore);
+      expect(await handler.isPasscodeValid(bothOtp), true);
+      expect(await handler.isPasscodeValid(twoOtp), false);
+    });
+
+    test('otp:delete:spp by a __manage enrollment leaves the SPP', () async {
+      await run('otp:put:abc123');
+      await useEnrollment('manage', {'__manage': 'rw'});
+      expect((await run('otp:delete:spp')).data, 'ok');
+      expect(
+          await OtpVerbHandler(keyValueStore).isPasscodeValid('abc123'), true);
+    });
+
+    test('an OTP stored before OTPs carried namespaces is full privilege only',
+        () async {
+      await keyValueStore.put(
+          OtpVerbHandler.passcodeKey('ABCD12', isSpp: false),
+          AtData()..data = 'ABCD12');
+      expect(entries(await run('otp:list')), ['otp:ABCD12']);
+      await useEnrollment('manage', {'__manage': 'rw'});
+      expect(entries(await run('otp:list')), isEmpty);
+    });
+
+    test('covers follows verifyNoEscalation', () {
+      expect(OtpVerbHandler.covers({'a': 'rw'}, {'a': 'r'}), true);
+      expect(OtpVerbHandler.covers({'a': 'r'}, {'a': 'rw'}), false);
+      expect(OtpVerbHandler.covers({'*': 'rw'}, {'a': 'rw'}), true);
+      expect(OtpVerbHandler.covers({'*': 'rw'}, {'__manage': 'rw'}), false);
+      expect(
+          OtpVerbHandler.covers(
+              {'a': 'rw', '__manage': 'rw'}, {'*': 'rw', '__manage': 'rw'}),
+          false);
+      expect(
+          OtpVerbHandler.covers(
+              {'*': 'rw', '__manage': 'rw'}, {'*': 'rw', '__manage': 'rw'}),
+          true);
     });
   });
 }
