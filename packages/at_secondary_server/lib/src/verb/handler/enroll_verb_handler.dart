@@ -1114,7 +1114,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final Map<String, dynamic> stored =
         ApskLinks.linksIn(record?.metaData?.appMetadata);
 
-    // ignore: experimental_member_use
     final Map<String, dynamic> requested = enrollParams.links!;
     final Map<String, dynamic> written = {};
     for (final MapEntry<String, dynamic> request in requested.entries) {
@@ -1818,7 +1817,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           throw IllegalArgumentException(
               'enrollmentId is mandatory for enroll:link');
         }
-        // ignore: experimental_member_use
         final Map<String, dynamic>? links = enrollParams.links;
         if (links == null || links.isEmpty) {
           throw IllegalArgumentException(
