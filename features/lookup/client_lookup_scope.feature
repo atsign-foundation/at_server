@@ -7,7 +7,7 @@ Feature: A client names another atSign's key bare when it looks it up
   atSign's atServer. The client keeps its connection. A lookup of the
   client's own atSign's keys may still name a scope.
 
-  Races: the refusal reads only the request.
+  Races: the refusal reads only the request and the connection's own state.
   Replay: nothing is sent, consumed or written before the refusal.
   DoS: the refusal looks for a scope in the key and sends nothing to another
   atServer.
