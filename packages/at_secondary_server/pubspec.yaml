@@ -68,3 +68,12 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
+
+  # TEMPORARY: at_commons with the otp:list / otp:delete grammar
+  # (atsign-foundation/at_client_sdk#2367). Replace with the published
+  # at_commons version before merge.
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      path: packages/at_commons
+      ref: d661aff9a7e914358e6c5b16a06fdd625ea1f4cb
