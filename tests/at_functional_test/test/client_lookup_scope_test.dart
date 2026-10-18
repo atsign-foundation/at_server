@@ -71,6 +71,23 @@ void main() {
     }
   });
 
+  test(
+      "A client's scoped lookup of another atSign's key in a batch is refused "
+      "without asking that atSign's atServer", () async {
+    final String reply = await send(
+        xavierClient,
+        'batch:${jsonEncode([
+              {'id': 1, 'command': 'lookup:public:phone.wavi$jeremy'}
+            ])}');
+
+    expect(reply, startsWith('data:'));
+    final List entries = jsonDecode(reply.substring('data:'.length));
+    expect(entries.single['id'], 1);
+    expect(entries.single['response']['error_code'], 'AT0009');
+    expect(await send(xavierClient, 'info:brief'), startsWith('data:'),
+        reason: 'the connection stays open');
+  });
+
   test("A client still looks up another atSign's key named bare", () async {
     final String key = 'phone${Uuid().v4().substring(0, 8)}.wavi';
     addTearDown(() => send(jeremyClient, 'delete:$xavier:$key$jeremy'));
