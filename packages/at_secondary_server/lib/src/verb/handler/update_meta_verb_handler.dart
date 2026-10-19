@@ -56,12 +56,14 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
       // silent-write expiry carry — are stored faithfully.
       logger.finer(
           'calling keyValueStore.putMeta(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData.metaData!}');
-      var result = await keyStore.putMeta(
-        updatePreProcessResult.atKey,
-        updatePreProcessResult.atData.metaData!,
-        skipCommit: verbParams[WireParams.noCommit] != null,
-        assertedTimestamps: updatePreProcessResult.assertedTimestamps,
-      );
+      var result = await keepingApskLinks(
+          updatePreProcessResult,
+          () => keyStore.putMeta(
+                updatePreProcessResult.atKey,
+                updatePreProcessResult.atData.metaData!,
+                skipCommit: verbParams[WireParams.noCommit] != null,
+                assertedTimestamps: updatePreProcessResult.assertedTimestamps,
+              ));
       response.data = result?.toString();
 
       // Queue the auto-notification from the STORED record, after the

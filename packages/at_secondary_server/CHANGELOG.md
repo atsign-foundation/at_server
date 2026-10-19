@@ -81,9 +81,24 @@
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
 
-- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
-  `@` is now refused; a `notify` to one, for example, is answered with an
-  error.
+- feat: `enroll:link` stores links vouching for the client data signing keys
+  an approved enrollment's `_apsk` record lists, one per key. The enrollment
+  itself, a connection that could approve it, or a CRAM connection may write
+  them, and any other write of that `_apsk` record keeps the links for the
+  keys it still lists.
+
+- fix: an `enroll:update` is refused with AT0022 when it would leave the
+  enrollment's client authentication signing key listed in its `_apsk`
+  beside another key, or carrying a link.
+
+- build: `at_commons` 5.23.0. An atSign of more than 55 characters after
+  its `@` is now refused; a `notify` to one, for example, is answered with
+  an error.
+
+- build: `at_utils` 3.5.0. In a log message, control characters other than a
+  line feed, bidirectional formatting characters, and line and paragraph
+  separators appear as escapes such as `\x1b` and `\u202e`, and each line
+  after a line feed is indented by two spaces.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
