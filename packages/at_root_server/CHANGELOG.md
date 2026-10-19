@@ -5,8 +5,8 @@
   line feed, bidirectional formatting characters, and line and paragraph
   separators appear as escapes such as `\x1b` and `\u202e`, and each line
   after a line feed is indented by two spaces.
-- build: `at_commons` 5.23.0, which `at_utils` 3.5.0 requires. Nothing the
-  root server uses from it changes.
+- build: `at_commons` ^5.21.0, as `at_utils` 3.5.0 requires; the lock takes
+  5.23.0, and nothing the root server uses from it changes.
 
 ## 2.2.0
 
