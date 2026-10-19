@@ -2,8 +2,9 @@
 set -euo pipefail
 
 # Runs at_client_sdk's live packs against an atServer built from this
-# checkout, so a change that breaks the reference SDK shows up before it
-# reaches trunk.
+# checkout, so an atServer change that breaks the reference SDK shows up
+# before it reaches trunk. The packs' other dependencies, this repo's
+# at_persistence packages among them, come from pub.dev.
 #
 #   ./runLocal.sh [BASE_PORT] [PACK...]
 #
@@ -14,8 +15,9 @@ set -euo pipefail
 # PACK is functional, e2e, onboarding_cli or onboarding_cli_proxy, and the
 # default is functional and e2e. A BASE_PORT, passed or exported as
 # VIRTUALENV_BASE_PORT, is handed to each pack's own runLocal.sh. The
-# onboarding_cli_proxy pack needs one: it puts its proxy on BASE_PORT+98, and
-# the host must resolve vip.ve.atsign.zone to 127.0.0.1.
+# onboarding_cli_proxy pack needs one, since it puts its proxy on
+# BASE_PORT+98. Every pack dials vip.ve.atsign.zone from the host, so the
+# host must resolve it to 127.0.0.1.
 #
 # AT_CLIENT_SDK_DIR names an at_client_sdk clone (default: at_client_sdk
 # beside this checkout). AT_CLIENT_SDK_REF names the commit to test (default:
@@ -30,19 +32,21 @@ set -euo pipefail
 # buildve.sh builds the atServer image under this checkout's own tag, which
 # is passed to each pack as VIRTUALENV_IMAGE; at_virtual_env:local is never
 # touched. HOME points at a scratch directory for the run, and PUB_CACHE and
-# DOCKER_CONFIG keep their values.
+# DOCKER_CONFIG keep their values. A pack passes only if its runner exits 0
+# and every virtualenv container it created ran that image.
 #
 # Each pack runs in its own process group, with stdin from /dev/null. An
 # interrupt, TERM, HUP or ALRM stops the running pack, and every container a
-# pack left running is taken down before the worktree is removed; a further
-# signal during that cleanup is reported and does not cut it short. A signal
-# during the build takes effect once the build ends. KILL ends the runner
-# alone, leaving the running pack, its containers and the worktree behind.
+# pack left behind is removed before the worktree is. The cleanup ignores a
+# further signal, and the commands it runs ignore a further interrupt or HUP.
+# A signal during the build takes effect once the build ends. KILL ends the
+# runner alone, leaving the running pack, its containers and the worktree
+# behind.
 #
-# Exits non-zero if any pack fails, after running the rest. When
-# GITHUB_STEP_SUMMARY is set, the at_client_sdk commit, the atServer build,
-# each pack's result and any stopping signal are appended to it as each
-# becomes known.
+# Exits non-zero if any pack fails, after running the rest, and 2 if the run
+# is refused. When GITHUB_STEP_SUMMARY is set, a refusal, the at_client_sdk
+# commit, the atServer build, each pack's result and any stopping signal are
+# appended to it as each becomes known.
 
 cd "$(dirname -- "$0")/../.."
 repoDir=$(pwd)
@@ -54,14 +58,41 @@ summary() {
   fi
 }
 
+# Refuses the run, saying why.
+refuse() {
+  echo "*** $1" >&2
+  summary "- refused: $1"
+  exit 2
+}
+
+# Runs a command, sending it TERM after [seconds] and KILL ten seconds later.
+# NOTE a plain alarm cannot bound docker: Go programs ignore SIGALRM.
+bounded() {
+  perl -MPOSIX -e '
+    my $seconds = shift;
+    my $pid = fork() // die "bounded: cannot fork: $!\n";
+    if ($pid == 0) {
+      $SIG{TERM} = "DEFAULT";
+      exec(@ARGV) or die "bounded: cannot run $ARGV[0]: $!\n";
+    }
+    $SIG{ALRM} = sub {
+      kill("TERM", $pid);
+      $SIG{ALRM} = sub { kill("KILL", $pid) };
+      alarm(10);
+    };
+    alarm($seconds);
+    waitpid($pid, 0);
+    exit(WIFEXITED($?) ? WEXITSTATUS($?) : 128 + WTERMSIG($?));
+  ' "$@"
+}
+
 if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
   VIRTUALENV_BASE_PORT="$1"
   shift
 fi
 basePort="${VIRTUALENV_BASE_PORT:-}"
 if [[ -n "$basePort" && ! "$basePort" =~ ^[0-9]+$ ]]; then
-  echo "*** Not a base port: ${basePort}" >&2
-  exit 2
+  refuse "Not a base port: ${basePort}"
 fi
 packs=("$@")
 if [[ ${#packs[@]} -eq 0 ]]; then
@@ -79,20 +110,17 @@ packDir() {
 }
 for pack in "${packs[@]}"; do
   if ! packDir "$pack" >/dev/null; then
-    echo "*** Unknown pack '$pack': use functional, e2e, onboarding_cli or onboarding_cli_proxy" >&2
-    exit 2
+    refuse "Unknown pack '$pack': use functional, e2e, onboarding_cli or onboarding_cli_proxy"
   fi
   if [[ "$pack" == onboarding_cli_proxy && -z "$basePort" ]]; then
-    echo "*** The onboarding_cli_proxy pack needs a BASE_PORT" >&2
-    exit 2
+    refuse "The onboarding_cli_proxy pack needs a BASE_PORT"
   fi
 done
 
 sdkDir="${AT_CLIENT_SDK_DIR:-${repoDir}/../at_client_sdk}"
 sdkRef="${AT_CLIENT_SDK_REF:-origin/trunk}"
 if ! git -C "$sdkDir" rev-parse --git-dir >/dev/null; then
-  echo "*** No at_client_sdk clone at ${sdkDir}; set AT_CLIENT_SDK_DIR" >&2
-  exit 2
+  refuse "No at_client_sdk clone at ${sdkDir}; set AT_CLIENT_SDK_DIR"
 fi
 if [[ "$sdkRef" == origin/* ]]; then
   fetchRef="${sdkRef#origin/}"
@@ -101,7 +129,8 @@ if [[ "$sdkRef" == origin/* ]]; then
   git -C "$sdkDir" fetch origin "$fetchRef" ||
     { sleep 2 && git -C "$sdkDir" fetch origin "$fetchRef"; }
 fi
-sdkCommit=$(git -C "$sdkDir" rev-parse --verify "${sdkRef}^{commit}")
+sdkCommit=$(git -C "$sdkDir" rev-parse --verify "${sdkRef}^{commit}") ||
+  refuse "No commit ${sdkRef} in ${sdkDir}"
 summary "- at_client_sdk ${sdkCommit}"
 
 for pack in "${packs[@]}"; do
@@ -109,72 +138,114 @@ for pack in "${packs[@]}"; do
   runnerText=$(git -C "$sdkDir" show "${sdkCommit}:${runner}" || true)
   if [[ "$runnerText" != *'${VIRTUALENV_IMAGE:-'* ||
     "$runnerText" != *COMPOSE_PROJECT_NAME* ]]; then
-    echo "*** at_client_sdk ${sdkCommit}: ${runner} does not take VIRTUALENV_IMAGE and name its compose project" >&2
-    exit 2
+    refuse "at_client_sdk ${sdkCommit}: ${runner} does not take VIRTUALENV_IMAGE and name its compose project"
   fi
 done
 
 source "${repoDir}/tools/build_virtual_environment/live_rig.sh"
-live_rig_lock "$repoDir" || exit 1
+if ! live_rig_lock "$repoDir"; then
+  summary "- could not take the live-rig lock"
+  exit 1
+fi
 image=$(live_rig_image "$repoDir")
 
 tmpRoot="${TMPDIR:-/tmp}"
 runDir=$(mktemp -d "${tmpRoot%/}/client_checks.XXXXXX")
-runDirPhysical=$(cd "$runDir" && pwd -P)
+runDir=$(cd "$runDir" && pwd -P)
 sdkWorktree="${runDir}/at_client_sdk"
 packPid=""
+launching=""
+bgBefore="${!:-}"
+eventsPid=""
 
 # Stops the running pack's process group, giving it 30 seconds to tidy up.
 stopPack() {
-  if [[ -z "$packPid" ]]; then
+  local pid="$packPid"
+  # NOTE a signal between the pack's launch and the line recording its pid
+  # finds packPid empty while $! already names the pack.
+  if [[ -z "$pid" && -n "$launching" && "${!:-}" != "$bgBefore" ]]; then
+    pid=$!
+  fi
+  if [[ -z "$pid" ]]; then
     return 0
   fi
-  if kill -0 -- "-${packPid}" 2>/dev/null; then
-    kill -TERM -- "-${packPid}" || true
-    kill -CONT -- "-${packPid}" || true
+  if kill -0 -- "-${pid}" 2>/dev/null; then
+    kill -TERM -- "-${pid}" || true
+    kill -CONT -- "-${pid}" || true
     local waited=0
-    while kill -0 -- "-${packPid}" 2>/dev/null && ((waited < 30)); do
+    while kill -0 -- "-${pid}" 2>/dev/null && ((waited < 30)); do
       sleep 1
       waited=$((waited + 1))
     done
-    if kill -0 -- "-${packPid}" 2>/dev/null; then
-      kill -KILL -- "-${packPid}" || true
+    if kill -0 -- "-${pid}" 2>/dev/null; then
+      kill -KILL -- "-${pid}" || true
     fi
   fi
   packPid=""
 }
 
-# Takes down every compose project whose files are in this run's worktree.
-downPackContainers() {
-  local projects project
-  projects=$(docker ps -a --format \
-    '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}' |
-    while IFS='|' read -r project dir; do
-      if [[ -n "$project" &&
-        ("$dir" == "${runDir}/"* || "$dir" == "${runDirPhysical}/"*) ]]; then
-        echo "$project"
+# Records the compose directory, service and image of each container created
+# from [since] (a Unix time) on, into [log].
+watchContainers() {
+  docker events --since "$1" --filter type=container --filter event=create \
+    --format '{{index .Actor.Attributes "com.docker.compose.project.working_dir"}}|{{index .Actor.Attributes "com.docker.compose.service"}}|{{.Actor.Attributes.image}}' \
+    > "$2" &
+  eventsPid=$!
+}
+
+stopWatching() {
+  if [[ -n "$eventsPid" ]]; then
+    kill -TERM "$eventsPid" || true
+    wait "$eventsPid" || true
+    eventsPid=""
+  fi
+}
+
+# Says whether the virtualenv containers recorded in [log] from this run's
+# worktree all ran this run's image, and there was at least one.
+ranImage() {
+  local dir service used seen=""
+  while IFS='|' read -r dir service used; do
+    if [[ "$dir" == "${runDir}/"* && "$service" == *virtualenv ]]; then
+      if [[ "$used" != "$image" ]]; then
+        return 1
       fi
-    done | sort -u) || true
-  for project in $projects; do
-    echo "*** Taking down ${project}, which a pack left running"
-    perl -e 'alarm 120; exec @ARGV' -- \
-      docker compose -p "$project" down --remove-orphans || true
-  done
+      seen=1
+    fi
+  done < "$1"
+  [[ -n "$seen" ]]
+}
+
+# Removes every container whose compose files are in this run's worktree.
+downPackContainers() {
+  local id name dir ids=()
+  while IFS='|' read -r id name dir; do
+    if [[ "$dir" == "${runDir}/"* ]]; then
+      echo "*** Removing ${name}, which a pack left behind"
+      ids+=("$id")
+    fi
+  done < <(bounded 60 docker ps -a --format \
+    '{{.ID}}|{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}' || true)
+  if [[ ${#ids[@]} -gt 0 ]]; then
+    bounded 120 docker rm -f "${ids[@]}" || true
+  fi
 }
 
 cleanup() {
-  trap 'echo "*** Still cleaning up" >&2' INT TERM HUP ALRM
+  set +e
+  trap '' INT TERM HUP ALRM PIPE
   stopPack
+  stopWatching
   downPackContainers
   if [[ -d "$sdkWorktree" ]]; then
-    git -C "$sdkDir" worktree remove --force "$sdkWorktree" || true
+    git -C "$sdkDir" worktree remove --force "$sdkWorktree"
   fi
   rm -rf "$runDir"
 }
 onSignal() {
-  trap 'echo "*** Still cleaning up" >&2' INT TERM HUP ALRM
+  set +e
+  trap '' INT TERM HUP ALRM PIPE
   summary "- stopped by a signal (exit $1)"
-  stopPack
   exit "$1"
 }
 trap cleanup EXIT
@@ -187,7 +258,10 @@ echo "*** Checking out at_client_sdk ${sdkCommit} in ${sdkWorktree}"
 git -C "$sdkDir" worktree add --detach "$sdkWorktree" "$sdkCommit"
 
 echo "*** Building ${image} from ${repoDir}"
-bash "${repoDir}/tools/build_virtual_environment/buildve.sh" -t "$image"
+if ! bash "${repoDir}/tools/build_virtual_environment/buildve.sh" -t "$image"; then
+  summary "- the atServer build failed"
+  exit 1
+fi
 built=$(docker image inspect "$image" --format \
   '{{index .Config.Labels "com.atsign.ve.revision"}} tree {{index .Config.Labels "com.atsign.ve.tree"}} dirty={{index .Config.Labels "com.atsign.ve.dirty"}}')
 summary "- at_server ${built}, as ${image}"
@@ -202,10 +276,15 @@ results=()
 failed=0
 for pack in "${packs[@]}"; do
   echo "*** Running at_client_sdk's ${pack} pack against ${image}"
+  containersLog="${runDir}/containers.${pack}"
+  watchContainers "$(date +%s)" "$containersLog"
+  bgBefore=$!
+  launching=1
   set -m
   (cd "${sdkWorktree}/tests/$(packDir "$pack")" &&
     exec ./runLocal.sh ${basePort:+"$basePort"} </dev/null) &
   packPid=$!
+  launching=""
   set +m
   if wait "$packPid"; then
     status=0
@@ -213,12 +292,16 @@ for pack in "${packs[@]}"; do
     status=$?
   fi
   packPid=""
+  stopWatching
   downPackContainers
-  if [[ $status -eq 0 ]]; then
-    results+=("${pack}: passed")
-  else
+  if [[ $status -ne 0 ]]; then
     results+=("${pack}: FAILED (exit ${status})")
     failed=1
+  elif ! ranImage "$containersLog"; then
+    results+=("${pack}: FAILED (its virtualenv did not run ${image})")
+    failed=1
+  else
+    results+=("${pack}: passed")
   fi
   summary "- ${results[${#results[@]} - 1]}"
 done

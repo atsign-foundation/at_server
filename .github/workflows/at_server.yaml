@@ -337,12 +337,13 @@ jobs:
       - name: Add entry to hosts file
         run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
 
+      # NOTE exec, so a cancel or timeout signals the runner itself.
       - name: Run at_client_sdk's functional and e2e packs
         working-directory: at_server
         env:
           AT_CLIENT_SDK_DIR: ${{ github.workspace }}/at_client_sdk
           AT_CLIENT_SDK_REF: HEAD
-        run: tests/client_checks/runLocal.sh 27000 functional e2e
+        run: exec tests/client_checks/runLocal.sh 27000 functional e2e
 
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available

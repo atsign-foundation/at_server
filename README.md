@@ -52,8 +52,8 @@ virtual machines. Tests are arranged so that cross testing happens between
 the version under test, and production releases.
 
 * [client_checks](./tests/client_checks/) runs at_client_sdk's live packs
-against an atServer built from this checkout, so a change that breaks the
-reference SDK shows up before it reaches trunk.
+against an atServer built from this checkout, so an atServer change that
+breaks the reference SDK shows up before it reaches trunk.
 
 ## tools
 
