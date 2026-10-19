@@ -39,12 +39,20 @@ set -euo pipefail
 # during the build takes effect once the build ends. KILL ends the runner
 # alone, leaving the running pack, its containers and the worktree behind.
 #
-# Exits non-zero if any pack fails, after running the rest. The closing
-# summary of what was tested and how each pack did is also appended to
-# GITHUB_STEP_SUMMARY when that is set.
+# Exits non-zero if any pack fails, after running the rest. When
+# GITHUB_STEP_SUMMARY is set, the at_client_sdk commit, the atServer build,
+# each pack's result and any stopping signal are appended to it as each
+# becomes known.
 
 cd "$(dirname -- "$0")/../.."
 repoDir=$(pwd)
+
+# Appends lines to the job summary, when there is one.
+summary() {
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    printf '%s\n' "$@" >> "$GITHUB_STEP_SUMMARY"
+  fi
+}
 
 if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
   VIRTUALENV_BASE_PORT="$1"
@@ -94,6 +102,7 @@ if [[ "$sdkRef" == origin/* ]]; then
     { sleep 2 && git -C "$sdkDir" fetch origin "$fetchRef"; }
 fi
 sdkCommit=$(git -C "$sdkDir" rev-parse --verify "${sdkRef}^{commit}")
+summary "- at_client_sdk ${sdkCommit}"
 
 for pack in "${packs[@]}"; do
   runner="tests/$(packDir "$pack")/runLocal.sh"
@@ -164,6 +173,7 @@ cleanup() {
 }
 onSignal() {
   trap 'echo "*** Still cleaning up" >&2' INT TERM HUP ALRM
+  summary "- stopped by a signal (exit $1)"
   stopPack
   exit "$1"
 }
@@ -180,6 +190,7 @@ echo "*** Building ${image} from ${repoDir}"
 bash "${repoDir}/tools/build_virtual_environment/buildve.sh" -t "$image"
 built=$(docker image inspect "$image" --format \
   '{{index .Config.Labels "com.atsign.ve.revision"}} tree {{index .Config.Labels "com.atsign.ve.tree"}} dirty={{index .Config.Labels "com.atsign.ve.dirty"}}')
+summary "- at_server ${built}, as ${image}"
 
 export PUB_CACHE="${PUB_CACHE:-${HOME}/.pub-cache}"
 export DOCKER_CONFIG="${DOCKER_CONFIG:-${HOME}/.docker}"
@@ -209,15 +220,9 @@ for pack in "${packs[@]}"; do
     results+=("${pack}: FAILED (exit ${status})")
     failed=1
   fi
+  summary "- ${results[${#results[@]} - 1]}"
 done
 
 echo "*** at_client_sdk ${sdkCommit} against ${image}, at_server ${built}:"
 printf '***   %s\n' "${results[@]}"
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  {
-    echo "at_client_sdk ${sdkCommit} against ${image}, at_server ${built}"
-    echo
-    printf -- '- %s\n' "${results[@]}"
-  } >> "$GITHUB_STEP_SUMMARY"
-fi
 exit "$failed"
