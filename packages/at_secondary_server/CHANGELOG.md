@@ -84,12 +84,17 @@
 - feat: `enroll:link` stores links vouching for the client data signing keys
   an approved enrollment's `_apsk` record lists, one per key. The enrollment
   itself, a connection that could approve it, or a CRAM connection may write
-  them, and any other write of that `_apsk` record keeps the links for the
-  keys it still lists.
+  them, unless the record is immutable. Any other write of that `_apsk`
+  record keeps the link on each key it still lists with the alg and public
+  key the link names, other than the enrollment's client authentication
+  signing key. A put, `update:meta` or `enroll:update` that would take the
+  record with those links over 500 KiB is refused with AT0022.
 
-- fix: an `enroll:update` is refused with AT0022 when it would leave the
-  enrollment's client authentication signing key listed in its `_apsk`
-  beside another key, or carrying a link.
+- fix: an `enroll:request` or `enroll:update` is refused with AT0022 when it
+  would list the enrollment's client authentication signing key in its
+  `_apsk` beside another key. An `enroll:update` is also refused when that
+  key would carry a link, or when the `_apsk` it publishes lists a kid twice
+  or an entry without a string kid, alg and pub.
 
 - build: `at_commons` 5.23.0. An atSign of more than 55 characters after
   its `@` is now refused; a `notify` to one, for example, is answered with

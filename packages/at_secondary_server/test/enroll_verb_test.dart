@@ -4171,7 +4171,13 @@ void main() {
       final apsk = {
         'v': 1,
         'keys': [
-          {'use': 'sign', 'alg': 'mldsa65', 'pub': 'bmV3', 'status': 'active'}
+          {
+            'kid': 'new key',
+            'use': 'sign',
+            'alg': 'mldsa65',
+            'pub': 'bmV3',
+            'status': 'active'
+          }
         ]
       };
 

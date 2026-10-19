@@ -199,6 +199,35 @@ void main() {
   Matcher refusedNaming<T>(String what) => throwsA(isA<T>()
       .having((e) => (e as AtException).message, 'message', contains(what)));
 
+  /// Sends `update:meta` of [enrollmentId]'s `_apsk` as that enrollment,
+  /// carrying [appMetadata].
+  Future<void> updateMeta(String enrollmentId, AppMetadata appMetadata) async {
+    connectAs(enrollmentId);
+    final r = Response();
+    await UpdateMetaVerbHandler(keyValueStore, statsNotificationService,
+            notificationManager, alice)
+        .processVerb(
+            r,
+            getVerbParam(
+                VerbSyntax.update_meta,
+                'update:meta:${apskKey(enrollmentId)}:appMetadata:'
+                '${Metadata.encodeAppMetadata(appMetadata)}'),
+            inboundConnection);
+    expect(r.isError, false, reason: '${r.errorMessage}');
+  }
+
+  /// Stores [value] at [enrollmentId]'s `_apsk` straight into the keystore,
+  /// keeping the stored appMetadata, so a later write starts from it.
+  Future<void> storeDirectly(String enrollmentId,
+      {required String value, bool immutable = false}) async {
+    final AtData stored = await record(enrollmentId);
+    await keyValueStore.put(
+        apskKey(enrollmentId),
+        AtData()
+          ..data = value
+          ..metaData = (stored.metaData!..immutable = immutable));
+  }
+
   group('enroll:link admits only the target or a caller that could approve it',
       () {
     late String b;
@@ -1184,6 +1213,21 @@ void main() {
     });
 
     test(
+        'an update installing a key that a put of B\'s _apsk listed twice '
+        'under one kid, beside another key, is refused, naming it', () async {
+      final b =
+          await enrollment('b', apsk: listForm([entry(kidK, 'rsa2048', pubK)]));
+      await put(
+          b,
+          jsonEncode(listForm(
+              [entry(kidK, 'rsa2048', pubK), entry(kidK, 'mldsa65', p2)])));
+      final String before = await apkamPublicKeyOf(b);
+      await expectLater(
+          rotateOntoK(b), refusedNaming<IllegalArgumentException>(kidK));
+      expect(await apkamPublicKeyOf(b), before);
+    });
+
+    test(
         'an update republishing B\'s _apsk to list its authentication key '
         'beside another is refused, naming it, and nothing is written',
         () async {
@@ -1298,6 +1342,344 @@ void main() {
           ]));
       expect(await linksOn(b), {k1: bareLink});
     });
+  });
+
+  group(
+      'a link stays on a key only while the record lists the alg and public '
+      'key it names', () {
+    late String b;
+    late Map<String, dynamic> l1;
+    late Map<String, dynamic> l2;
+
+    setUp(() async {
+      b = await enrollment('b', apsk: k1AndK2);
+      l1 = chainLink(payload(b, k1, 'mldsa65', p1));
+      l2 = rootLink(payload(b, k2, 'rsa2048', p2));
+      await link(etu.primaryEnId, b, {
+        k1: {'link': l1, 'expect': null},
+        k2: {'link': l2, 'expect': null}
+      });
+    });
+
+    test(
+        'a put listing another public key under K1\'s kid removes K1\'s link '
+        'in the same write', () async {
+      await put(
+          b,
+          jsonEncode(listForm(
+              [entry(k1, 'mldsa65', p3), entry(k2, 'rsa2048', p2)])));
+      expect(await linksOn(b), {k2: l2});
+    });
+
+    test(
+        'an enroll:update republish listing another alg under K1\'s kid '
+        'removes K1\'s link in the same write', () async {
+      await republish(
+          b, listForm([entry(k1, 'rsa2048', p1), entry(k2, 'rsa2048', p2)]));
+      expect(await linksOn(b), {k2: l2});
+    });
+
+    test(
+        'an update:meta of a record listing another public key under K1\'s '
+        'kid removes K1\'s link', () async {
+      await storeDirectly(b,
+          value: jsonEncode(listForm(
+              [entry(k1, 'mldsa65', p3), entry(k2, 'rsa2048', p2)])));
+      await updateMeta(b, AppMetadata(providerId: 'legacy'));
+      expect(await linksOn(b), {k2: l2});
+    });
+
+    test(
+        'a write listing K1\'s alg and public key as before, whatever its '
+        'status, keeps K1\'s link', () async {
+      await put(
+          b,
+          jsonEncode(listForm([
+            entry(k1, 'mldsa65', p1, status: 'retired'),
+            entry(k2, 'rsa2048', p2)
+          ])));
+      expect(await linksOn(b), {k1: l1, k2: l2});
+    });
+  });
+
+  group(
+      'a write that removes B\'s last link leaves no appMetadata the atServer '
+      'made', () {
+    late String b;
+
+    setUp(() async {
+      b = await enrollment('b', apsk: k1AndK2);
+      await link(etu.primaryEnId, b, {
+        k1: {'link': chainLink(payload(b, k1, 'mldsa65', p1)), 'expect': null}
+      });
+      expect((await record(b)).metaData!.appMetadata, isNotNull,
+          reason: 'precondition: the link gave the record appMetadata');
+    });
+
+    test(
+        'an enroll:update republish that no longer lists K1 leaves the record '
+        'with no appMetadata', () async {
+      await republish(b, listForm([entry(k2, 'rsa2048', p2)]));
+      expect((await record(b)).metaData!.appMetadata, isNull);
+    });
+
+    test('a put that no longer lists K1 leaves the record with no appMetadata',
+        () async {
+      await put(b, jsonEncode(listForm([entry(k2, 'rsa2048', p2)])));
+      expect((await record(b)).metaData!.appMetadata, isNull);
+    });
+
+    test('a record whose appMetadata holds anything else keeps it', () async {
+      await put(b, jsonEncode(k1AndK2),
+          appMetadata:
+              AppMetadata(providerId: 'legacy', additional: {'other': 'kept'}));
+      await republish(b, listForm([entry(k2, 'rsa2048', p2)]));
+      final AppMetadata kept = (await record(b)).metaData!.appMetadata!;
+      expect(kept.providerId, 'legacy');
+      expect(kept.additional, {'other': 'kept'});
+    });
+  });
+
+  group(
+      'every write of B\'s _apsk keeps the record and its links within 500 '
+      'KiB', () {
+    const int limit = 500 * 1024;
+    late String b;
+    late Map<String, dynamic> l1;
+    late Map<String, dynamic> l2;
+
+    setUp(() async {
+      b = await enrollment('b', apsk: k1AndK2);
+      // About 12 KiB each, inside the 16 KiB one link may take.
+      l1 = chainLink(payload(b, k1, 'mldsa65', p1), signature: 'x' * 12000);
+      l2 = rootLink(payload(b, k2, 'rsa2048', p2), signature: 'y' * 12000);
+      await link(etu.primaryEnId, b, {
+        k1: {'link': l1, 'expect': null},
+        k2: {'link': l2, 'expect': null}
+      });
+    });
+
+    /// K1 and K2 in the list form, padded so the value alone is [bytes]
+    /// long encoded.
+    Map<String, dynamic> padded(int bytes) {
+      final int base = utf8.encode(jsonEncode({...k1AndK2, 'pad': ''})).length;
+      return {...k1AndK2, 'pad': 'z' * (bytes - base)};
+    }
+
+    test(
+        'a put that would take the record and its links over 500 KiB is '
+        'refused, and the record is unchanged', () async {
+      await expectLater(put(b, jsonEncode(padded(limit - 10000))),
+          throwsA(isA<IllegalArgumentException>()));
+      expect((await record(b)).data, jsonEncode(k1AndK2));
+      expect(await linksOn(b), {k1: l1, k2: l2});
+    });
+
+    test(
+        'an enroll:update republish that would take the record and its links '
+        'over 500 KiB is refused, and B\'s enrollment record is unchanged too',
+        () async {
+      await expectLater(republish(b, padded(limit - 10000)),
+          throwsA(isA<IllegalArgumentException>()));
+      expect(jsonEncode((await enMgr.getEnrollmentById(b)).apsk),
+          jsonEncode(k1AndK2));
+      expect((await record(b)).data, jsonEncode(k1AndK2));
+      expect(await linksOn(b), {k1: l1, k2: l2});
+    });
+
+    test(
+        'an update:meta that would take the record and its links over 500 KiB '
+        'is refused, and the record is unchanged', () async {
+      await expectLater(
+          updateMeta(
+              b,
+              AppMetadata(
+                  providerId: 'legacy',
+                  additional: {'other': 'z' * (limit - 10000)})),
+          throwsA(isA<IllegalArgumentException>()));
+      expect((await record(b)).metaData!.appMetadata!.additional,
+          {'apskLinks': {k1: l1, k2: l2}});
+    });
+
+    test('a put that keeps the record and its links within 500 KiB is written',
+        () async {
+      await put(b, jsonEncode(padded(limit - 40000)));
+      expect((await record(b)).data, jsonEncode(padded(limit - 40000)));
+      expect(await linksOn(b), {k1: l1, k2: l2});
+    });
+  });
+
+  group('enroll:link leaves an immutable _apsk record unchanged', () {
+    test('a link for a key of an immutable record is refused, and nothing is '
+        'written', () async {
+      final b = await enrollment('b', apsk: k1AndK2);
+      await storeDirectly(b, value: jsonEncode(k1AndK2), immutable: true);
+      await expectLater(
+          link(etu.primaryEnId, b, {
+            k1: {
+              'link': chainLink(payload(b, k1, 'mldsa65', p1)),
+              'expect': null
+            }
+          }),
+          throwsA(isA<IllegalStateException>()));
+      expect(await linksOn(b), isNull);
+    });
+  });
+
+  group('an enroll:update lists each kid once, each with a kid, alg and pub',
+      () {
+    late String b;
+
+    setUp(() async {
+      b = await enrollment('b', apsk: k1AndK2);
+    });
+
+    for (final (String name, List<Object> entries, String named)
+        in <(String, List<Object>, String)>[
+      (
+        'one kid twice',
+        [entry(k1, 'mldsa65', p1), entry(k1, 'rsa2048', p2)],
+        k1
+      ),
+      (
+        'an entry without an alg',
+        [
+          entry(k1, 'mldsa65', p1),
+          {'kid': k2, 'use': 'sign', 'pub': p2}
+        ],
+        'entry 2'
+      ),
+      (
+        'an entry whose kid is not a string',
+        [
+          entry(k1, 'mldsa65', p1),
+          {'kid': 7, 'use': 'sign', 'alg': 'rsa2048', 'pub': p2}
+        ],
+        'entry 2'
+      ),
+      ('an entry that is not an object', [entry(k1, 'mldsa65', p1), k2],
+          'entry 2'),
+    ]) {
+      test(
+          'a republish listing $name is refused, naming the entry, and '
+          'nothing is written', () async {
+        await expectLater(republish(b, {'v': 1, 'keys': entries}),
+            refusedNaming<IllegalArgumentException>(named));
+        expect(jsonEncode((await enMgr.getEnrollmentById(b)).apsk),
+            jsonEncode(k1AndK2));
+        expect((await record(b)).data, jsonEncode(k1AndK2));
+      });
+    }
+  });
+
+  group(
+      'an enroll:request lists its authentication key in its _apsk only '
+      'alone', () {
+    /// A request authenticating with [p1] and publishing [apsk].
+    EnrollParams request(String name, Map<String, dynamic> apsk) =>
+        EnrollParams()
+          ..appName = name
+          ..deviceName = 'device-$name'
+          ..apkamPublicKey = p1
+          ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key $name'
+          ..namespaces = {'buzz': 'rw'}
+          ..apsk = apsk;
+
+    /// Sends `enroll:request` carrying [params], over CRAM or, carrying an
+    /// OTP, for approval.
+    Future<void> send(EnrollParams params, {required bool overCram}) async {
+      inboundConnection.metaData
+        ..isAuthenticated = overCram
+        ..authType = overCram ? AuthType.cram : null
+        ..sessionID = DateTime.now().microsecondsSinceEpoch.toString();
+      inboundConnection.metadata.enrollmentId = null;
+      final r = Response();
+      await etu.evh.processVerb(
+          r,
+          getVerbParam(VerbSyntax.enroll,
+              'enroll:request:${jsonEncode(params.toJson())}'),
+          inboundConnection);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+    }
+
+    for (final bool overCram in [false, true]) {
+      final String how = overCram ? 'over CRAM' : 'for approval';
+      test(
+          'a request $how whose apsk lists its apkamPublicKey beside another '
+          'key is refused, naming the key, and nothing is written', () async {
+        final EnrollParams params = request('beside-$how', k1AndK2);
+        if (!overCram) params.otp = await etu.getOtp();
+        final int before = await (await keyValueStore.getKeys()).length;
+        await expectLater(send(params, overCram: overCram),
+            refusedNaming<IllegalArgumentException>(k1));
+        expect(await (await keyValueStore.getKeys()).length, before);
+      });
+    }
+
+    test('a request whose apsk lists its apkamPublicKey alone is accepted',
+        () async {
+      await send(
+          request('alone', listForm([entry(k1, 'mldsa65', p1)]))
+            ..otp = await etu.getOtp(),
+          overCram: false);
+    });
+
+    test('a request whose apsk does not list its apkamPublicKey is accepted',
+        () async {
+      await send(
+          request('apart', listForm([entry(k2, 'rsa2048', p2)]))
+            ..otp = await etu.getOtp(),
+          overCram: false);
+    });
+  });
+
+  group('an enrollment\'s authentication key keeps no link through any write',
+      () {
+    late String b;
+    late Map<String, dynamic> l2;
+
+    setUp(() async {
+      b = await enrollment('b', apsk: k1AndK2);
+      l2 = rootLink(payload(b, k2, 'rsa2048', p2));
+      await link(etu.primaryEnId, b, {
+        k1: {'link': chainLink(payload(b, k1, 'mldsa65', p1)), 'expect': null},
+        k2: {'link': l2, 'expect': null}
+      });
+      final enVal = await enMgr.getEnrollmentById(b);
+      enVal.apkamPublicKey = p1;
+      await enMgr.put(
+          b, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved);
+    });
+
+    test('a put that still lists K1 removes K1\'s link, and K2\'s link stays',
+        () async {
+      await put(b, jsonEncode(k1AndK2));
+      expect(await linksOn(b), {k2: l2});
+    });
+
+    test(
+        'an update:meta that still lists K1 removes K1\'s link, and K2\'s link '
+        'stays', () async {
+      await updateMeta(b, AppMetadata(providerId: 'legacy'));
+      expect(await linksOn(b), {k2: l2});
+    });
+  });
+
+  test(
+      'a link\'s payload enrollmentId is compared folded, as every other '
+      'comparison of that id is', () async {
+    final b = await enrollment('b', apsk: k1AndK2);
+    expect(
+        await link(etu.primaryEnId, b, {
+          k1: {
+            'link': chainLink(payload(b.toUpperCase(), k1, 'mldsa65', p1)),
+            'expect': null
+          }
+        }),
+        {
+          'enrollmentId': b,
+          'linked': [k1]
+        });
   });
 
   test('an enroll operation the atServer does not support is refused',

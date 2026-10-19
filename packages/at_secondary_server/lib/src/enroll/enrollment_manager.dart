@@ -686,8 +686,12 @@ class EnrollmentManager {
   /// text otherwise.
   static bool sameApkamKeyMaterial(
       String a, String? algoA, String b, String? algoB) {
-    final List<int>? bytesA = apkamKeyMaterial(a, algoA);
-    final List<int>? bytesB = apkamKeyMaterial(b, algoB);
+    return _sameMaterial(apkamKeyMaterial(a, algoA), a,
+        apkamKeyMaterial(b, algoB), b);
+  }
+
+  static bool _sameMaterial(
+      List<int>? bytesA, String a, List<int>? bytesB, String b) {
     if (bytesA != null && bytesB != null) {
       if (bytesA.length != bytesB.length) return false;
       for (int i = 0; i < bytesA.length; i++) {
@@ -696,6 +700,22 @@ class EnrollmentManager {
       return true;
     }
     return a.trim() == b.trim();
+  }
+
+  /// Whether a public key an `_apsk` entry lists is [apkamPublicKey], the key
+  /// an enrollment authenticates with under [signingAlgo]: the same material,
+  /// read both as base64 and as hex whatever algorithm the entry names.
+  ///
+  /// [apkamPublicKey] is decoded once, for every key the test is asked about.
+  static bool Function(String pub) authenticationKeyTest(
+      String apkamPublicKey, String? signingAlgo) {
+    final List<int>? authentication =
+        apkamKeyMaterial(apkamPublicKey, signingAlgo);
+    return (String pub) =>
+        _sameMaterial(
+            apkamKeyMaterial(pub, null), pub, authentication, apkamPublicKey) ||
+        _sameMaterial(apkamKeyMaterial(pub, ApkamSignatureVerifier.eccAlgo),
+            pub, authentication, apkamPublicKey);
   }
 
   /// The enrollment stored at [ek], an elapsed one reported `expired` and

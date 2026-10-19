@@ -7,12 +7,15 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/enroll/apsk_links.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:mutex/mutex.dart';
@@ -153,28 +156,46 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// enrollment's `_apsk` record keeps the links stored on it.
   ///
   /// For such a record, [result]'s appMetadata takes the stored link map,
-  /// less links for keys the record will no longer advertise, whatever the
-  /// request sent; the read and [write] run under the enrollment lock
-  /// `enroll:link` writes under. Any other key is written as it stands.
+  /// less the links the record's new value no longer lets stand and any on
+  /// the enrollment's authentication key, whatever the request sent. A write
+  /// that would take the record, with the links it keeps, over the
+  /// enrollment record limit is refused. The read and [write] run under the
+  /// enrollment lock `enroll:link` writes under. Any other key is written as
+  /// it stands.
   Future<T> keepingApskLinks<T>(
       UpdatePreProcessResult result, Future<T> Function() write) async {
-    if (ApskLinks.enrollmentIdOf(result.atKey, atSign) == null) {
+    final String? enrollmentId =
+        ApskLinks.enrollmentIdOf(result.atKey, atSign);
+    if (enrollmentId == null) {
       return write();
     }
-    return AtSecondaryServerImpl.getInstance()
-        .enrollmentManager
-        .serialiseMutation(() async {
+    final EnrollmentManager enMgr =
+        AtSecondaryServerImpl.getInstance().enrollmentManager;
+    return enMgr.serialiseMutation(() async {
       AtData? stored;
       try {
         stored = await keyStore.get(result.atKey);
       } on KeyNotFoundException {
         stored = null;
       }
+      bool Function(String pub)? isAuthenticationKey;
+      try {
+        final EnrollDataStoreValue enVal =
+            await enMgr.getEnrollmentById(enrollmentId);
+        isAuthenticationKey = EnrollmentManager.authenticationKeyTest(
+            enVal.apkamPublicKey, enVal.signingAlgo);
+      } on KeyNotFoundException {
+        isAuthenticationKey = null;
+      }
+      final String? value = result.atData.data ?? stored?.data;
       final AtMetaData metaData = result.atData.metaData!;
       metaData.appMetadata = ApskLinks.carriedOver(
           written: metaData.appMetadata,
           stored: stored?.metaData?.appMetadata,
-          value: result.atData.data ?? stored?.data);
+          value: value,
+          isAuthenticationKey: isAuthenticationKey);
+      ApskLinks.refuseOverLimit(result.atKey, value, metaData.appMetadata,
+          limit: EnrollVerbHandler.maxEnrollmentRecordBytes);
       return write();
     });
   }

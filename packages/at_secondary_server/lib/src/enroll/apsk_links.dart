@@ -83,16 +83,8 @@ abstract final class ApskLinks {
       return kid == null ? const {} : {kid: (alg: bareAlgorithm, pub: value)};
     }
 
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(value);
-    } on FormatException {
-      return const {};
-    }
-    final Object? entries = decoded is Map ? decoded['keys'] : null;
-    if (entries is! List) return const {};
     final Map<String, ApskKey> keys = {};
-    for (final Object? entry in entries) {
+    for (final Object? entry in listedEntries(value)) {
       if (entry is! Map) continue;
       final Object? kid = entry['kid'];
       final Object? alg = entry['alg'];
@@ -103,43 +95,153 @@ abstract final class ApskLinks {
     return keys;
   }
 
+  /// The entries [value], an `_apsk` record's value in the list form, lists
+  /// as sent, repeated kids and malformed entries included; empty for a bare
+  /// value or one that does not decode as the list form.
+  static List<Object?> listedEntries(String? value) {
+    if (value == null || !value.trimLeft().startsWith('{')) return const [];
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(value);
+    } on FormatException {
+      return const [];
+    }
+    final Object? entries = decoded is Map ? decoded['keys'] : null;
+    return entries is List ? entries : const [];
+  }
+
+  /// How many keys [value] lists: one for a bare value, and every entry of
+  /// the list form, repeated or malformed ones included.
+  static int listedCount(String? value) {
+    if (value == null || value.isEmpty) return 0;
+    if (!value.trimLeft().startsWith('{')) return 1;
+    return listedEntries(value).length;
+  }
+
+  /// Each public key [value] lists, with the kid it is listed under, or null
+  /// where that is not a string; a bare value is one key.
+  static List<({String? kid, String pub})> listedKeys(String? value) {
+    if (value == null || value.isEmpty) return const [];
+    if (!value.trimLeft().startsWith('{')) {
+      return [(kid: kidOf(value), pub: value)];
+    }
+    return [
+      for (final Object? entry in listedEntries(value))
+        if (entry is Map && entry['pub'] is String)
+          (
+            kid: entry['kid'] is String ? entry['kid'] as String : null,
+            pub: entry['pub'] as String
+          )
+    ];
+  }
+
+  /// The first entry of [value] that lists no string `kid`, `alg` and `pub`,
+  /// or repeats an earlier entry's kid, described for a refusal; null when
+  /// every entry is well formed.
+  static String? malformedEntry(String? value) {
+    final List<Object?> entries = listedEntries(value);
+    final Set<String> kids = {};
+    for (int i = 0; i < entries.length; i++) {
+      final Object? entry = entries[i];
+      if (entry is! Map ||
+          entry['kid'] is! String ||
+          entry['alg'] is! String ||
+          entry['pub'] is! String) {
+        return 'entry ${i + 1} lists no string kid, alg and pub';
+      }
+      if (!kids.add(entry['kid'] as String)) {
+        return 'entry ${i + 1} lists kid ${entry['kid']} a second time';
+      }
+    }
+    return null;
+  }
+
   /// The link map [appMetadata] holds, or an empty map.
   static Map<String, dynamic> linksIn(AppMetadata? appMetadata) {
     final Object? links = appMetadata?.additional?[field];
     return links is Map ? Map<String, dynamic>.from(links) : {};
   }
 
-  /// [links] less those for keys not in [advertised].
+  /// [links] less those [advertised] no longer lets stand: a link for a kid
+  /// it does not list, a link whose payload names another alg or pub than
+  /// the one listed under its kid, and a link on a key
+  /// [isAuthenticationKey] names.
   static Map<String, dynamic> pruned(
-          Map<String, dynamic> links, Map<String, ApskKey> advertised) =>
+          Map<String, dynamic> links, Map<String, ApskKey> advertised,
+          {bool Function(String pub)? isAuthenticationKey}) =>
       {
         for (final MapEntry<String, dynamic> link in links.entries)
-          if (advertised.containsKey(link.key)) link.key: link.value
+          if (_namesListedKey(link.key, link.value, advertised[link.key]) &&
+              !(isAuthenticationKey?.call(advertised[link.key]!.pub) ?? false))
+            link.key: link.value
       };
 
+  /// Whether [link], stored under [kid], names [listed], the key the record
+  /// lists under that kid.
+  static bool _namesListedKey(String kid, Object? link, ApskKey? listed) {
+    if (listed == null) return false;
+    final Map<String, dynamic>? payload = payloadOf(link);
+    return payload != null &&
+        payload['kid'] == kid &&
+        payload['alg'] == listed.alg &&
+        payload['pub'] == listed.pub;
+  }
+
   /// [appMetadata] with its link map replaced by [links], dropped when
-  /// [links] is empty; null when there is nothing left to store.
+  /// [links] is empty; null when there is nothing left to store, including
+  /// when removing the last link leaves only the [providerId] the atServer
+  /// gives.
   static AppMetadata? withLinks(
       AppMetadata? appMetadata, Map<String, dynamic> links) {
     if (appMetadata == null && links.isEmpty) return null;
     final Map<String, dynamic> additional = {...?appMetadata?.additional}
       ..remove(field);
     if (links.isNotEmpty) additional[field] = links;
-    return AppMetadata(
-        providerId: appMetadata?.providerId ?? providerId,
-        additional: additional);
+    final String provider = appMetadata?.providerId ?? providerId;
+    if (links.isEmpty &&
+        additional.isEmpty &&
+        provider == providerId &&
+        (appMetadata?.additional?.containsKey(field) ?? false)) {
+      return null;
+    }
+    return AppMetadata(providerId: provider, additional: additional);
   }
 
   /// The appMetadata a write of an `_apsk` record other than `enroll:link`
   /// stores: [written], or [stored] when it sends none, carrying [stored]'s
-  /// link map less links for keys [value] does not advertise, whatever
+  /// link map less the links [value] no longer lets stand, whatever
   /// [written] holds.
   static AppMetadata? carriedOver(
           {required AppMetadata? written,
           required AppMetadata? stored,
-          required String? value}) =>
+          required String? value,
+          bool Function(String pub)? isAuthenticationKey}) =>
       withLinks(
-          written ?? stored, pruned(linksIn(stored), advertisedKeys(value)));
+          written ?? stored,
+          pruned(linksIn(stored), advertisedKeys(value),
+              isAuthenticationKey: isAuthenticationKey));
+
+  /// The length of an `_apsk` record holding [value] and [appMetadata],
+  /// measured as `enroll:link` measures it: the value's bytes and the
+  /// appMetadata's JSON bytes.
+  static int recordBytes(String? value, AppMetadata? appMetadata) =>
+      utf8.encode(value ?? '').length +
+      utf8.encode(jsonEncode(appMetadata?.toJson())).length;
+
+  /// Throws [IllegalArgumentException] when an `_apsk` record holding [value]
+  /// and [appMetadata] keeps links and is over [limit] bytes as
+  /// [recordBytes] measures it; [writer] names the write in the message.
+  static void refuseOverLimit(
+      String writer, String? value, AppMetadata? appMetadata,
+      {required int limit}) {
+    if (linksIn(appMetadata).isEmpty) return;
+    final int length = recordBytes(value, appMetadata);
+    if (length > limit) {
+      throw IllegalArgumentException('$writer: the _apsk record would be'
+          ' $length bytes encoded with the links it keeps, over the $limit'
+          ' byte enrollment record limit');
+    }
+  }
 
   /// The payload [link] signs, or null when it carries none: a chain link
   /// carries it base64url-encoded, a root link as a JSON object.
