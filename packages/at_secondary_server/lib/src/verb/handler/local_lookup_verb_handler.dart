@@ -9,7 +9,6 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_utils.dart';
 
 class LocalLookupVerbHandler extends AbstractVerbHandler {
   static LocalLookup llookup = LocalLookup();
@@ -47,11 +46,11 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     var atSign = verbParams[AtConstants.atSign];
     var key = verbParams[AtConstants.atKey];
     var operation = verbParams[AtConstants.operation];
-    atSign = AtUtils.fixAtSign(atSign!);
+    atSign = atSign!.toAtsign();
     key = '$key$atSign';
     bool isPublic = false;
     if (forAtSign != null) {
-      forAtSign = AtUtils.fixAtSign(forAtSign);
+      forAtSign = forAtSign.toAtsign();
       key = '$forAtSign:$key';
     }
     if (verbParams.containsKey('isPublic')) {

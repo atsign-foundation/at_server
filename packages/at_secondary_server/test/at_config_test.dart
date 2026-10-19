@@ -14,13 +14,13 @@ void main() async {
 
     test('test for adding data to blocklist', () async {
       var atsignsToBeBlocked = {'@alice', '@bob'};
-      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
       var result = await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       expect(result, 'success');
     });
 
     test('test for fetching blocklist', () async {
-      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
       var atsignsToBeBlocked = {'@alice', '@bob'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       var result = await atConfigInstance.getBlockList();
@@ -28,10 +28,10 @@ void main() async {
     });
 
     test('test for removing blocklist data', () async {
-      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
       var atsignsToBeBlocked = {'@alice', '@bob', '@charlie'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
-      var atsignsToBeUnblocked = {'@alice', '@bob'};
+      var atsignsToBeUnblocked = {'@alice'.toAtsign(), '@bob'.toAtsign()};
       var result =
           await atConfigInstance.removeFromBlockList(atsignsToBeUnblocked);
       expect(result, 'success');
@@ -42,27 +42,68 @@ void main() async {
 
     test('test for removing non existing data from blocklist', () async {
       var data = {'@alice', '@bob'};
-      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
       await atConfigInstance.addToBlockList(data);
-      var removeData = {'@colin'};
+      var removeData = {'@colin'.toAtsign()};
       var result = await atConfigInstance.removeFromBlockList(removeData);
       expect(result, 'success');
     });
 
     test('test for removing empty data', () async {
-      var removeData = <String>{};
-      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
+      var removeData = <Atsign>{};
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
       expect(() async => await atConfigInstance.removeFromBlockList(removeData),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
     });
 
     test('test for removing null data', () async {
-      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
       expect(() async => await atConfigInstance.removeFromBlockList({}),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
     });
 
     tearDown(() async => await tearDownFunc());
+  });
+
+  group('Given blocklist entries stored as they were typed', () {
+    late AtConfig atConfig;
+
+    setUp(() async {
+      await setUpFunc(storageDir);
+      atConfig = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
+      await atConfig.addToBlockList({'@Dave', '@e.rin', 'frank'});
+    });
+    tearDown(() async => await tearDownFunc());
+
+    test('when each one\'s canonical atSign is checked, then it is blocked',
+        () async {
+      for (final atSign in ['@dave', '@erin', '@frank']) {
+        expect(await atConfig.checkInBlockList(atSign.toAtsign()), isTrue,
+            reason: atSign);
+      }
+      expect(await atConfig.checkInBlockList('@grace'.toAtsign()), isFalse);
+    });
+  });
+
+  group('Given a blocklist entry that is not an atSign', () {
+    late AtConfig atConfig;
+
+    setUp(() async {
+      await setUpFunc(storageDir);
+      atConfig = AtConfig(keyValueStore, '@test_user_1'.toAtsign());
+      await atConfig.addToBlockList({'@a!b', '@carol'});
+    });
+    tearDown(() async => await tearDownFunc());
+
+    test('when an atSign is checked, then that entry is passed over', () async {
+      expect(await atConfig.checkInBlockList('@carol'.toAtsign()), isTrue);
+      expect(await atConfig.checkInBlockList('@dave'.toAtsign()), isFalse);
+    });
+
+    test('when another atSign is removed, then that entry is kept', () async {
+      await atConfig.removeFromBlockList({'@carol'.toAtsign()});
+      expect(await atConfig.getBlockList(), {'@a!b'});
+    });
   });
 }
 

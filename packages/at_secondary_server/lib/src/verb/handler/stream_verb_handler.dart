@@ -33,7 +33,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     logger.info('inside stream verb handler');
     var operation = verbParams['operation'];
-    var receiver = verbParams['receiver'];
+    final Atsign? receiver = verbParams['receiver']?.toAtsign();
     var streamId = verbParams['streamId']!;
     var fileName = verbParams['fileName'];
     var fileLength = verbParams['length'];
@@ -86,7 +86,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
         }
 
         var notificationKey =
-            '@$receiver:$streamKey $currentAtSign:$streamId:$fileName:$fileLength';
+            '$receiver:$streamKey $currentAtSign:$streamId:$fileName:$fileLength';
 
         await _notify(receiver,
             AtSecondaryServerImpl.getInstance().currentAtSign, notificationKey);
@@ -94,9 +94,8 @@ class StreamVerbHandler extends AbstractVerbHandler {
         break;
       case 'resume':
         var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-        //receiver = AtUtils.formatAtSign(receiver);
         final sender = receiver;
-        var notificationKey = '@$sender:stream_resume $streamId:$startByte';
+        var notificationKey = '$sender:stream_resume $streamId:$startByte';
         logger.finer('inside stream resume $notificationKey');
         await _notify(receiver, currentAtSign, notificationKey);
         break;
