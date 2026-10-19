@@ -22,5 +22,8 @@ the proxy pack needs from the host.
 
 CI runs the functional and e2e packs from at_client_sdk's trunk, in the
 `client_checks` job of
-[`at_server.yaml`](../../.github/workflows/at_server.yaml), and names the
-at_client_sdk commit in the job summary.
+[`at_server.yaml`](../../.github/workflows/at_server.yaml). When
+`GITHUB_STEP_SUMMARY` is set, the runner writes the at_client_sdk commit, the
+atServer build and each pack's result to it. A re-run tests at_client_sdk's
+trunk as it is then, and resolves its pub.dev dependencies afresh, so the
+commit alone does not name the client that was tested.

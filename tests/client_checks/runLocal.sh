@@ -39,7 +39,9 @@ set -euo pipefail
 # during the build takes effect once the build ends. KILL ends the runner
 # alone, leaving the running pack, its containers and the worktree behind.
 #
-# Exits non-zero if any pack fails, after running the rest.
+# Exits non-zero if any pack fails, after running the rest. The closing
+# summary of what was tested and how each pack did is also appended to
+# GITHUB_STEP_SUMMARY when that is set.
 
 cd "$(dirname -- "$0")/../.."
 repoDir=$(pwd)
@@ -211,4 +213,11 @@ done
 
 echo "*** at_client_sdk ${sdkCommit} against ${image}, at_server ${built}:"
 printf '***   %s\n' "${results[@]}"
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    echo "at_client_sdk ${sdkCommit} against ${image}, at_server ${built}"
+    echo
+    printf -- '- %s\n' "${results[@]}"
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
 exit "$failed"

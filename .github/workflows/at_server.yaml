@@ -316,18 +316,12 @@ jobs:
           path: at_client_sdk
           persist-credentials: false
 
-      - name: Name the at_client_sdk commit under test
-        run: |
-          sdkCommit=$(git -C at_client_sdk rev-parse HEAD)
-          echo "at_client_sdk trunk at ${sdkCommit}" >> "$GITHUB_STEP_SUMMARY"
-
-      # NOTE the at_client_sdk workspace has Flutter members, so resolving it
-      # needs the Flutter SDK, while the packs run on a Dart SDK of its own.
+      # NOTE the at_client_sdk workspace depends on the Flutter SDK, and
+      # setup-dart runs after flutter-action so that dart is not Flutter's.
       - name: Install Flutter
         uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
         with:
           channel: stable
-          cache: true
 
       - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
