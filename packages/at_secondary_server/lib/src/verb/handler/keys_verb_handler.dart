@@ -188,23 +188,27 @@ class KeysVerbHandler extends AbstractVerbHandler {
     String enrollIdFromMetadata,
   ) async {
     final keyNameFromParams = verbParams[AtConstants.keyName]!;
-    AtData? value;
-    try {
-      value = await keyStore.get(keyNameFromParams);
-    } on KeyNotFoundException {
-      value = null;
-    }
-    if (value == null) {
-      throw KeyNotFoundException(
-          'key $keyNameFromParams not found in keystore');
-    }
-    if (!_isAuthorizedForKey(keyNameFromParams, value, enrollIdFromMetadata)) {
-      throw UnAuthorizedException(
-          'Enrollment $enrollIdFromMetadata is not authorized to delete key'
-          ' $keyNameFromParams');
-    }
-    response.data =
-        (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
+    await enMgr.serialiseIfApsk(keyNameFromParams, () async {
+      AtData? value;
+      try {
+        value = await keyStore.get(keyNameFromParams);
+      } on KeyNotFoundException {
+        value = null;
+      }
+      if (value == null) {
+        throw KeyNotFoundException(
+            'key $keyNameFromParams not found in keystore');
+      }
+      if (!_isAuthorizedForKey(
+          keyNameFromParams, value, enrollIdFromMetadata)) {
+        throw UnAuthorizedException(
+            'Enrollment $enrollIdFromMetadata is not authorized to delete key'
+            ' $keyNameFromParams');
+      }
+      response.data =
+          (await keyStore.remove(keyNameFromParams, skipCommit: true))
+              .toString();
+    });
   }
 
   /// Authorisation gate for the by-name `get` and `delete` branches: a caller

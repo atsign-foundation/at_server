@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
@@ -35,6 +36,14 @@ class EnrollmentManager {
     return _mutationLock.protect(
         () => runZoned(action, zoneValues: {_inMutationZoneKey: true}));
   }
+
+  /// Runs [action] under [serialiseMutation] when [key] is an approved
+  /// enrollment's `_apsk` record, which `enroll:link` writes under that lock,
+  /// and straight through for any other key.
+  Future<T> serialiseIfApsk<T>(String key, Future<T> Function() action) =>
+      ApskLinks.enrollmentIdOf(key, atSign) == null
+          ? action()
+          : serialiseMutation(action);
 
   static int cacheHits = 0;
   static int cacheMisses = 0;

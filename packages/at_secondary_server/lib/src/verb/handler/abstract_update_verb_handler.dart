@@ -6,8 +6,10 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
@@ -145,6 +147,36 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         atData,
         effectiveAssertedTimestamps(updateParams.metadata!,
             existingAtMetaData));
+  }
+
+  /// Runs [write], which stores [result], so that a write of an approved
+  /// enrollment's `_apsk` record keeps the links stored on it.
+  ///
+  /// For such a record, [result]'s appMetadata takes the stored link map,
+  /// less links for keys the record will no longer advertise, whatever the
+  /// request sent; the read and [write] run under the enrollment lock
+  /// `enroll:link` writes under. Any other key is written as it stands.
+  Future<T> keepingApskLinks<T>(
+      UpdatePreProcessResult result, Future<T> Function() write) async {
+    if (ApskLinks.enrollmentIdOf(result.atKey, atSign) == null) {
+      return write();
+    }
+    return AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .serialiseMutation(() async {
+      AtData? stored;
+      try {
+        stored = await keyStore.get(result.atKey);
+      } on KeyNotFoundException {
+        stored = null;
+      }
+      final AtMetaData metaData = result.atData.metaData!;
+      metaData.appMetadata = ApskLinks.carriedOver(
+          written: metaData.appMetadata,
+          stored: stored?.metaData?.appMetadata,
+          value: result.atData.data ?? stored?.data);
+      return write();
+    });
   }
 
   /// Queues the auto-notification for a write that has already succeeded,
