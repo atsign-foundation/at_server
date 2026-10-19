@@ -54,9 +54,9 @@ void main() {
       final String name = row[0];
       final String ttr = row[1];
       test('$name with ${ttr.isEmpty ? 'no ttr' : ttr}', () async {
-        if (readerVersion < Version(3, 17, 1)) {
+        if (readerVersion < Version(3, 18, 0)) {
           markTestSkipped('the reader\'s atServer, $readerVersion, predates '
-              '3.17.1 and still keeps a 24-hour copy');
+              '3.18.0 and still keeps a 24-hour copy');
           return;
         }
         final String record =

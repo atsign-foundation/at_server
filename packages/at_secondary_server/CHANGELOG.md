@@ -1,4 +1,4 @@
-# 3.17.1
+# 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
   is no longer supported`); one from another atServer is accepted and dropped.
