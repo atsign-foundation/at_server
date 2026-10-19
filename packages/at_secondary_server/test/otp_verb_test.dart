@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:test/test.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -611,5 +612,12 @@ void main() {
               {'*': 'rw', '__manage': 'rw'}, {'*': 'rw', '__manage': 'rw'}),
           true);
     });
+  });
+
+  test('info lists otp.list and otp.delete as Beta', () {
+    final features = InfoFeatures.parse(
+        'data:${jsonEncode({'features': InfoVerbHandler.features})}')!;
+    expect(features.statusOf(InfoFeature.otpList), InfoFeatureStatus.beta);
+    expect(features.statusOf(InfoFeature.otpDelete), InfoFeatureStatus.beta);
   });
 }
