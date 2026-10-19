@@ -27,8 +27,10 @@ set -euo pipefail
 # name their compose project after the base port, is refused, since it would
 # run an image this script did not build, or share containers with another
 # run. With no BASE_PORT, every pack uses its default project name and ports,
-# as any other default-port run of that pack does; with one, a pack whose
-# compose project another run is using fails without starting.
+# as any other default-port run of that pack does. With one, a pack whose
+# compose project already has containers, another run's or ones a stopped run
+# left behind, fails without starting. That is checked once, as the pack
+# starts, so two runs started at the same moment on one base can both start.
 #
 # buildve.sh builds the atServer image under this checkout's own tag, which
 # is passed to each pack as VIRTUALENV_IMAGE; at_virtual_env:local is never
@@ -314,16 +316,17 @@ ranAsBuilt() {
 }
 
 # Says whether a container outside this run's worktree is in compose project
-# [project].
+# [project], naming each such container and its compose directory in inUseBy.
 projectInUse() {
-  local dir
-  while read -r dir; do
+  local name dir
+  inUseBy=""
+  while IFS='|' read -r name dir; do
     if [[ "$dir" != "${runDir}/"* ]]; then
-      return 0
+      inUseBy="${inUseBy:+${inUseBy}, }${name} from ${dir:-no compose directory}"
     fi
   done < <(bounded 60 docker ps -a --filter "label=com.docker.compose.project=$1" \
-    --format '{{.Label "com.docker.compose.project.working_dir"}}' || true)
-  return 1
+    --format '{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}' || true)
+  [[ -n "$inUseBy" ]]
 }
 
 # Prints the at_ packages the worktree's pubspec.lock took from pub.dev, with
@@ -447,7 +450,7 @@ hostedNamed=""
 for pack in "${packs[@]}"; do
   project="${basePort:+$(packDir "$pack")-${basePort}}"
   if [[ -n "$project" ]] && projectInUse "$project"; then
-    results+=("${pack}: FAILED (compose project ${project} is in use by another run)")
+    results+=("${pack}: FAILED (compose project ${project} is in use, by another run or one left behind: ${inUseBy})")
     failed=1
     summary "- ${results[${#results[@]} - 1]}"
     continue
