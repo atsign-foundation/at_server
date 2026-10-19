@@ -52,10 +52,11 @@ Feature: Links vouch for an enrollment's client data signing keys, one per key
     And a call for an enrollment that isn't approved is refused
     And a call carrying well-formed links for K1 and K2 writes both
 
-  Scenario: enroll:link leaves an immutable _apsk record unchanged
+  Scenario: enroll:link and enroll:update leave an immutable _apsk record unchanged
     Given B's _apsk record is immutable
-    When enroll:link links one of its keys
+    When enroll:link links one of its keys, or an enroll:update republishes it
     Then the atServer refuses it, and nothing is written
+    And an approval publishing over an immutable _apsk record leaves that record as it stands
 
   Scenario: a link replaces only the link its writer found
     Given key K1 on B carries a link L1
@@ -70,6 +71,7 @@ Feature: Links vouch for an enrollment's client data signing keys, one per key
     Then the links for K1 and K2 are still on the record afterwards, unchanged, whatever that write sent
     And when the new value no longer lists K2 at all, K2's link is removed in the same write
     And when an enroll:link for K1 and a republish that removes K1 arrive together, the atServer handles one and then the other, so afterwards K1 has no link and no other link has been lost
+    And an enroll:update republish that changes the value stores no dataSignature over the value it replaces
 
   Scenario: a link stays on a key only while the record lists the alg and public key it names
     Given B's _apsk lists K1, and K1 carries a link naming K1's alg and public key
@@ -81,13 +83,14 @@ Feature: Links vouch for an enrollment's client data signing keys, one per key
     Given B's _apsk record whose appMetadata holds only its links, under the providerId the atServer gives
     When a write of B's _apsk removes its last link
     Then the record carries no appMetadata
-    And a record whose appMetadata holds anything else keeps it
+    And a record whose appMetadata names another providerId or holds anything else keeps it, as does a client's own appMetadata on a record that carried no links
 
   Scenario: every write of B's _apsk keeps the record and its links within 500 KiB
     Given B's _apsk record carries links
     When an enroll:update republish, a put or an update:meta would take the record, its value and appMetadata with the links it keeps, over the 500 KiB enrollment-record limit
     Then the atServer refuses the write, and the record is unchanged
     And after a refused enroll:update, B's enrollment record is unchanged too
+    And a record that keeps no links is not held to that limit
 
   Scenario: an enrollment's authentication key takes no links
     Given B holding no client data signing key of its own, so its _apsk is its APKAM authentication key, published bare or listed alone in the list form
@@ -100,21 +103,42 @@ Feature: Links vouch for an enrollment's client data signing keys, one per key
     Then the atServer refuses the update, naming K1, and nothing is written
     And an update that leaves K1 as the only key B's _apsk lists, with no link, is accepted, as for an enrollment holding no client data signing key of its own
 
-  Scenario: an enroll:update lists each kid once, each with a kid, alg and pub
+  Scenario: every write of B's _apsk lists each kid once, each with a kid, alg and pub
     Given B's enrollment and its _apsk
-    When an enroll:update by B republishes B's _apsk listing one kid twice, or an entry without a string kid, alg and pub
-    Then the atServer refuses the update, naming the entry, and nothing is written
+    When an enroll:update by B, through apsk or apskLegacy, or a put or an update:meta of B's _apsk, would leave it listing one kid twice, or an entry without a string kid, alg and pub
+    Then the atServer refuses the write, naming the entry, and nothing is written
+    And enroll:link refuses to link a kid the record lists twice
 
   Scenario: an enroll:request lists its authentication key in its _apsk only alone
-    Given a request whose apsk lists its apkamPublicKey beside another key
+    Given a request whose apsk, or apskLegacy in the list form, lists its apkamPublicKey beside another key
     When it is sent, whether for approval or over CRAM
     Then the atServer refuses it, naming the key, and nothing is written
+    And a request whose apsk lists one kid twice is refused, naming it, before its OTP is spent
     And a request whose apsk lists its apkamPublicKey alone, or not at all, is accepted
 
-  Scenario: an enrollment's authentication key keeps no link through any write
+  Scenario: an enrollment's authentication key is listed only alone, and keeps no link, through any write
     Given B's _apsk record carries links for K1 and K2, and B's enrollment record holds K1's public key as its apkamPublicKey
-    When a put or an update:meta of B's _apsk still lists K1
-    Then K1's link is removed in the same write, and K2's link stays
+    When a put or an update:meta of B's _apsk would leave K1 listed beside K2
+    Then the atServer refuses it, naming K1, and the record is unchanged
+    And a put that lists K1 alone keeps no link on it
+    And an enroll:link for another key removes the link stored on K1 in the same write
+
+  Scenario: a rotation of primary's key keeps no link on it
+    Given primary's _apsk lists K1 and K2, each carrying a link
+    When a CRAM update of at_pkam_publickey would make K1's public key primary's authentication key while K1 is listed beside K2 or carries a link
+    Then the atServer refuses it, naming K1, and primary is unchanged
+    And when a legacy pkam: absorbs a flat key, or the startup migration mints primary, onto K1's public key, K1's link is removed in the same act and K2's link stays
+
+  Scenario: an unrevoked enrollment's _apsk keeps only the links a write of it keeps
+    Given B revoked, its _apsk record moved aside, and links stored on that record since
+    When B is unrevoked and the record moves back
+    Then it keeps only the links a write of it would keep: none for a kid it does not list, and none that names another kid, alg or public key
+    And an immutable record moves back as it stands
+
+  Scenario: the atServer reads an _apsk value trimmed, as a client does
+    Given an _apsk value with whitespace before or after it
+    When it is written or linked
+    Then the atServer reads its keys from the trimmed value, as a client does, and every rule above applies to them
 
   Scenario: a bare RSA client data signing key is linked like a listed one
     Given B on the pqReady posture, authenticating with ML-DSA-65, whose _apsk is the RSA-2048 client data signing key it minted, published bare
