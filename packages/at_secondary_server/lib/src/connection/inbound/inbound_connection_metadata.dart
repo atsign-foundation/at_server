@@ -37,12 +37,10 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// A unique identifier generated for a client's APKAM enroll request
   String? enrollmentId;
+  String? enrollmentAppName;
+  String? enrollmentDeviceName;
 
   final String connectionId = _newConnectionId();
-
-  String? enrollmentAppName;
-
-  String? enrollmentDeviceName;
 
   InboundConnectionCloseReason? closeReason;
 
