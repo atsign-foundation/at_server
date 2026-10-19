@@ -19,3 +19,8 @@ to keep a run apart from others: with none, each pack uses its default
 project name and ports. The `onboarding_cli_proxy` pack needs a base port.
 The header of [`runLocal.sh`](runLocal.sh) says what each step does and what
 the proxy pack needs from the host.
+
+CI runs the functional and e2e packs from at_client_sdk's trunk, in the
+`client_checks` job of
+[`at_server.yaml`](../../.github/workflows/at_server.yaml), and names the
+at_client_sdk commit in the job summary.

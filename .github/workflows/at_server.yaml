@@ -298,6 +298,58 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test --concurrency=1
 
+  # at_client_sdk's functional and e2e packs, from its trunk, against an
+  # atServer built from this commit.
+  client_checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: at_server
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: atsign-foundation/at_client_sdk
+          ref: trunk
+          path: at_client_sdk
+          persist-credentials: false
+
+      - name: Name the at_client_sdk commit under test
+        run: |
+          sdkCommit=$(git -C at_client_sdk rev-parse HEAD)
+          echo "at_client_sdk trunk at ${sdkCommit}" >> "$GITHUB_STEP_SUMMARY"
+
+      # NOTE the at_client_sdk workspace has Flutter members, so resolving it
+      # needs the Flutter SDK, while the packs run on a Dart SDK of its own.
+      - name: Install Flutter
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: stable
+          cache: true
+
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+        with:
+          sdk: stable
+
+      - name: Check dart is not the Flutter SDK's
+        run: |
+          which dart
+          if which dart | grep -q flutter; then
+            exit 1
+          fi
+
+      - name: Add entry to hosts file
+        run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
+
+      - name: Run at_client_sdk's functional and e2e packs
+        working-directory: at_server
+        env:
+          AT_CLIENT_SDK_DIR: ${{ github.workspace }}/at_client_sdk
+          AT_CLIENT_SDK_REF: HEAD
+        run: tests/client_checks/runLocal.sh 27000 functional e2e
+
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
     if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
