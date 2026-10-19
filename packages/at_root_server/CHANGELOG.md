@@ -1,6 +1,10 @@
 ## 2.2.1
 
  - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
+- build: `at_utils` 3.5.0. In a log message, control characters other than a
+  line feed, bidirectional formatting characters, and line and paragraph
+  separators appear as escapes such as `\x1b` and `\u202e`, and each line
+  after a line feed is indented by two spaces.
 
 ## 2.2.0
 
