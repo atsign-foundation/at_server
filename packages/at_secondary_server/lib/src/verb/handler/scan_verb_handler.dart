@@ -43,7 +43,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    var forAtSign = verbParams[AtConstants.forAtSign];
+    final Atsign? forAtSign = verbParams[AtConstants.forAtSign]?.toAtsign();
     var scanRegex = verbParams[AtConstants.regex];
     var showHiddenKeys =
         verbParams[AtConstants.showHidden] == 'true' ? true : false;

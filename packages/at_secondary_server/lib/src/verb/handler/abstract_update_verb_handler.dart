@@ -6,8 +6,10 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
@@ -147,6 +149,36 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
             existingAtMetaData));
   }
 
+  /// Runs [write], which stores [result], so that a write of an approved
+  /// enrollment's `_apsk` record keeps the links stored on it.
+  ///
+  /// For such a record, [result]'s appMetadata takes the stored link map,
+  /// less links for keys the record will no longer advertise, whatever the
+  /// request sent; the read and [write] run under the enrollment lock
+  /// `enroll:link` writes under. Any other key is written as it stands.
+  Future<T> keepingApskLinks<T>(
+      UpdatePreProcessResult result, Future<T> Function() write) async {
+    if (ApskLinks.enrollmentIdOf(result.atKey, atSign) == null) {
+      return write();
+    }
+    return AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .serialiseMutation(() async {
+      AtData? stored;
+      try {
+        stored = await keyStore.get(result.atKey);
+      } on KeyNotFoundException {
+        stored = null;
+      }
+      final AtMetaData metaData = result.atData.metaData!;
+      metaData.appMetadata = ApskLinks.carriedOver(
+          written: metaData.appMetadata,
+          stored: stored?.metaData?.appMetadata,
+          value: result.atData.data ?? stored?.data);
+      return write();
+    });
+  }
+
   /// Queues the auto-notification for a write that has already succeeded,
   /// reading the metadata back so the notification carries what was stored,
   /// client-asserted timestamps included.
@@ -265,12 +297,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
     var updateParams = UpdateParams();
     if (verbParams[AtConstants.atSign] != null) {
-      updateParams.sharedBy =
-          AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+      updateParams.sharedBy = verbParams[AtConstants.atSign]!.toAtsign();
     }
     if (verbParams[AtConstants.forAtSign] != null) {
-      updateParams.sharedWith =
-          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!);
+      updateParams.sharedWith = verbParams[AtConstants.forAtSign]!.toAtsign();
     }
     updateParams.atKey = verbParams[AtConstants.atKey];
     updateParams.value = verbParams[AtConstants.atValue];
@@ -360,7 +390,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.sharedBy!.isNotEmpty &&
         updateParams.sharedBy != atSign) {
       var message = 'Invalid update command - sharedBy atsign'
-          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
+          ' ${updateParams.sharedBy}'
           ' should be same as current atsign'
           ' $atSign';
       logger.warning(message);
@@ -381,10 +411,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     // NOTE the atSigns are normalised before anything compares them.
     if (updateParams.sharedBy.isNotNullOrEmpty) {
-      updateParams.sharedBy = AtUtils.fixAtSign(updateParams.sharedBy!);
+      updateParams.sharedBy = updateParams.sharedBy!.toAtsign();
     }
     if (updateParams.sharedWith.isNotNullOrEmpty) {
-      updateParams.sharedWith = AtUtils.fixAtSign(updateParams.sharedWith!);
+      updateParams.sharedWith = updateParams.sharedWith!.toAtsign();
     }
 
     final Metadata? metadata = updateParams.metadata;

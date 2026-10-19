@@ -52,9 +52,9 @@ void main() {
   test(
       'Looking up a record that does not exist commits nothing when no copy is held',
       () async {
-    if (readerVersion < Version(3, 17, 1)) {
+    if (readerVersion < Version(3, 18, 0)) {
       markTestSkipped('the reader\'s atServer, $readerVersion, predates '
-          '3.17.1 and commits a DELETE for every miss');
+          '3.18.0 and commits a DELETE for every miss');
       return;
     }
     // A first lookup to atSign_1 caches its encryption public key, which
