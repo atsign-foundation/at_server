@@ -39,7 +39,9 @@ set -euo pipefail
 # Each pack runs in its own process group, with stdin from /dev/null. An
 # interrupt, TERM, HUP or ALRM stops the running pack, and every container a
 # pack left behind is removed before the worktree is. The cleanup ignores a
-# further signal, and the commands it runs ignore a further interrupt or HUP.
+# further signal; the commands it runs ignore a further interrupt or HUP, and
+# each docker call runs in a process group of its own, which a terminal's
+# signals do not reach.
 # A signal during the build takes effect once the build ends. KILL ends the
 # runner alone, leaving the running pack, its containers and the worktree
 # behind.
@@ -66,13 +68,17 @@ refuse() {
   exit 2
 }
 
-# Runs a command, sending it TERM after [seconds] and KILL ten seconds later.
-# NOTE a plain alarm cannot bound docker: Go programs ignore SIGALRM.
+# Runs a command in a process group of its own, with stdin from /dev/null,
+# sending it TERM after [seconds] and KILL ten seconds later.
+# NOTE a plain alarm cannot bound docker, which ignores SIGALRM, and an ignored
+# SIGINT does not protect it, since it handles SIGINT itself.
 bounded() {
   perl -MPOSIX -e '
     my $seconds = shift;
     my $pid = fork() // die "bounded: cannot fork: $!\n";
     if ($pid == 0) {
+      setpgrp(0, 0);
+      open(STDIN, "<", "/dev/null") or die "bounded: cannot read /dev/null: $!\n";
       $SIG{TERM} = "DEFAULT";
       exec(@ARGV) or die "bounded: cannot run $ARGV[0]: $!\n";
     }
@@ -198,7 +204,9 @@ watchContainers() {
 
 stopWatching() {
   if [[ -n "$eventsPid" ]]; then
-    kill -TERM "$eventsPid" || true
+    if kill -0 "$eventsPid" 2>/dev/null; then
+      kill -TERM "$eventsPid" || true
+    fi
     wait "$eventsPid" || true
     eventsPid=""
   fi
