@@ -417,8 +417,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
       AtSecondaryServerImpl.getInstance()
-          .connectionTelemetry
-          .authenticated(atConnection);
+          .telemetry
+          .connectionAuthenticated(atConnection);
       return;
     }
 

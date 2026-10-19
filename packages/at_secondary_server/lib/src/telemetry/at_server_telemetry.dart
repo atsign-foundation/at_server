@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -107,7 +111,117 @@ final class AtServerTelemetry {
     return telemetry.shutdown(timeout: timeout);
   }
 
+  void connectionAuthenticated(AtConnection connection) {
+    if (!isEnabled || connection is! InboundConnection) {
+      return;
+    }
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (metaData is! InboundConnectionMetadata || !metaData.isAuthenticated) {
+      return;
+    }
+    metaData.telemetryAnnounced = true;
+    emitEvent(
+      atServerConnectionAuthenticatedEventName,
+      attributes: _describeConnection(connection, metaData),
+    );
+  }
+
+  void connectionMonitoring(
+    InboundConnection connection, {
+    required bool selfNotifications,
+  }) {
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (!isEnabled ||
+        metaData is! InboundConnectionMetadata ||
+        !metaData.telemetryAnnounced) {
+      return;
+    }
+    emitEvent(
+      atServerConnectionMonitoringEventName,
+      attributes: <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        connectionSelfNotificationsAttribute: selfNotifications,
+      },
+    );
+  }
+
+  void connectionClosed(InboundConnection connection) {
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (!isEnabled ||
+        metaData is! InboundConnectionMetadata ||
+        !metaData.telemetryAnnounced) {
+      return;
+    }
+    metaData.telemetryAnnounced = false;
+    final InboundConnectionCloseReason reason = metaData.closeReason ??
+        (metaData.isStale
+            ? InboundConnectionCloseReason.stale
+            : InboundConnectionCloseReason.unknown);
+    if (reason == InboundConnectionCloseReason.serverShutdown) {
+      return;
+    }
+    final DateTime? created = metaData.created;
+    emitEvent(
+      atServerConnectionClosedEventName,
+      attributes: <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        connectionCloseReasonAttribute: reason.wireName,
+        if (created != null)
+          connectionDurationAttribute:
+              DateTime.timestamp().difference(created).inMilliseconds,
+      },
+    );
+  }
+
   void _onError(Object error, StackTrace stackTrace) {
     _logger.warning('Telemetry export failed: $error');
+  }
+
+  Map<String, Object?> _describeConnection(
+    InboundConnection connection,
+    InboundConnectionMetadata metaData,
+  ) {
+    final DateTime? created = metaData.created;
+    final AuthType? authType = metaData.authType;
+    final String clientVersion = metaData.clientVersion;
+    return <String, Object?>{
+      connectionIdAttribute: metaData.connectionId,
+      if (created != null)
+        connectionOpenedAtAttribute: created.millisecondsSinceEpoch,
+      connectionTransportAttribute:
+          connection is InboundWebSocketConnection ? 'websocket' : 'tls',
+      if (authType != null)
+        connectionAuthTypeAttribute: _authTypeName(authType),
+      if (metaData.enrollmentId case final String enrollmentId)
+        AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
+      if (metaData.enrollmentAppName case final String appName)
+        enrollmentAppNameAttribute: _bounded(appName),
+      if (metaData.enrollmentDeviceName case final String deviceName)
+        enrollmentDeviceNameAttribute: _bounded(deviceName),
+      if (metaData.clientId case final String clientId)
+        AtTelemetryAttributes.clientId: _bounded(clientId),
+      if (metaData.appName case final String appName)
+        clientAppNameAttribute: _bounded(appName),
+      if (metaData.appVersion case final String appVersion)
+        clientAppVersionAttribute: _bounded(appVersion),
+      if (metaData.platform case final String platform)
+        clientPlatformAttribute: _bounded(platform),
+      if (clientVersion != AtConnectionMetaData.clientVersionNotAvailable)
+        clientSdkVersionAttribute: _bounded(clientVersion),
+    };
+  }
+
+  String _authTypeName(AuthType authType) {
+    return switch (authType) {
+      AuthType.cram => 'cram',
+      AuthType.pkamLegacy => 'pkam_legacy',
+      AuthType.apkam => 'apkam',
+    };
+  }
+
+  String _bounded(String value) {
+    return value.length <= atServerTelemetryMaxValueLength
+        ? value
+        : value.substring(0, atServerTelemetryMaxValueLength);
   }
 }

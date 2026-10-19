@@ -111,7 +111,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       }
     }
     atConnection.isMonitor = true;
-    AtSecondaryServerImpl.getInstance().connectionTelemetry.monitoring(
+    AtSecondaryServerImpl.getInstance().telemetry.connectionMonitoring(
         atConnection,
         selfNotifications:
             selfNotificationsParam == AtConstants.monitorSelfNotifications);

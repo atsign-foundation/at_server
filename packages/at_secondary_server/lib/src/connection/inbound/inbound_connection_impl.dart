@@ -124,7 +124,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       metaData.isStale = true;
     } finally {
       metaData.isClosed = true;
-      AtSecondaryServerImpl.getInstance().connectionTelemetry.closed(this);
+      AtSecondaryServerImpl.getInstance().telemetry.connectionClosed(this);
     }
   }
 

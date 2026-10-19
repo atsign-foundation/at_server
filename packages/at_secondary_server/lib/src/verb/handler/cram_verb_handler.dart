@@ -108,8 +108,8 @@ class CramVerbHandler extends AbstractVerbHandler {
 
       response.data = 'success';
       AtSecondaryServerImpl.getInstance()
-          .connectionTelemetry
-          .authenticated(atConnection);
+          .telemetry
+          .connectionAuthenticated(atConnection);
     } else {
       atConnection.metaData.isAuthenticated = false;
       throw UnAuthenticatedException('Authentication Failed');

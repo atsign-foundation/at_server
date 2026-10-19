@@ -4,7 +4,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
-import 'package:at_secondary/src/telemetry/at_server_connection_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -16,7 +15,6 @@ import 'test_utils.dart';
 void main() {
   late List<AtTelemetryLogRecord> records;
   late AtServerTelemetry telemetry;
-  late AtServerConnectionTelemetry subject;
 
   InboundConnectionImpl newConnection() {
     return InboundConnectionImpl(FakeSocket(), '_session');
@@ -57,7 +55,6 @@ void main() {
         serverId: '$alice',
         bootId: 'boot-1',
       );
-    subject = AtServerConnectionTelemetry(telemetry: telemetry);
     records.clear();
   });
 
@@ -65,29 +62,27 @@ void main() {
     await telemetry.shutdown();
   });
 
-  group('authenticated', () {
+  group('connectionAuthenticated', () {
     test('describes the enrollment and the client', () {
       final InboundConnectionImpl connection = apkamConnection();
       final InboundConnectionMetadata metaData = metaDataOf(connection);
 
-      subject.authenticated(connection);
+      telemetry.connectionAuthenticated(connection);
 
       expect(names(), <String>[atServerConnectionAuthenticatedEventName]);
       expect(records.single.attributes, <String, Object?>{
-        AtServerConnectionTelemetry.connectionIdAttribute:
-            metaData.connectionId,
-        AtServerConnectionTelemetry.openedAtAttribute:
-            metaData.created!.millisecondsSinceEpoch,
-        AtServerConnectionTelemetry.transportAttribute: 'tls',
-        AtServerConnectionTelemetry.authTypeAttribute: 'apkam',
+        connectionIdAttribute: metaData.connectionId,
+        connectionOpenedAtAttribute: metaData.created!.millisecondsSinceEpoch,
+        connectionTransportAttribute: 'tls',
+        connectionAuthTypeAttribute: 'apkam',
         AtTelemetryAttributes.enrollmentId: 'enrollment-1',
-        AtServerConnectionTelemetry.enrollmentAppNameAttribute: 'wavi',
-        AtServerConnectionTelemetry.enrollmentDeviceNameAttribute: 'pixel-8',
+        enrollmentAppNameAttribute: 'wavi',
+        enrollmentDeviceNameAttribute: 'pixel-8',
         AtTelemetryAttributes.clientId: 'client-1',
-        AtServerConnectionTelemetry.clientAppNameAttribute: 'wavi',
-        AtServerConnectionTelemetry.clientAppVersionAttribute: '2.1.0',
-        AtServerConnectionTelemetry.clientPlatformAttribute: 'android',
-        AtServerConnectionTelemetry.clientSdkVersionAttribute: '3.15.0',
+        clientAppNameAttribute: 'wavi',
+        clientAppVersionAttribute: '2.1.0',
+        clientPlatformAttribute: 'android',
+        clientSdkVersionAttribute: '3.15.0',
       });
       expect(metaData.telemetryAnnounced, isTrue);
     });
@@ -98,34 +93,29 @@ void main() {
         ..isAuthenticated = true
         ..authType = AuthType.cram;
 
-      subject.authenticated(connection);
+      telemetry.connectionAuthenticated(connection);
 
       expect(
         records.single.attributes.keys,
         unorderedEquals(<String>[
-          AtServerConnectionTelemetry.connectionIdAttribute,
-          AtServerConnectionTelemetry.openedAtAttribute,
-          AtServerConnectionTelemetry.transportAttribute,
-          AtServerConnectionTelemetry.authTypeAttribute,
+          connectionIdAttribute,
+          connectionOpenedAtAttribute,
+          connectionTransportAttribute,
+          connectionAuthTypeAttribute,
         ]),
       );
-      expect(
-        records
-            .single.attributes[AtServerConnectionTelemetry.authTypeAttribute],
-        'cram',
-      );
+      expect(records.single.attributes[connectionAuthTypeAttribute], 'cram');
     });
 
     test('bounds long values', () {
       final InboundConnectionImpl connection = apkamConnection();
       metaDataOf(connection).enrollmentDeviceName = 'd' * 500;
 
-      subject.authenticated(connection);
+      telemetry.connectionAuthenticated(connection);
 
       expect(
-        records.single.attributes[
-            AtServerConnectionTelemetry.enrollmentDeviceNameAttribute],
-        'd' * AtServerConnectionTelemetry.maxValueLength,
+        records.single.attributes[enrollmentDeviceNameAttribute],
+        'd' * atServerTelemetryMaxValueLength,
       );
     });
 
@@ -134,8 +124,8 @@ void main() {
       final InboundConnectionImpl peer = newConnection();
       metaDataOf(peer).isPolAuthenticated = true;
 
-      subject.authenticated(anonymous);
-      subject.authenticated(peer);
+      telemetry.connectionAuthenticated(anonymous);
+      telemetry.connectionAuthenticated(peer);
 
       expect(records, isEmpty);
       expect(metaDataOf(anonymous).telemetryAnnounced, isFalse);
@@ -147,48 +137,47 @@ void main() {
       records.clear();
       final InboundConnectionImpl connection = apkamConnection();
 
-      subject.authenticated(connection);
+      telemetry.connectionAuthenticated(connection);
 
       expect(records, isEmpty);
       expect(metaDataOf(connection).telemetryAnnounced, isFalse);
     });
   });
 
-  group('closed', () {
+  group('connectionClosed', () {
     test('reports the first reason the connection was closed for', () {
       final InboundConnectionImpl connection = apkamConnection();
-      subject.authenticated(connection);
+      telemetry.connectionAuthenticated(connection);
       records.clear();
 
       InboundConnectionCloseReason.idleTimeout.markOn(connection);
       InboundConnectionCloseReason.clientClosed.markOn(connection);
-      subject.closed(connection);
-      subject.closed(connection);
+      telemetry.connectionClosed(connection);
+      telemetry.connectionClosed(connection);
 
       expect(names(), <String>[atServerConnectionClosedEventName]);
       final Map<String, Object?> attributes = records.single.attributes;
-      expect(attributes[AtServerConnectionTelemetry.connectionIdAttribute],
+      expect(attributes[connectionIdAttribute],
           metaDataOf(connection).connectionId);
-      expect(attributes[AtServerConnectionTelemetry.closeReasonAttribute],
-          'idle_timeout');
-      expect(attributes[AtServerConnectionTelemetry.durationAttribute],
+      expect(attributes[connectionCloseReasonAttribute], 'idle_timeout');
+      expect(attributes[connectionDurationAttribute],
           isA<int>().having((int value) => value, 'duration', isNonNegative));
     });
 
     test('falls back to stale, then unknown', () {
       final InboundConnectionImpl stale = apkamConnection();
       final InboundConnectionImpl unexplained = apkamConnection();
-      subject.authenticated(stale);
-      subject.authenticated(unexplained);
+      telemetry.connectionAuthenticated(stale);
+      telemetry.connectionAuthenticated(unexplained);
       records.clear();
       metaDataOf(stale).isStale = true;
 
-      subject.closed(stale);
-      subject.closed(unexplained);
+      telemetry.connectionClosed(stale);
+      telemetry.connectionClosed(unexplained);
 
       expect(
-        records.map((AtTelemetryLogRecord record) => record
-            .attributes[AtServerConnectionTelemetry.closeReasonAttribute]),
+        records.map((AtTelemetryLogRecord record) =>
+            record.attributes[connectionCloseReasonAttribute]),
         <String>['stale', 'unknown'],
       );
     });
@@ -196,39 +185,38 @@ void main() {
     test('says nothing about a connection it never announced', () {
       final InboundConnectionImpl connection = apkamConnection();
 
-      subject.closed(connection);
+      telemetry.connectionClosed(connection);
 
       expect(records, isEmpty);
     });
 
     test('says nothing when the server shuts down', () {
       final InboundConnectionImpl connection = apkamConnection();
-      subject.authenticated(connection);
+      telemetry.connectionAuthenticated(connection);
       records.clear();
 
       InboundConnectionCloseReason.serverShutdown.markOn(connection);
-      subject.closed(connection);
+      telemetry.connectionClosed(connection);
 
       expect(records, isEmpty);
       expect(metaDataOf(connection).telemetryAnnounced, isFalse);
     });
   });
 
-  group('monitoring', () {
+  group('connectionMonitoring', () {
     test('follows only announced connections', () {
       final InboundConnectionImpl quiet = apkamConnection();
       final InboundConnectionImpl announced = apkamConnection();
-      subject.authenticated(announced);
+      telemetry.connectionAuthenticated(announced);
       records.clear();
 
-      subject.monitoring(quiet, selfNotifications: false);
-      subject.monitoring(announced, selfNotifications: true);
+      telemetry.connectionMonitoring(quiet, selfNotifications: false);
+      telemetry.connectionMonitoring(announced, selfNotifications: true);
 
       expect(names(), <String>[atServerConnectionMonitoringEventName]);
       expect(records.single.attributes, <String, Object?>{
-        AtServerConnectionTelemetry.connectionIdAttribute:
-            metaDataOf(announced).connectionId,
-        AtServerConnectionTelemetry.selfNotificationsAttribute: true,
+        connectionIdAttribute: metaDataOf(announced).connectionId,
+        connectionSelfNotificationsAttribute: true,
       });
     });
   });

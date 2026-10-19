@@ -132,8 +132,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
       }
       response.data = 'success';
       AtSecondaryServerImpl.getInstance()
-          .connectionTelemetry
-          .authenticated(atConnection);
+          .telemetry
+          .connectionAuthenticated(atConnection);
       enrollId = atConnectionMetadata.enrollmentId;
 
       // NOTE a retrofit predecessor is settled here, on the first

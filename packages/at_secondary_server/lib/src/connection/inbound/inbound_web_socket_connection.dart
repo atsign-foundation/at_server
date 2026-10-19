@@ -120,7 +120,7 @@ class InboundWebSocketConnection implements InboundConnection {
       // Ignore exception on a connection close
       metaData.isStale = true;
     } finally {
-      AtSecondaryServerImpl.getInstance().connectionTelemetry.closed(this);
+      AtSecondaryServerImpl.getInstance().telemetry.connectionClosed(this);
     }
   }
 
