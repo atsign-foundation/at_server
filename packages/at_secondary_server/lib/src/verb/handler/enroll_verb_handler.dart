@@ -1293,14 +1293,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         Future.delayed(Duration(seconds: 10), () async {
           logger.finer('Closing revoked self inbound connection');
           connectionsToRemove.remove(inboundConnection);
-          InboundConnectionCloseReason.enrollmentRevoked
-              .markOn(inboundConnection);
+          (inboundConnection.metaData as InboundConnectionMetadata)
+              .markCloseReason(InboundConnectionCloseReason.enrollmentRevoked);
           await inboundConnection.close();
         });
       } else {
         inboundPool.remove(inboundConnection);
-        InboundConnectionCloseReason.enrollmentRevoked
-            .markOn(inboundConnection);
+        (inboundConnection.metaData as InboundConnectionMetadata)
+            .markCloseReason(InboundConnectionCloseReason.enrollmentRevoked);
         await inboundConnection.close();
       }
     }

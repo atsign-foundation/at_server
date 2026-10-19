@@ -63,7 +63,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     (bool, Response) isEnrollmentActive =
         await _verifyIfEnrollmentIsActive(response, atConnectionMetadata);
     if (isEnrollmentActive.$1 == false) {
-      InboundConnectionCloseReason.enrollmentInactive.markOn(atConnection);
+      (atConnectionMetadata as InboundConnectionMetadata)
+          .markCloseReason(InboundConnectionCloseReason.enrollmentInactive);
       await atConnection.close();
       return isEnrollmentActive.$2;
     }

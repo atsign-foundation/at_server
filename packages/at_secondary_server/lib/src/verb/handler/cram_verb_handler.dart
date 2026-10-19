@@ -50,7 +50,8 @@ class CramVerbHandler extends AbstractVerbHandler {
     await responseManager
         .getResponseHandler(getVerb())
         .process(atConnection, response);
-    InboundConnectionCloseReason.protocolError.markOn(atConnection);
+    (atConnection.metaData as InboundConnectionMetadata)
+        .markCloseReason(InboundConnectionCloseReason.protocolError);
     await atConnection.close();
   }
 

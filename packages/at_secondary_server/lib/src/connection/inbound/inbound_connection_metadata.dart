@@ -42,9 +42,21 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   final String connectionId = _newConnectionId();
 
-  InboundConnectionCloseReason? closeReason;
+  InboundConnectionCloseReason? _closeReason;
 
   bool telemetryAnnounced = false;
+
+  InboundConnectionCloseReason? get closeReason => _closeReason;
+
+  void markCloseReason(InboundConnectionCloseReason reason) {
+    _closeReason ??= reason;
+  }
+
+  void markInvalid() {
+    markCloseReason(isStale
+        ? InboundConnectionCloseReason.stale
+        : InboundConnectionCloseReason.idleTimeout);
+  }
 
   @override
   String toString() {

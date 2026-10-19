@@ -129,7 +129,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     await responseManager
         .getResponseHandler(getVerb())
         .process(atConnection, response);
-    InboundConnectionCloseReason.protocolError.markOn(atConnection);
+    md.markCloseReason(InboundConnectionCloseReason.protocolError);
     await atConnection.close();
   }
 

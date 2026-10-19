@@ -150,8 +150,9 @@ void main() {
       telemetry.connectionAuthenticated(connection);
       records.clear();
 
-      InboundConnectionCloseReason.idleTimeout.markOn(connection);
-      InboundConnectionCloseReason.clientClosed.markOn(connection);
+      metaDataOf(connection)
+        ..markCloseReason(InboundConnectionCloseReason.idleTimeout)
+        ..markCloseReason(InboundConnectionCloseReason.clientClosed);
       telemetry.connectionClosed(connection);
       telemetry.connectionClosed(connection);
 
@@ -195,7 +196,8 @@ void main() {
       telemetry.connectionAuthenticated(connection);
       records.clear();
 
-      InboundConnectionCloseReason.serverShutdown.markOn(connection);
+      metaDataOf(connection)
+          .markCloseReason(InboundConnectionCloseReason.serverShutdown);
       telemetry.connectionClosed(connection);
 
       expect(records, isEmpty);

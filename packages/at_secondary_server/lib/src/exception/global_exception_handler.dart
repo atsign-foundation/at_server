@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -36,11 +37,11 @@ class GlobalExceptionHandler {
         exception is ConnectionInvalidException) {
       logger.shout(loggable);
       await _sendResponseForException(exception, atConnection);
+      if (exception is ConnectionInvalidException) {
+        _inboundMetaDataOf(atConnection)?.markInvalid();
+      }
       _closeConnection(
-          atConnection,
-          exception is ConnectionInvalidException && atConnection != null
-              ? InboundConnectionCloseReason.ofInvalid(atConnection)
-              : InboundConnectionCloseReason.protocolError);
+          atConnection, InboundConnectionCloseReason.protocolError);
     } else if (exception is BlockedConnectionException) {
       // log as INFO and close the connection
       logger.info(loggable);
@@ -127,8 +128,13 @@ class GlobalExceptionHandler {
   /// This will close the connection and remove it from pool
   void _closeConnection(
       AtConnection? atConnection, InboundConnectionCloseReason reason) async {
-    reason.markOn(atConnection);
+    _inboundMetaDataOf(atConnection)?.markCloseReason(reason);
     await atConnection?.close();
+  }
+
+  InboundConnectionMetadata? _inboundMetaDataOf(AtConnection? atConnection) {
+    final AtConnectionMetaData? metaData = atConnection?.metaData;
+    return metaData is InboundConnectionMetadata ? metaData : null;
   }
 
   /// Whether [atConnection] has authenticated, as the atSign's own client or

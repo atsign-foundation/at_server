@@ -54,11 +54,11 @@ class InboundWebSocketConnection implements InboundConnection {
 
     ws.done.then((doneValue) {
       logger.info('ws.done called. Calling this.close()');
-      InboundConnectionCloseReason.clientClosed.markOn(this);
+      metaData.markCloseReason(InboundConnectionCloseReason.clientClosed);
       close();
     }, onError: (error, stackTrace) {
       logger.info('ws.done.onError called with $error. Calling this.close()');
-      InboundConnectionCloseReason.socketError.markOn(this);
+      metaData.markCloseReason(InboundConnectionCloseReason.socketError);
       close();
     });
   }

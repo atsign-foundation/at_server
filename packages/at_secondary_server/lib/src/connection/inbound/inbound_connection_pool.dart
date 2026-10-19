@@ -97,7 +97,7 @@ class InboundConnectionPool {
       // clearInvalidConnections needs to never throw an exception, so we're going to do all of the connection close() calls separately here
       for (var connection in invalidConnections) {
         try {
-          InboundConnectionCloseReason.ofInvalid(connection).markOn(connection);
+          (connection.metaData as InboundConnectionMetadata).markInvalid();
           connection.close();
         } catch (e) {
           logger.severe(
@@ -121,7 +121,8 @@ class InboundConnectionPool {
 
   bool clearAllConnections() {
     for (var connection in _connections.toList()) {
-      InboundConnectionCloseReason.serverShutdown.markOn(connection);
+      (connection.metaData as InboundConnectionMetadata)
+          .markCloseReason(InboundConnectionCloseReason.serverShutdown);
       connection.close();
     }
     _connections.clear();

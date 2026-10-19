@@ -1,6 +1,3 @@
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_server_spec/at_server_spec.dart';
-
 enum InboundConnectionCloseReason {
   clientClosed('client_closed'),
   socketError('socket_error'),
@@ -16,15 +13,4 @@ enum InboundConnectionCloseReason {
   final String wireName;
 
   const InboundConnectionCloseReason(this.wireName);
-
-  static InboundConnectionCloseReason ofInvalid(AtConnection connection) {
-    return connection.metaData.isStale ? stale : idleTimeout;
-  }
-
-  void markOn(AtConnection? connection) {
-    final AtConnectionMetaData? metaData = connection?.metaData;
-    if (metaData is InboundConnectionMetadata) {
-      metaData.closeReason ??= this;
-    }
-  }
 }
