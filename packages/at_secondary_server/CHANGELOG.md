@@ -1,4 +1,4 @@
-# 3.17.1
+# 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
   is no longer supported`); one from another atServer is accepted and dropped.
@@ -67,6 +67,14 @@
   atServer's atSign as the key's owner. A lookup naming another owner is
   answered with AT0009, and the connection is closed.
 
+- fix: a `lookup:` from an atServer that has proved itself with `pol` names
+  its key bare, as `<key>@<atSign>`; one naming a scope, such as `public:` or
+  `@<atSign>:`, is answered with AT0009, and the connection is closed. A
+  client's `lookup:` of another atSign's key that names a scope is answered
+  with AT0009, and the client keeps its connection. **App authors:** name
+  another atSign's key as `<key>@<atSign>`; `plookup:` reads its public
+  records.
+
 - fix: an HTTP request's path and query parameters are logged with control
   characters escaped.
 
@@ -93,9 +101,37 @@
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
 
-- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
-  `@` is now refused; a `notify` to one, for example, is answered with an
-  error.
+- fix: an atSign of more than 55 characters after its `@` is refused with
+  AT0003 wherever a command names one, a `batch:` entry included; exactly 55
+  is accepted. Characters are code points, counted once the atSign is
+  lower-cased and its dots are removed, as `at_commons` counts them.
+  Any other atSign that is not valid, such as one with a reserved character,
+  is answered with AT0003 too, as is a `notify` that names no recipient. An
+  authenticated client, or a peer that has proved itself by `pol`, keeps its
+  connection.
+
+- fix: `config:block:add`, `config:block:remove`, `scan` and `stream:` take
+  each atSign in its canonical form, lower-cased and without its dots.
+  `from:` compares atSigns with the blocklist in that form, and never blocks
+  this atServer's own atSign.
+- feat: `enroll:link` stores links vouching for the client data signing keys
+  an approved enrollment's `_apsk` record lists, one per key. The enrollment
+  itself, a connection that could approve it, or a CRAM connection may write
+  them, and any other write of that `_apsk` record keeps the links for the
+  keys it still lists.
+
+- fix: an `enroll:update` is refused with AT0022 when it would leave the
+  enrollment's client authentication signing key listed in its `_apsk`
+  beside another key, or carrying a link.
+
+- build: `at_commons` 5.23.0. An atSign of more than 55 characters after
+  its `@` is now refused; a `notify` to one, for example, is answered with
+  an error.
+
+- build: `at_utils` 3.5.0. In a log message, control characters other than a
+  line feed, bidirectional formatting characters, and line and paragraph
+  separators appear as escapes such as `\x1b` and `\u202e`, and each line
+  after a line feed is indented by two spaces.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,

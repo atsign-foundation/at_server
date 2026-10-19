@@ -68,12 +68,14 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
         return;
       }
 
-      var result = await keyStore.put(
-        updatePreProcessResult.atKey,
-        updatePreProcessResult.atData,
-        skipCommit: verbParams[WireParams.noCommit] != null,
-        assertedTimestamps: updatePreProcessResult.assertedTimestamps,
-      );
+      var result = await keepingApskLinks(
+          updatePreProcessResult,
+          () => keyStore.put(
+                updatePreProcessResult.atKey,
+                updatePreProcessResult.atData,
+                skipCommit: verbParams[WireParams.noCommit] != null,
+                assertedTimestamps: updatePreProcessResult.assertedTimestamps,
+              ));
       response.data = result?.toString();
 
       await super.notifyAfterStore(verbParams, updateParams,

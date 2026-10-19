@@ -8,7 +8,9 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -422,15 +424,6 @@ void main() {
       inboundConnection.metadata.from = true;
       inboundConnection.metadata.fromAtSign = bob;
 
-      // The sharedWith atSign is always prepended, even if it's been supplied. So, when it is
-      // supplied, the search will be for e.g. @bob:@bob:foo.bar$alice
-      // So let's just assert that this will throw a KeyNotFoundException
-      await expectLater(
-          lookupVerbHandler.process(
-              'lookup:all:$bob:$keyName', inboundConnection),
-          throwsA(isA<KeyNotFoundException>()));
-
-      // But looking it up is fine when we don't provide sharedWith in the lookup command
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       Map mapSentToClient;
@@ -1245,6 +1238,206 @@ void main() {
 
       expect(connection.lastWrittenData, startsWith('data:+44 1234'));
       expect(connection.closed, isFalse);
+    });
+
+    for (final (String lookup, String named) in [
+      ('lookup:public:phone.wavi$alice', 'public:phone.wavi$alice'),
+      ('lookup:@carol:phone.wavi$alice', '@carol:phone.wavi$alice'),
+      ('lookup:@chuck:phone.wavi$alice', '@chuck:phone.wavi$alice'),
+      ('lookup:all:public:phone.wavi$alice', 'public:phone.wavi$alice'),
+    ]) {
+      test('when it sends $lookup, then it is refused with AT0009 and closed',
+          () async {
+        // NOTE every record the scoped name could mean is held, so the
+        // refusal is not an absence.
+        await keyValueStore.put(
+            'public:phone.wavi$alice', AtData()..data = 'public');
+        await keyValueStore.put(
+            '@carol:phone.wavi$alice', AtData()..data = 'carol');
+        await keyValueStore.put(
+            '$chuck:phone.wavi$alice', AtData()..data = 'chuck');
+
+        await lookupVerbHandler.process(lookup, connection);
+
+        expect(
+            connection.lastWrittenData,
+            startsWith('error:AT0009:Lookup from @chuck may name the key only '
+                'as phone.wavi@alice, not $named\n'));
+        expect(connection.closed, isTrue);
+      });
+    }
+
+    test(
+        'when it sends lookup:all:phone.wavi@alice, then it gets the value and '
+        'metadata', () async {
+      await keyValueStore.put(
+          '$chuck:phone.wavi$alice', AtData()..data = '+44 1234');
+
+      await lookupVerbHandler.process(
+          'lookup:all:phone.wavi$alice', connection);
+
+      final Map answer = decodeResponse(connection.lastWrittenData!);
+      expect(answer['data'], '+44 1234');
+      expect(answer['metaData'], isA<Map>());
+      expect(connection.closed, isFalse);
+    });
+  });
+
+  /// Catalogue: features/lookup/client_lookup_scope.feature
+  group('Given a client authenticated as @alice', () {
+    late LookupVerbHandler lookupVerbHandler;
+    late _ClosableConnection connection;
+
+    setUpAll(() async {
+      await verbTestsSetUpAll();
+    });
+
+    setUp(() async {
+      await verbTestsSetUp();
+      lookupVerbHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      connection = _ClosableConnection();
+      connection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    for (final (String lookup, String named) in [
+      ('lookup:public:phone.wavi$bob', 'public:phone.wavi$bob'),
+      ('lookup:@carol:phone.wavi$bob', '@carol:phone.wavi$bob'),
+      ('lookup:all:public:phone.wavi$bob', 'public:phone.wavi$bob'),
+    ]) {
+      test(
+          'when it sends $lookup, then it is refused with AT0009 and nothing '
+          "is sent to @bob's atServer", () async {
+        await expectLater(
+            lookupVerbHandler.process(lookup, connection),
+            throwsA(isA<UnAuthorizedException>().having(
+                (e) => e.message,
+                'message',
+                'Lookup from @alice may name the key only as phone.wavi@bob, '
+                    'not $named')));
+        verifyNever(() => mockOutboundClientManager.getClient(any(), any(),
+            handshakeRequired: any(named: 'handshakeRequired')));
+      });
+    }
+
+    test(
+        'when it sends lookup:@carol:public:phone.wavi@bob, then the refusal '
+        'names the key after its last scope', () async {
+      await expectLater(
+          lookupVerbHandler.process(
+              'lookup:@carol:public:phone.wavi$bob', connection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message,
+              'message',
+              'Lookup from @alice may name the key only as phone.wavi@bob, '
+                  'not @carol:public:phone.wavi@bob')));
+    });
+
+    test(
+        'when a batch carries lookup:public:phone.wavi@bob, then that entry '
+        "is refused with AT0009 and nothing is sent to @bob's atServer",
+        () async {
+      final BatchVerbHandler batchHandler = BatchVerbHandler(
+          keyValueStore,
+          DefaultVerbHandlerManager(
+              keyValueStore,
+              mockOutboundClientManager,
+              cacheManager,
+              statsNotificationService,
+              notificationManager,
+              enMgr,
+              alice,
+              commitLog: atCommitLog,
+              accessLog: atAccessLog));
+
+      final Response response = await batchHandler.processInternal(
+          'batch:${jsonEncode([
+                {'id': 1, 'command': 'lookup:public:phone.wavi$bob'}
+              ])}',
+          connection);
+
+      final List entries = jsonDecode(response.data!);
+      expect(entries.single['response']['error_code'], 'AT0009');
+      verifyNever(() => mockOutboundClientManager.getClient(any(), any(),
+          handshakeRequired: any(named: 'handshakeRequired')));
+    });
+
+    test(
+        'when a revoked enrollment sends lookup:public:phone.wavi@bob, then '
+        'it is answered AT0027 and closed', () async {
+      final String enrollmentId = Uuid().v4();
+      await keyValueStore.put(
+          '$enrollmentId.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode({
+              'sessionId': '123',
+              'appName': 'wavi',
+              'deviceName': 'pixel',
+              'namespaces': {'*': 'r'},
+              'apkamPublicKey': 'testPublicKeyValue',
+              'requestType': 'newEnrollment',
+              'approval': {'state': 'revoked'}
+            }));
+      connection.metadata
+        ..authType = AuthType.apkam
+        ..enrollmentId = enrollmentId;
+
+      await lookupVerbHandler.process(
+          'lookup:public:phone.wavi$bob', connection);
+
+      expect(connection.lastWrittenData, startsWith('error:AT0027'));
+      expect(connection.closed, isTrue);
+      verifyNever(() => mockOutboundClientManager.getClient(any(), any(),
+          handshakeRequired: any(named: 'handshakeRequired')));
+    });
+
+    test(
+        'when it sends lookup:phone.wavi@bob, then @bob\'s atServer is asked '
+        'for lookup:all:phone.wavi@bob and the client gets the value',
+        () async {
+      final AtData bobsRecord = createRandomAtData(bob)..data = '+44 5678';
+      final String asBobAnswers = SecondaryUtil.prepareResponseData(
+          'all', bobsRecord,
+          key: '$alice:phone.wavi$bob')!;
+      when(() => mockOutboundConnection.write('lookup:all:phone.wavi$bob\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn('data:$asBobAnswers\n$alice@'.codeUnits);
+      });
+
+      await lookupVerbHandler.process('lookup:phone.wavi$bob', connection);
+
+      verify(() => mockOutboundConnection.write('lookup:all:phone.wavi$bob\n'))
+          .called(1);
+      expect(connection.lastWrittenData, startsWith('data:+44 5678'));
+      expect(connection.closed, isFalse);
+    });
+
+    test('when it sends lookup:public:phone.wavi@alice, then it gets the value',
+        () async {
+      await keyValueStore.put(
+          'public:phone.wavi$alice', AtData()..data = '+44 1234');
+
+      await lookupVerbHandler.process(
+          'lookup:public:phone.wavi$alice', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:+44 1234'));
+      expect(connection.closed, isFalse);
+    });
+
+    test('when it sends lookup:public:phone.wavi@ALICE, then it gets the value',
+        () async {
+      await keyValueStore.put(
+          'public:phone.wavi$alice', AtData()..data = '+44 1234');
+
+      await lookupVerbHandler.process(
+          'lookup:public:phone.wavi@ALICE', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:+44 1234'));
     });
   });
 

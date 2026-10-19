@@ -10,7 +10,6 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_utils.dart';
 
 // Class which will process plookup (proxy lookup) verb
 class ProxyLookupVerbHandler extends AbstractVerbHandler {
@@ -49,7 +48,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     String? byPassCacheStr = verbParams[AtConstants.bypassCache];
     // Generate query using key, atSign from verbParams
     if (atSign.isNotNullOrEmpty) {
-      atSign = AtUtils.fixAtSign(atSign!);
+      atSign = atSign!.toAtsign();
     }
     var keyAtAtSign = '$entityName$atSign';
     var cachedKeyName = 'cached:public:$keyAtAtSign';
