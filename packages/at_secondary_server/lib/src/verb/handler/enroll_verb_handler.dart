@@ -1084,8 +1084,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     // Republish only when the request carried a new value.
     if (republished) {
-      await _writeApsk(enId, currentAtSign, apskRecord, apskValue!,
-          apskWrite!.appMetadata);
+      await _writeApsk(
+          enId, currentAtSign, apskRecord, apskValue!, apskWrite!.appMetadata);
     }
 
     responseJson['enrollmentId'] = enId;

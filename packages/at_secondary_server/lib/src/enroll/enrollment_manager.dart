@@ -782,8 +782,8 @@ class EnrollmentManager {
   /// text otherwise.
   static bool sameApkamKeyMaterial(
       String a, String? algoA, String b, String? algoB) {
-    return _sameMaterial(apkamKeyMaterial(a, algoA), a,
-        apkamKeyMaterial(b, algoB), b);
+    return _sameMaterial(
+        apkamKeyMaterial(a, algoA), a, apkamKeyMaterial(b, algoB), b);
   }
 
   static bool _sameMaterial(

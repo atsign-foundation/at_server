@@ -160,8 +160,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// writes under. Any other key is written as it stands.
   Future<T> keepingApskLinks<T>(
       UpdatePreProcessResult result, Future<T> Function() write) async {
-    final String? enrollmentId =
-        ApskLinks.enrollmentIdOf(result.atKey, atSign);
+    final String? enrollmentId = ApskLinks.enrollmentIdOf(result.atKey, atSign);
     if (enrollmentId == null) {
       return write();
     }
