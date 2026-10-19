@@ -35,6 +35,7 @@ import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:meta/meta.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
@@ -66,6 +67,10 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   }
 
   void close() {}
+
+  /// The handlers this manager offers each command to, in order.
+  @visibleForTesting
+  List<VerbHandler> get verbHandlers => List.unmodifiable(_verbHandlers);
 
   ///Accepts the command in UTF-8 format and returns the appropriate verbHandler.
   ///@param - utf8EncodedCommand: command in UTF-8 format.

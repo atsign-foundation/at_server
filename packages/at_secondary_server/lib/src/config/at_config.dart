@@ -13,8 +13,7 @@ class AtConfig {
   final String configKey;
 
   final AtKeyValueStore _keyStore;
-  // ignore: unused_field
-  final String? _atSign;
+  final Atsign? _atSign;
 
   AtConfig(this._keyStore, this._atSign)
       : configKey = 'private:blocklist$_atSign';
@@ -34,8 +33,9 @@ class AtConfig {
     }
   }
 
-  /// Removes [unblockAtsignsList] from blocklist if satisfies basic conditions.
-  Future<String?> removeFromBlockList(Set<String> unblockAtsignsList) async {
+  /// Removes from the blocklist every entry whose canonical form is one of
+  /// [unblockAtsignsList], whatever spelling the entry was stored in.
+  Future<String?> removeFromBlockList(Set<Atsign> unblockAtsignsList) async {
     if (unblockAtsignsList.isEmpty) {
       throw IllegalArgumentException(
           'Provided list of atsigns to unblock is empty');
@@ -46,7 +46,9 @@ class AtConfig {
       if (current.isEmpty) {
         return null;
       }
-      final updated = current.difference(unblockAtsignsList);
+      final updated = current
+        ..removeWhere(
+            (entry) => unblockAtsignsList.contains(_canonicalOrNull(entry)));
       return await _writeConfig(Configuration(updated.toList()));
     } on Exception catch (e) {
       throw DataStoreException('Failed to update blocklist: $e');
@@ -62,11 +64,18 @@ class AtConfig {
     }
   }
 
-  /// Returns 'true' if blocklist contains [atsign].
-  Future<bool> checkInBlockList(String atsign) async {
+  /// Whether the blocklist holds [atSign], comparing each entry in canonical
+  /// form and skipping any entry that is not an atSign. This atServer's own
+  /// atSign is never blocked.
+  Future<bool> checkInBlockList(Atsign atSign) async {
+    if (atSign == _atSign) {
+      return false;
+    }
     try {
       final blockList = await getBlockList();
-      return blockList.contains(atsign);
+      return blockList.any((entry) =>
+          entry == atSign ||
+          (!_spelledCanonically(entry) && _canonicalOrNull(entry) == atSign));
     } on Exception catch (e) {
       throw DataStoreException('Failed to check blocklist: $e');
     }
@@ -77,6 +86,23 @@ class AtConfig {
     logger.finest('Storing the config key:$configKey | Value: $atData');
     await _keyStore.put(configKey, atData, skipCommit: true);
     return 'success';
+  }
+
+  /// Whether [entry] is spelled as a canonical atSign is: a leading `@`, lower
+  /// case and no dots. Such an entry's canonical form, if it has one, is
+  /// itself.
+  static bool _spelledCanonically(String entry) =>
+      entry.startsWith('@') &&
+      !entry.contains('.') &&
+      entry == entry.toLowerCase();
+
+  /// [entry] in canonical form, or null when it is not an atSign.
+  static String? _canonicalOrNull(String entry) {
+    try {
+      return entry.toAtsign();
+    } on InvalidAtSignException {
+      return null;
+    }
   }
 
   Set<String> _decodeBlockList(AtData? existingData) {

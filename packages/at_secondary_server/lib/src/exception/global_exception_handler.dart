@@ -31,8 +31,7 @@ class GlobalExceptionHandler {
       StackTrace? stackTrace}) async {
     // NOTE an exception's message can include request text.
     final String loggable = sanitiseForLogging(exception.toString());
-    if (exception is InvalidAtSignException ||
-        exception is BufferOverFlowException ||
+    if (exception is BufferOverFlowException ||
         exception is ConnectionInvalidException) {
       logger.shout(loggable);
       await _sendResponseForException(exception, atConnection);
@@ -50,7 +49,8 @@ class GlobalExceptionHandler {
           InvalidSyntaxException(HttpRequestWithoutAlpnException.message),
           atConnection);
       _closeConnection(atConnection);
-    } else if (exception is InvalidSyntaxException) {
+    } else if (exception is InvalidSyntaxException ||
+        exception is InvalidAtSignException) {
       // This is normal behaviour, log as INFO. An authenticated client keeps
       // its connection after a typo; on any other connection it is answered,
       // then closed, rather than left open to keep sending what isn't the
@@ -170,7 +170,12 @@ class GlobalExceptionHandler {
     return prompt;
   }
 
+  /// The wire error code [exception] is answered with, looked up by its exact
+  /// type; an [InvalidAtSignException] is answered as invalid syntax.
   String? getErrorCode(Exception exception) {
+    if (exception is InvalidAtSignException) {
+      return error_codes['InvalidSyntaxException'];
+    }
     return error_codes[exception.runtimeType.toString()];
   }
 

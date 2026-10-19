@@ -297,12 +297,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
     var updateParams = UpdateParams();
     if (verbParams[AtConstants.atSign] != null) {
-      updateParams.sharedBy =
-          AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+      updateParams.sharedBy = verbParams[AtConstants.atSign]!.toAtsign();
     }
     if (verbParams[AtConstants.forAtSign] != null) {
-      updateParams.sharedWith =
-          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!);
+      updateParams.sharedWith = verbParams[AtConstants.forAtSign]!.toAtsign();
     }
     updateParams.atKey = verbParams[AtConstants.atKey];
     updateParams.value = verbParams[AtConstants.atValue];
@@ -392,7 +390,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.sharedBy!.isNotEmpty &&
         updateParams.sharedBy != atSign) {
       var message = 'Invalid update command - sharedBy atsign'
-          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
+          ' ${updateParams.sharedBy}'
           ' should be same as current atsign'
           ' $atSign';
       logger.warning(message);
@@ -413,10 +411,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     // NOTE the atSigns are normalised before anything compares them.
     if (updateParams.sharedBy.isNotNullOrEmpty) {
-      updateParams.sharedBy = AtUtils.fixAtSign(updateParams.sharedBy!);
+      updateParams.sharedBy = updateParams.sharedBy!.toAtsign();
     }
     if (updateParams.sharedWith.isNotNullOrEmpty) {
-      updateParams.sharedWith = AtUtils.fixAtSign(updateParams.sharedWith!);
+      updateParams.sharedWith = updateParams.sharedWith!.toAtsign();
     }
 
     final Metadata? metadata = updateParams.metadata;
