@@ -1,4 +1,6 @@
 ## 5.3.0
+- fix: the `Otp` verb's `usage()` lists `otp:get`, `otp:put`, `otp:list` and
+  `otp:delete`; it named `otp:validate`, which does not exist.
 - docs: every form of `info`, `info:brief` included, lists `features`. The
   `Info` dartdoc points at at_commons' `InfoFeature`, `InfoFeatureStatus` and
   `InfoFeatures` for their names, statuses and how to read them. The `Notify`
