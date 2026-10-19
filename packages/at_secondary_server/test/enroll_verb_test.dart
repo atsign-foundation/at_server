@@ -2389,7 +2389,7 @@ void main() {
             'metadata',
           },
           reason: 'a field added or removed here changes what every client '
-              'and every other atServer implementation reads');
+              'and every atServer implementation reads');
     });
 
     test('enroll:fetch returns the client metadata verbatim', () async {
