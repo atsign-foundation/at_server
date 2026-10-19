@@ -5,7 +5,7 @@
   `info` lists `notify.text` as `Retired`. Text notifications already stored
   still list and fetch.
 
-  - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
+- ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
   `__manage:rw`. An enrollment holding `__manage` alone could set it before;
   it is now refused with AT0009.
