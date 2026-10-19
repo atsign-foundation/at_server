@@ -12,7 +12,6 @@ import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_utils.dart';
 
 class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
@@ -59,7 +58,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       InboundConnection atConnection) async {
     String atSign = '';
     if (verbParams[AtConstants.atSign] != null) {
-      atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+      atSign = verbParams[AtConstants.atSign]!.toAtsign();
     }
     // NOTE :dAt is the caller-asserted deletion time; with :nc there is no
     // commit entry for it to stamp.
@@ -79,8 +78,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     await super.processVerb(response, verbParams, atConnection);
     if (verbParams[AtConstants.forAtSign] != null) {
-      deleteKey =
-          '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
+      deleteKey = '${verbParams[AtConstants.forAtSign]!.toAtsign()}:$deleteKey';
     }
     if (verbParams['isPublic'] == 'true') {
       deleteKey = 'public:$deleteKey';
@@ -154,10 +152,10 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       var key = verbParams[AtConstants.atKey];
       var atSign = verbParams[AtConstants.atSign];
       if (forAtSign.isNotNullOrEmpty) {
-        forAtSign = AtUtils.fixAtSign(forAtSign!);
+        forAtSign = forAtSign!.toAtsign();
       }
       if (atSign.isNotNullOrEmpty) {
-        atSign = AtUtils.fixAtSign(atSign!);
+        atSign = atSign!.toAtsign();
       }
 
       if (_autoNotify && (forAtSign != atSign)) {

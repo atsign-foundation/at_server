@@ -45,8 +45,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     int? ttrMillis;
     bool? isCascade;
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    final atSign =
-        AtUtils.fixAtSign(verbParams[AtConstants.atSign] ?? currentAtSign);
+    final atSign = (verbParams[AtConstants.atSign] ?? currentAtSign).toAtsign();
     if (atSign != currentAtSign) {
       throw UnAuthorizedException(
           '$atSign is not authorized to send notification as $currentAtSign');
@@ -128,6 +127,6 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
             .replaceAll('[', '')
             .replaceAll(']', '')
             .split(','))
-          if (token.isNotEmpty) AtUtils.fixAtSign(token)
+          if (token.isNotEmpty) token.toAtsign()
       };
 }

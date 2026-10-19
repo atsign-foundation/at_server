@@ -14,7 +14,6 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_utils.dart';
 
 class LookupVerbHandler extends AbstractVerbHandler {
   static Lookup lookup = Lookup();
@@ -62,7 +61,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     final String owner;
     try {
-      owner = AtUtils.fixAtSign(parse(command)[AtConstants.atSign]!);
+      owner = parse(command)[AtConstants.atSign]!.toAtsign();
     } on Exception {
       return null;
     }
@@ -146,7 +145,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         atConnection.metaData as InboundConnectionMetadata;
     var thisServersAtSign = cacheManager.atSign;
     String keyOwnersAtSign = verbParams[AtConstants.atSign]!;
-    keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
+    keyOwnersAtSign = keyOwnersAtSign.toAtsign();
     var entity = verbParams[AtConstants.atKey];
     if (atConnectionMetadata.isAuthenticated &&
         keyOwnersAtSign != thisServersAtSign) {

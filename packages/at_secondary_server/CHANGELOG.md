@@ -1,4 +1,4 @@
-# 3.17.1
+# 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
   is no longer supported`); one from another atServer is accepted and dropped.
@@ -81,6 +81,19 @@
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
 
+- fix: an atSign of more than 55 characters after its `@` is refused with
+  AT0003 wherever a command names one, a `batch:` entry included; exactly 55
+  is accepted. Characters are code points, counted once the atSign is
+  lower-cased and its dots are removed, as `at_commons` counts them.
+  Any other atSign that is not valid, such as one with a reserved character,
+  is answered with AT0003 too, as is a `notify` that names no recipient. An
+  authenticated client, or a peer that has proved itself by `pol`, keeps its
+  connection.
+
+- fix: `config:block:add`, `config:block:remove`, `scan` and `stream:` take
+  each atSign in its canonical form, lower-cased and without its dots.
+  `from:` compares atSigns with the blocklist in that form, and never blocks
+  this atServer's own atSign.
 - feat: `enroll:link` stores links vouching for the client data signing keys
   an approved enrollment's `_apsk` record lists, one per key. The enrollment
   itself, a connection that could approve it, or a CRAM connection may write
