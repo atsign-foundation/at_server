@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
@@ -53,9 +54,11 @@ class InboundWebSocketConnection implements InboundConnection {
 
     ws.done.then((doneValue) {
       logger.info('ws.done called. Calling this.close()');
+      InboundConnectionCloseReason.clientClosed.markOn(this);
       close();
     }, onError: (error, stackTrace) {
       logger.info('ws.done.onError called with $error. Calling this.close()');
+      InboundConnectionCloseReason.socketError.markOn(this);
       close();
     });
   }
@@ -116,6 +119,8 @@ class InboundWebSocketConnection implements InboundConnection {
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
+    } finally {
+      AtSecondaryServerImpl.getInstance().connectionTelemetry.closed(this);
     }
   }
 

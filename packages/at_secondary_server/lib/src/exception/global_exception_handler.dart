@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -35,12 +36,17 @@ class GlobalExceptionHandler {
         exception is ConnectionInvalidException) {
       logger.shout(loggable);
       await _sendResponseForException(exception, atConnection);
-      _closeConnection(atConnection);
+      _closeConnection(
+          atConnection,
+          exception is ConnectionInvalidException && atConnection != null
+              ? InboundConnectionCloseReason.ofInvalid(atConnection)
+              : InboundConnectionCloseReason.protocolError);
     } else if (exception is BlockedConnectionException) {
       // log as INFO and close the connection
       logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
-      _closeConnection(atConnection);
+      _closeConnection(
+          atConnection, InboundConnectionCloseReason.protocolError);
     } else if (exception is HttpRequestWithoutAlpnException) {
       // NOTE answered as InvalidSyntaxException, whose AT0003 error code is
       // looked up by exact type.
@@ -48,7 +54,8 @@ class GlobalExceptionHandler {
       await _sendResponseForException(
           InvalidSyntaxException(HttpRequestWithoutAlpnException.message),
           atConnection);
-      _closeConnection(atConnection);
+      _closeConnection(
+          atConnection, InboundConnectionCloseReason.protocolError);
     } else if (exception is InvalidSyntaxException ||
         exception is InvalidAtSignException) {
       // This is normal behaviour, log as INFO. An authenticated client keeps
@@ -58,7 +65,8 @@ class GlobalExceptionHandler {
       logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
       if (atConnection != null && !_isAuthenticated(atConnection)) {
-        _closeConnection(atConnection);
+        _closeConnection(
+            atConnection, InboundConnectionCloseReason.protocolError);
       }
     } else if (exception is InvalidAtKeyException ||
         exception is IllegalArgumentException) {
@@ -68,7 +76,7 @@ class GlobalExceptionHandler {
     } else if (exception is DataStoreException) {
       logger.shout(loggable);
       await _sendResponseForException(exception, atConnection);
-      _closeConnection(atConnection);
+      _closeConnection(atConnection, InboundConnectionCloseReason.serverError);
     } else if (exception is InboundConnectionLimitException) {
       if (clientSocket == null) {
         logger.severe('handling InboundConnectionLimitException,'
@@ -84,7 +92,8 @@ class GlobalExceptionHandler {
       // This is thrown when a new verb request comes in and the server is paused (likely
       // pending restart)
       await _sendResponseForException(exception, atConnection);
-      _closeConnection(atConnection);
+      _closeConnection(
+          atConnection, InboundConnectionCloseReason.serverShutdown);
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
@@ -109,14 +118,16 @@ class GlobalExceptionHandler {
           .shout("Unexpected exception '$loggable' - stack trace $stackTrace");
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
-      _closeConnection(atConnection);
+      _closeConnection(atConnection, InboundConnectionCloseReason.serverError);
     }
   }
 
   /// Method to close connection.
   /// params: AtConnection
   /// This will close the connection and remove it from pool
-  void _closeConnection(AtConnection? atConnection) async {
+  void _closeConnection(
+      AtConnection? atConnection, InboundConnectionCloseReason reason) async {
+    reason.markOn(atConnection);
     await atConnection?.close();
   }
 

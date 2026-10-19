@@ -104,6 +104,15 @@
   enrollment's client authentication signing key listed in its `_apsk`
   beside another key, or carrying a link.
 
+- feat: an atServer whose telemetry is on tells its collector when a
+  connection authenticates as its atSign with `cram:` or `pkam:`
+  (`connection.authenticated`, naming the enrollment, its app and device, and
+  the client its `from:` described), when that connection starts a `monitor`
+  (`connection.monitoring`), and when it closes, why and after how long
+  (`connection.closed`). A random id, new for each connection, joins its
+  events. Connections from other atServers, connections that never
+  authenticate, and connections the atServer closes as it stops send none.
+
 - build: `at_commons` 5.23.0. An atSign of more than 55 characters after
   its `@` is now refused; a `notify` to one, for example, is answered with
   an error.
