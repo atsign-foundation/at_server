@@ -33,7 +33,8 @@ set -euo pipefail
 # is passed to each pack as VIRTUALENV_IMAGE; at_virtual_env:local is never
 # touched. HOME points at a scratch directory for the run, and PUB_CACHE and
 # DOCKER_CONFIG keep their values. A pack passes only if its runner exits 0
-# and every virtualenv container it created ran that image.
+# and every virtualenv container it created ran that image; that checks the
+# pack's own containers, not which atServer each test reached.
 #
 # Each pack runs in its own process group, with stdin from /dev/null. An
 # interrupt, TERM, HUP or ALRM stops the running pack, and every container a
@@ -157,6 +158,7 @@ packPid=""
 launching=""
 bgBefore="${!:-}"
 eventsPid=""
+explained=""
 
 # Stops the running pack's process group, giving it 30 seconds to tidy up.
 stopPack() {
@@ -185,9 +187,10 @@ stopPack() {
 }
 
 # Records the compose directory, service and image of each container created
-# from [since] (a Unix time) on, into [log].
+# from two minutes before [now] (a Unix time) on, into [log].
+# NOTE the margin is for the docker daemon's clock, which can lag the host's.
 watchContainers() {
-  docker events --since "$1" --filter type=container --filter event=create \
+  docker events --since "$(($1 - 120))" --filter type=container --filter event=create \
     --format '{{index .Actor.Attributes "com.docker.compose.project.working_dir"}}|{{index .Actor.Attributes "com.docker.compose.service"}}|{{.Actor.Attributes.image}}' \
     > "$2" &
   eventsPid=$!
@@ -201,12 +204,13 @@ stopWatching() {
   fi
 }
 
-# Says whether the virtualenv containers recorded in [log] from this run's
-# worktree all ran this run's image, and there was at least one.
+# Says whether the virtualenv containers recorded in [log] from the pack
+# directory [packRoot] all ran this run's image, and there was at least one.
 ranImage() {
-  local dir service used seen=""
+  local packRoot="$2" dir service used seen=""
   while IFS='|' read -r dir service used; do
-    if [[ "$dir" == "${runDir}/"* && "$service" == *virtualenv ]]; then
+    if [[ ("$dir" == "$packRoot" || "$dir" == "$packRoot"/*) &&
+      "$service" == *virtualenv ]]; then
       if [[ "$used" != "$image" ]]; then
         return 1
       fi
@@ -216,24 +220,35 @@ ranImage() {
   [[ -n "$seen" ]]
 }
 
-# Removes every container whose compose files are in this run's worktree.
+# Removes every container whose compose files are in this run's worktree, then
+# whichever of their compose networks no container still uses.
 downPackContainers() {
-  local id name dir ids=()
-  while IFS='|' read -r id name dir; do
+  local id name project dir ids=() projects=()
+  while IFS='|' read -r id name project dir; do
     if [[ "$dir" == "${runDir}/"* ]]; then
       echo "*** Removing ${name}, which a pack left behind"
       ids+=("$id")
+      projects+=("$project")
     fi
   done < <(bounded 60 docker ps -a --format \
-    '{{.ID}}|{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}' || true)
-  if [[ ${#ids[@]} -gt 0 ]]; then
-    bounded 120 docker rm -f "${ids[@]}" || true
+    '{{.ID}}|{{.Names}}|{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}' || true)
+  if [[ ${#ids[@]} -eq 0 ]]; then
+    return 0
   fi
+  bounded 120 docker rm -f "${ids[@]}" || true
+  for project in $(printf '%s\n' "${projects[@]}" | sort -u); do
+    bounded 60 docker network prune -f \
+      --filter "label=com.docker.compose.project=${project}" || true
+  done
 }
 
 cleanup() {
+  local status=$?
   set +e
   trap '' INT TERM HUP ALRM PIPE
+  if [[ $status -ne 0 && -z "$explained" ]]; then
+    summary "- ended early (exit ${status})"
+  fi
   stopPack
   stopWatching
   downPackContainers
@@ -246,6 +261,7 @@ onSignal() {
   set +e
   trap '' INT TERM HUP ALRM PIPE
   summary "- stopped by a signal (exit $1)"
+  explained=1
   exit "$1"
 }
 trap cleanup EXIT
@@ -260,6 +276,7 @@ git -C "$sdkDir" worktree add --detach "$sdkWorktree" "$sdkCommit"
 echo "*** Building ${image} from ${repoDir}"
 if ! bash "${repoDir}/tools/build_virtual_environment/buildve.sh" -t "$image"; then
   summary "- the atServer build failed"
+  explained=1
   exit 1
 fi
 built=$(docker image inspect "$image" --format \
@@ -297,7 +314,7 @@ for pack in "${packs[@]}"; do
   if [[ $status -ne 0 ]]; then
     results+=("${pack}: FAILED (exit ${status})")
     failed=1
-  elif ! ranImage "$containersLog"; then
+  elif ! ranImage "$containersLog" "${sdkWorktree}/tests/$(packDir "$pack")"; then
     results+=("${pack}: FAILED (its virtualenv did not run ${image})")
     failed=1
   else
@@ -306,6 +323,7 @@ for pack in "${packs[@]}"; do
   summary "- ${results[${#results[@]} - 1]}"
 done
 
+explained=1
 echo "*** at_client_sdk ${sdkCommit} against ${image}, at_server ${built}:"
 printf '***   %s\n' "${results[@]}"
 exit "$failed"

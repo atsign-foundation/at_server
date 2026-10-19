@@ -303,6 +303,10 @@ jobs:
   client_checks:
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    # A newer push to a pull request cancels the run it supersedes.
+    concurrency:
+      group: client-checks-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

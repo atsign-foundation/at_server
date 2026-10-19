@@ -19,7 +19,8 @@ name their compose project after the base port, is refused. Pass a base port
 to keep a run apart from others: with none, each pack uses its default
 project name and ports. The `onboarding_cli_proxy` pack needs a base port,
 and every pack needs the host to resolve `vip.ve.atsign.zone` to 127.0.0.1.
-A pack passes only if its virtualenv ran the image built for the run. The
+A pack passes only if its virtualenv ran the image built for the run, which
+checks the pack's own containers, not which atServer each test reached. The
 header of [`runLocal.sh`](runLocal.sh) says what each step does.
 
 CI runs the functional and e2e packs from at_client_sdk's trunk, in the
