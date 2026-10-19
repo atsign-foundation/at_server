@@ -84,7 +84,7 @@
 - fix: an atSign of more than 55 characters after its `@` is refused with
   AT0003 wherever a command names one, a `batch:` entry included; exactly 55
   is accepted. Characters are code points, counted once the atSign is
-  lower-cased and its dots are removed, as `at_commons` 5.22.0 counts them.
+  lower-cased and its dots are removed, as `at_commons` counts them.
   Any other atSign that is not valid, such as one with a reserved character,
   is answered with AT0003 too, as is a `notify` that names no recipient. An
   authenticated client, or a peer that has proved itself by `pol`, keeps its
