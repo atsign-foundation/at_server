@@ -88,6 +88,7 @@ void main() {
       'delete:phone.wavi$over',
       'lookup:phone.wavi$over',
       'lookup:all:phone.wavi$over',
+      'lookup:public:phone.wavi$over',
       'plookup:phone.wavi$over',
       'plookup:bypassCache:true:phone.wavi$over',
       'llookup:phone.wavi$over',
@@ -218,6 +219,7 @@ void main() {
       'notify:update:messageType:key:$over:phone.wavi@bob:v',
       'notify:update:messageType:key:@alice:phone.wavi$over:v',
       'lookup:phone.wavi$over',
+      'lookup:public:phone.wavi$over',
     ]) {
       test(command.replaceAll(over, '@over'), () async {
         final before = await footprint();
