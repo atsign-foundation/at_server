@@ -302,7 +302,9 @@ jobs:
   # atServer built from this commit.
   client_checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    # NOTE this must exceed setup, the build, and every pack at its
+    # CLIENT_CHECKS_PACK_MINUTES limit.
+    timeout-minutes: 75
     # A newer push to a pull request cancels this job in the run it supersedes.
     concurrency:
       group: client-checks-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
@@ -347,6 +349,7 @@ jobs:
         env:
           AT_CLIENT_SDK_DIR: ${{ github.workspace }}/at_client_sdk
           AT_CLIENT_SDK_REF: HEAD
+          CLIENT_CHECKS_PACK_MINUTES: 30
         run: exec tests/client_checks/runLocal.sh 27000 functional e2e
 
   end2end_test_prep:
