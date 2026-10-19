@@ -26,11 +26,11 @@ set -euo pipefail
 # never touched. A commit whose pack runners do not take VIRTUALENV_IMAGE, and
 # name their compose project after the base port, is refused, since it would
 # run an image this script did not build, or share containers with another
-# run. With no BASE_PORT, every pack uses its default project name and ports,
-# as any other default-port run of that pack does. With one, a pack whose
-# compose project already has containers, another run's or ones a stopped run
-# left behind, fails without starting. That is checked once, as the pack
-# starts, so two runs started at the same moment on one base can both start.
+# run. A pack's compose project is named after BASE_PORT, or with none is the
+# pack's default, which every default-port run of that pack uses. Client
+# checks runs on one machine take turns on a compose project, the later one
+# waiting, and a pack whose project already has containers, another run's or
+# ones a stopped run left behind, fails without starting.
 #
 # buildve.sh builds the atServer image under this checkout's own tag, which
 # is passed to each pack as VIRTUALENV_IMAGE; at_virtual_env:local is never
@@ -38,8 +38,8 @@ set -euo pipefail
 # DOCKER_CONFIG keep their values. A pack passes only if its runner exits 0
 # within CLIENT_CHECKS_PACK_MINUTES (default 45), and every virtualenv
 # container it created ran that image, by id where compose records it, in the
-# compose project named after the base port when there is one; that checks
-# the pack's own containers, not which atServer each test reached.
+# pack's compose project; that checks the pack's own containers, not which
+# atServer each test reached.
 #
 # Each pack runs in its own process group, with stdin from /dev/null, and
 # whatever is still running in that group once the pack's runner exits is
@@ -84,17 +84,17 @@ refuse() {
 # it, and it handles SIGINT itself, so an ignored SIGINT does not protect it.
 inOwnGroup='
     my ($seconds, $owner, @command) = @ARGV;
+    my $stopAt = 0;
+    for my $signal (qw(INT TERM HUP ALRM)) {
+      next if ($SIG{$signal} // "") eq "IGNORE";
+      $SIG{$signal} = sub { $stopAt ||= time };
+    }
     my $pid = fork() // die "inOwnGroup: cannot fork: $!\n";
     if ($pid == 0) {
       setpgrp(0, 0);
       open(STDIN, "<", "/dev/null") or die "inOwnGroup: cannot read /dev/null: $!\n";
       $SIG{TERM} = "DEFAULT";
       exec(@command) or die "inOwnGroup: cannot run $command[0]: $!\n";
-    }
-    my $stopAt = 0;
-    for my $signal (qw(INT TERM HUP ALRM)) {
-      next if ($SIG{$signal} // "") eq "IGNORE";
-      $SIG{$signal} = sub { $stopAt ||= time };
     }
     my $deadline = $seconds > 0 ? time + $seconds : 0;
     my ($termAt, $killed) = (0, 0);
@@ -202,7 +202,9 @@ sdkWorktree="${runDir}/at_client_sdk"
 packPid=""
 launching=""
 eventsPid=""
+watcherLost=""
 watchdogPid=""
+lockPid=""
 explained=""
 inCleanup=""
 exitStatus=0
@@ -276,10 +278,14 @@ watchContainers() {
   eventsPid=$!
 }
 
+# Stops the container watcher, setting watcherLost if it had already stopped.
 stopWatching() {
+  watcherLost=""
   if [[ -n "$eventsPid" ]]; then
     if kill -0 "$eventsPid" 2>/dev/null; then
       kill -TERM "$eventsPid" || true
+    else
+      watcherLost=1
     fi
     wait "$eventsPid" || true
     eventsPid=""
@@ -315,18 +321,81 @@ ranAsBuilt() {
   fi
 }
 
-# Says whether a container outside this run's worktree is in compose project
-# [project], naming each such container and its compose directory in inUseBy.
+# The compose project [pack] runs in: named after the base port when there is
+# one, and otherwise the default its runner and compose file give it.
+packProject() {
+  if [[ -n "$basePort" ]]; then
+    echo "$(packDir "$1")-${basePort}"
+    return
+  fi
+  case "$1" in
+    functional) echo test ;;
+    e2e) echo at_end2end_test ;;
+    onboarding_cli) echo at_onboarding_cli_functional_tests ;;
+  esac
+}
+
+# Says whether compose project [project] has a container outside this run's
+# worktree, or could not be listed, giving the reason in inUse.
 projectInUse() {
-  local name dir
-  inUseBy=""
+  local listing name dir held=""
+  if ! listing=$(bounded 60 docker ps -a --filter "label=com.docker.compose.project=$1" \
+    --format '{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}'); then
+    inUse="docker could not list the containers in compose project $1"
+    return 0
+  fi
   while IFS='|' read -r name dir; do
-    if [[ "$dir" != "${runDir}/"* ]]; then
-      inUseBy="${inUseBy:+${inUseBy}, }${name} from ${dir:-no compose directory}"
+    if [[ -n "$name" && "$dir" != "${runDir}/"* ]]; then
+      held="${held:+${held}, }${name} from ${dir:-no compose directory}"
     fi
-  done < <(bounded 60 docker ps -a --filter "label=com.docker.compose.project=$1" \
-    --format '{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}' || true)
-  [[ -n "$inUseBy" ]]
+  done <<< "$listing"
+  inUse="compose project $1 is in use, by another run or one left behind: ${held}"
+  [[ -n "$held" ]]
+}
+
+# Holds a lock on compose project [project] until releaseProjectLock, or until
+# this shell has gone, waiting while another client checks run holds it.
+holdProjectLock() {
+  local lockDir=/tmp/atsign-rig-locks fifo="${runDir}/lock.fifo" reply=""
+  mkdir -p "$lockDir" && mkfifo "$fifo" || return 1
+  # NOTE the kernel releases a flock when its holder dies, even by KILL, so
+  # no lock outlives the run that took it.
+  perl -e '
+    use Fcntl qw(:flock);
+    my ($file, $owner) = @ARGV;
+    $SIG{$_} = "IGNORE" for qw(INT TERM HUP ALRM);
+    $SIG{USR1} = sub { exit(0) };
+    open(my $fh, "+>>", $file) or die "holdProjectLock: cannot open $file: $!\n";
+    my $told = 0;
+    until (flock($fh, LOCK_EX | LOCK_NB)) {
+      exit(1) if getppid() != $owner;
+      unless ($told++) {
+        seek($fh, 0, 0);
+        my $holder = <$fh> // "";
+        chomp($holder);
+        print STDERR "*** Waiting for $file, held by ", ($holder eq "" ? "another run" : $holder), "\n";
+      }
+      sleep(1);
+    }
+    truncate($fh, 0);
+    syswrite($fh, "pid $owner\n");
+    $| = 1;
+    print "locked\n";
+    close(STDOUT);
+    sleep(1) while getppid() == $owner;
+  ' "${lockDir}/client_checks-$1.lock" "$$" > "$fifo" &
+  lockPid=$!
+  read -r reply < "$fifo" || true
+  rm -f "$fifo"
+  [[ "$reply" == locked ]]
+}
+
+releaseProjectLock() {
+  if [[ -n "$lockPid" ]]; then
+    kill -USR1 "$lockPid" 2>/dev/null || true
+    wait "$lockPid" || true
+    lockPid=""
+  fi
 }
 
 # Prints the at_ packages the worktree's pubspec.lock took from pub.dev, with
@@ -402,8 +471,10 @@ cleanup() {
   stopWatchdog
   stopWatching
   downPackContainers "$settle"
-  if [[ -d "$sdkWorktree" ]]; then
-    git -C "$sdkDir" worktree remove --force "$sdkWorktree"
+  releaseProjectLock
+  if [[ -d "$sdkWorktree" ]] && ! git -C "$sdkDir" worktree remove --force "$sdkWorktree"; then
+    rm -rf "$runDir"
+    git -C "$sdkDir" worktree prune
   fi
   rm -rf "$runDir"
 }
@@ -418,7 +489,7 @@ onSignal() {
   explained=1
   finish "$1"
 }
-trap 'exitStatus=$?; inCleanup=1; cleanup' EXIT
+trap 'exitStatus=$? inCleanup=1; cleanup' EXIT
 trap 'onSignal 130' INT
 trap 'onSignal 143' TERM
 trap 'onSignal 129' HUP
@@ -433,9 +504,10 @@ if ! bash "${repoDir}/tools/build_virtual_environment/buildve.sh" -t "$image"; t
   explained=1
   finish 1
 fi
-built=$(docker image inspect "$image" --format \
-  '{{index .Config.Labels "com.atsign.ve.revision"}} tree {{index .Config.Labels "com.atsign.ve.tree"}} dirty={{index .Config.Labels "com.atsign.ve.dirty"}}')
-imageId=$(docker image inspect "$image" --format '{{.Id}}')
+inspected=$(bounded 60 docker image inspect "$image" --format \
+  '{{.Id}} {{index .Config.Labels "com.atsign.ve.revision"}} tree {{index .Config.Labels "com.atsign.ve.tree"}} dirty={{index .Config.Labels "com.atsign.ve.dirty"}}')
+imageId="${inspected%% *}"
+built="${inspected#* }"
 summary "- at_server ${built}, as ${image}"
 
 export PUB_CACHE="${PUB_CACHE:-${HOME}/.pub-cache}"
@@ -448,9 +520,16 @@ results=()
 failed=0
 hostedNamed=""
 for pack in "${packs[@]}"; do
-  project="${basePort:+$(packDir "$pack")-${basePort}}"
-  if [[ -n "$project" ]] && projectInUse "$project"; then
-    results+=("${pack}: FAILED (compose project ${project} is in use, by another run or one left behind: ${inUseBy})")
+  project=$(packProject "$pack")
+  refusal=""
+  if ! holdProjectLock "$project"; then
+    refusal="could not lock compose project ${project}"
+  elif projectInUse "$project"; then
+    refusal="$inUse"
+  fi
+  if [[ -n "$refusal" ]]; then
+    releaseProjectLock
+    results+=("${pack}: FAILED (${refusal})")
     failed=1
     summary "- ${results[${#results[@]} - 1]}"
     continue
@@ -458,6 +537,7 @@ for pack in "${packs[@]}"; do
   echo "*** Running at_client_sdk's ${pack} pack against ${image}"
   containersLog="${runDir}/containers.${pack}"
   timedOut="${runDir}/timed-out.${pack}"
+  rm -f "$timedOut"
   watchContainers "$containersLog"
   launching=1
   set -m
@@ -475,7 +555,12 @@ for pack in "${packs[@]}"; do
   stopWatchdog
   stopPack
   stopWatching
-  downPackContainers
+  if [[ -f "$timedOut" ]]; then
+    downPackContainers settle
+  else
+    downPackContainers
+  fi
+  releaseProjectLock
   if [[ -z "$hostedNamed" && -f "${sdkWorktree}/pubspec.lock" ]]; then
     summary "- from pub.dev: $(hostedAtPackages "${sdkWorktree}/pubspec.lock")"
     hostedNamed=1
@@ -487,6 +572,9 @@ for pack in "${packs[@]}"; do
     failed=1
   elif [[ $status -ne 0 ]]; then
     results+=("${pack}: FAILED (exit ${status})")
+    failed=1
+  elif [[ -n "$watcherLost" ]]; then
+    results+=("${pack}: FAILED (its container watcher stopped early, so which image it ran is unknown)")
     failed=1
   elif ! ranAsBuilt "$containersLog" "${sdkWorktree}/tests/$(packDir "$pack")" "$project"; then
     results+=("${pack}: FAILED (${notAsBuilt})")
