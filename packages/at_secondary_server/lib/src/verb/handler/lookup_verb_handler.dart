@@ -69,18 +69,57 @@ class LookupVerbHandler extends AbstractVerbHandler {
     return owner == cacheManager.atSign ? null : owner;
   }
 
+  /// What a lookup by [from] of [key], owned by [owner], is refused with when
+  /// [key] names a scope; null when it names the key bare.
+  String? _scopeRefusal(String from, String key, String owner) {
+    if (!key.contains(':')) {
+      return null;
+    }
+    final String bare = key.substring(key.lastIndexOf(':') + 1);
+    return 'Lookup from $from may name the key only as $bare$owner, '
+        'not $key$owner';
+  }
+
+  /// What [command] is refused with when it is a pol-proved peer's and names
+  /// its key with a scope; null for any other lookup.
+  String? _polScopeRefusal(String command, InboundConnectionMetadata md) {
+    if (md.isAuthenticated || !md.isPolAuthenticated) {
+      return null;
+    }
+    final HashMap<String, String?> params;
+    final String owner;
+    try {
+      params = parse(command);
+      owner = params[AtConstants.atSign]!.toAtsign();
+    } on Exception {
+      return null;
+    }
+    return _scopeRefusal('${md.fromAtSign}', params[AtConstants.atKey]!, owner);
+  }
+
   /// Answers a lookup naming another owner on a connection that has not
-  /// authenticated with AT0009 and closes the connection; processes any other
-  /// lookup as usual.
+  /// authenticated, or a pol-proved peer's lookup that names its key with a
+  /// scope, with AT0009 and closes the connection; processes any other lookup
+  /// as usual.
   @override
   Future<void> process(String command, InboundConnection atConnection) async {
+    final md = atConnection.metaData as InboundConnectionMetadata;
     final String? owner =
         _anotherOwnerNamedUnauthenticated(command, atConnection);
-    if (owner == null) {
-      return super.process(command, atConnection);
+    if (owner != null) {
+      return _refuse(atConnection, _anotherOwnerRefusal(md, owner));
     }
+    final String? scoped = _polScopeRefusal(command, md);
+    if (scoped != null) {
+      return _refuse(atConnection, scoped);
+    }
+    return super.process(command, atConnection);
+  }
+
+  /// Answers [atConnection]'s lookup with AT0009 and [refusal], then closes
+  /// the connection.
+  Future<void> _refuse(InboundConnection atConnection, String refusal) async {
     final md = atConnection.metaData as InboundConnectionMetadata;
-    final String refusal = _anotherOwnerRefusal(md, owner);
     logger.warning(
         'Closing session ${md.sessionID}: ${sanitiseForLogging(refusal)}');
     final response = Response()
@@ -95,6 +134,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
 
   /// Throws an [SecondaryNotFoundException] if unable to establish connection to another secondary
   /// Throws an [UnAuthorizedException] if lookup if invoked with handshake=true and without a successful handshake
+  /// Throws an [UnAuthorizedException] for an authenticated client's lookup of
+  /// another atSign's key that names a scope
   ///  Throws an [LookupException] if there is exception during lookup operation
   @override
   Future<void> processVerb(
@@ -107,6 +148,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
     String keyOwnersAtSign = verbParams[AtConstants.atSign]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
     var entity = verbParams[AtConstants.atKey];
+    if (atConnectionMetadata.isAuthenticated &&
+        keyOwnersAtSign != thisServersAtSign) {
+      final String? scoped =
+          _scopeRefusal(thisServersAtSign, entity!, keyOwnersAtSign);
+      if (scoped != null) {
+        throw UnAuthorizedException(scoped);
+      }
+    }
     var keyAtAtSign = '$entity$keyOwnersAtSign';
     var operation = verbParams[AtConstants.operation];
     String? byPassCacheStr = verbParams[AtConstants.bypassCache];

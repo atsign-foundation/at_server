@@ -47,6 +47,14 @@
   atServer's atSign as the key's owner. A lookup naming another owner is
   answered with AT0009, and the connection is closed.
 
+- fix: a `lookup:` from an atServer that has proved itself with `pol` names
+  its key bare, as `<key>@<atSign>`; one naming a scope, such as `public:` or
+  `@<atSign>:`, is answered with AT0009, and the connection is closed. A
+  client's `lookup:` of another atSign's key that names a scope is answered
+  with AT0009, and the client keeps its connection. **App authors:** name
+  another atSign's key as `<key>@<atSign>`; `plookup:` reads its public
+  records.
+
 - fix: an HTTP request's path and query parameters are logged with control
   characters escaped.
 
