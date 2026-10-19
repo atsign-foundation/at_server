@@ -15,7 +15,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:mutex/mutex.dart';
@@ -155,13 +154,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// Runs [write], which stores [result], so that a write of an approved
   /// enrollment's `_apsk` record keeps the links stored on it.
   ///
-  /// For such a record, [result]'s appMetadata takes the stored link map,
-  /// less the links the record's new value no longer lets stand and any on
-  /// the enrollment's authentication key, whatever the request sent. A write
-  /// that would take the record, with the links it keeps, over the
-  /// enrollment record limit is refused. The read and [write] run under the
-  /// enrollment lock `enroll:link` writes under. Any other key is written as
-  /// it stands.
+  /// For such a record, [result]'s appMetadata is what [ApskLinks.settle]
+  /// decides, refusing the write where that refuses it, whatever the request
+  /// sent. The read and [write] run under the enrollment lock `enroll:link`
+  /// writes under. Any other key is written as it stands.
   Future<T> keepingApskLinks<T>(
       UpdatePreProcessResult result, Future<T> Function() write) async {
     final String? enrollmentId =
@@ -187,15 +183,17 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       } on KeyNotFoundException {
         isAuthenticationKey = null;
       }
-      final String? value = result.atData.data ?? stored?.data;
       final AtMetaData metaData = result.atData.metaData!;
-      metaData.appMetadata = ApskLinks.carriedOver(
-          written: metaData.appMetadata,
-          stored: stored?.metaData?.appMetadata,
-          value: value,
-          isAuthenticationKey: isAuthenticationKey);
-      ApskLinks.refuseOverLimit(result.atKey, value, metaData.appMetadata,
-          limit: EnrollVerbHandler.maxEnrollmentRecordBytes);
+      metaData.appMetadata = ApskLinks.settle(
+              writer: result.atKey,
+              value: result.atData.data ?? stored?.data,
+              stored: stored,
+              written: metaData.appMetadata,
+              isAuthenticationKey: isAuthenticationKey,
+              refusable: true,
+              limit: EnrollmentManager.maxRecordBytes,
+              warn: logger.warning)
+          .appMetadata;
       return write();
     });
   }

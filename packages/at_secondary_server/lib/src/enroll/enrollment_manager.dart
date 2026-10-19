@@ -144,6 +144,10 @@ class EnrollmentManager {
         '$atSign');
   }
 
+  /// The most an enrollment record, or an `_apsk` record with its links, may
+  /// take encoded.
+  static const int maxRecordBytes = 500 * 1024;
+
   /// The id of the enrollment the atSign's flat legacy credential migrates
   /// into.
   static const String primaryEnrollmentId = 'primary';
@@ -247,13 +251,61 @@ class EnrollmentManager {
         final EnrollDataStoreValue? primary = await primaryEnrollment();
         if (primary == null) {
           await mintPrimary(flat, signingAlgo: signingAlgo);
+          await _keepNoLinkOnAuthenticationKey(
+              primaryEnrollmentId, flat, signingAlgo);
         } else if (!sameApkamKeyMaterial(
             flat, signingAlgo, primary.apkamPublicKey, primary.signingAlgo)) {
           await _rotatePrimary(flat, signingAlgo, primary);
+          await _keepNoLinkOnAuthenticationKey(
+              primaryEnrollmentId, flat, signingAlgo);
         }
         await _deleteFlatKey();
         return true;
       });
+
+  /// Enrollment [enId]'s stored `_apsk` record, or null when it has none.
+  Future<AtData?> _apskOf(String enId) async {
+    try {
+      return await keyStore.get(ApskLinks.keyFor(enId, atSign));
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
+  /// Removes any link [enId]'s `_apsk` record keeps on [apkamPublicKey], the
+  /// key that enrollment now authenticates with, for a rotation that cannot
+  /// be refused, and logs at warning what it removes or finds listed beside
+  /// that key.
+  Future<void> _keepNoLinkOnAuthenticationKey(
+      String enId, String apkamPublicKey, String? signingAlgo) async {
+    final AtData? apsk = await _apskOf(enId);
+    if (apsk == null) return;
+    final ApskWrite write = ApskLinks.settle(
+        writer: 'the rotation of enrollment $enId',
+        value: apsk.data,
+        stored: apsk,
+        isAuthenticationKey: authenticationKeyTest(apkamPublicKey, signingAlgo),
+        refusable: false,
+        limit: maxRecordBytes,
+        warn: logger.warning);
+    if (!write.proceeds ||
+        ApskLinks.linksIn(write.appMetadata).length ==
+            ApskLinks.linksIn(apsk.metaData?.appMetadata).length) {
+      return;
+    }
+    final AtMetaData metaData = apsk.metaData!..appMetadata = write.appMetadata;
+    await keyStore.put(
+        ApskLinks.keyFor(enId, atSign),
+        AtData()
+          ..data = apsk.data
+          ..metaData = metaData,
+        assertedTimestamps:
+            metaData.expiresAt == null && metaData.availableAt == null
+                ? null
+                : AtAssertedTimestamps(
+                    expiresAt: metaData.expiresAt,
+                    availableAt: metaData.availableAt));
+  }
 
   /// Lifts a revoked [primaryEnrollmentId] back to approved, leaving its key
   /// material and its stored expiry as they stand.
@@ -300,6 +352,19 @@ class EnrollmentManager {
               'The apkamPublicKey is already held by another enrollment on '
               'this atSign; every enrollment needs a keypair of its own '
               '(held by enrollment ${holder.$1}, ${holder.$2.approval?.state})');
+        }
+        final AtData? apsk = await _apskOf(primaryEnrollmentId);
+        if (apsk != null) {
+          ApskLinks.settle(
+              writer: 'update of ${AtConstants.atPkamPublicKey}',
+              value: apsk.data,
+              stored: apsk,
+              isAuthenticationKey: authenticationKeyTest(apkamPublicKey, null),
+              refuseLinkOnAuthenticationKey: true,
+              writesRecord: false,
+              refusable: true,
+              limit: maxRecordBytes,
+              warn: logger.warning);
         }
         final EnrollDataStoreValue? primary = await primaryEnrollment();
         if (primary == null) {
@@ -372,6 +437,7 @@ class EnrollmentManager {
             'without an expiry holds a key');
       }
       await mintPrimary(flat);
+      await _keepNoLinkOnAuthenticationKey(primaryEnrollmentId, flat, null);
       await _deleteFlatKey();
       return StartupFlatKeyOutcome.migratedIntoPrimary;
     }
@@ -492,6 +558,9 @@ class EnrollmentManager {
           }
 
           AtData data = (await keyStore.get(fromKey))!;
+          if (to == EnrollmentConstants.perEnrollmentApproved) {
+            data = await _settledApsk(toKey, data);
+          }
           await keyStore.put(toKey, data, skipCommit: skipCommit);
           await keyStore.remove(fromKey, skipCommit: skipCommit);
           moved.add(fromKey);
@@ -500,6 +569,33 @@ class EnrollmentManager {
       default:
         throw ArgumentError('movePerEnrollmentData: Invalid "to": "$to"');
     }
+  }
+
+  /// [data], moving to [toKey], with the links an approved enrollment's
+  /// `_apsk` record keeps there, as every other write of that record keeps
+  /// them; any other key's [data] as it stands.
+  Future<AtData> _settledApsk(String toKey, AtData data) async {
+    final String? enId = ApskLinks.enrollmentIdOf(toKey, atSign);
+    if (enId == null) return data;
+    bool Function(String pub)? isAuthenticationKey;
+    try {
+      final EnrollDataStoreValue enVal = await getEnrollmentById(enId);
+      isAuthenticationKey =
+          authenticationKeyTest(enVal.apkamPublicKey, enVal.signingAlgo);
+    } on KeyNotFoundException {
+      isAuthenticationKey = null;
+    }
+    final ApskWrite write = ApskLinks.settle(
+        writer: 'the move of enrollment $enId\'s _apsk record',
+        value: data.data,
+        stored: data,
+        isAuthenticationKey: isAuthenticationKey,
+        refusable: false,
+        limit: maxRecordBytes,
+        warn: logger.warning);
+    if (!write.proceeds) return data;
+    data.metaData?.appMetadata = write.appMetadata;
+    return data;
   }
 
   /// The keystore key holding enrollment [enId]'s encryption private key.
