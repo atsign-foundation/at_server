@@ -188,6 +188,16 @@ void main() {
   Future<AtData> record(String enrollmentId) async =>
       (await keyValueStore.get(apskKey(enrollmentId)))!;
 
+  /// The appMetadata on [enrollmentId]'s `_apsk`, failing the test with a
+  /// reason when the record carries none.
+  Future<AppMetadata> appMetadataOn(String enrollmentId) async {
+    final AppMetadata? appMetadata =
+        (await record(enrollmentId)).metaData?.appMetadata;
+    expect(appMetadata, isNotNull,
+        reason: 'the _apsk record keeps appMetadata through this write');
+    return appMetadata!;
+  }
+
   /// The link map stored on [enrollmentId]'s `_apsk`, read by its field
   /// name.
   Future<Object?> linksOn(String enrollmentId) async =>
@@ -204,8 +214,8 @@ void main() {
   Future<void> updateMeta(String enrollmentId, AppMetadata appMetadata) async {
     connectAs(enrollmentId);
     final r = Response();
-    await UpdateMetaVerbHandler(keyValueStore, statsNotificationService,
-            notificationManager, alice)
+    await UpdateMetaVerbHandler(
+            keyValueStore, statsNotificationService, notificationManager, alice)
         .processVerb(
             r,
             getVerbParam(
@@ -618,7 +628,7 @@ void main() {
       expect(await linksOn(b), {k1: wellFormedK1['link'], k2: k2Link});
       expect((await record(b)).data, jsonEncode(k1AndK2),
           reason: 'a link leaves the advertised value as it was');
-      expect((await record(b)).metaData!.appMetadata!.providerId, 'legacy',
+      expect((await appMetadataOn(b)).providerId, 'legacy',
           reason: 'appMetadata the atServer creates reads as a record with '
               'none did');
     });
@@ -637,8 +647,9 @@ void main() {
       await link(etu.primaryEnId, b, {k1: wellFormedK1});
       final AtData after = await record(b);
       expect(after.data, before.data);
-      expect(after.metaData!.appMetadata!.providerId, 'acme');
-      expect(after.metaData!.appMetadata!.additional!['other'], 'kept');
+      final AppMetadata kept = await appMetadataOn(b);
+      expect(kept.providerId, 'acme');
+      expect(kept.additional!['other'], 'kept');
       expect(after.metaData!.expiresAt, before.metaData!.expiresAt);
       expect(await linksOn(b), {k1: wellFormedK1['link']});
     });
@@ -772,8 +783,7 @@ void main() {
           appMetadata: olderClientAppMetadata());
       expect((await record(b)).data, jsonEncode(k1K2AndK3));
       expect(await linksOn(b), {k1: l1, k2: l2});
-      expect(
-          (await record(b)).metaData!.appMetadata!.additional!['apskChainLink'],
+      expect((await appMetadataOn(b)).additional!['apskChainLink'],
           {'v': 1, 'payload': 'old'},
           reason: 'the put\'s other appMetadata fields are stored as sent');
     });
@@ -818,7 +828,7 @@ void main() {
           appMetadata:
               AppMetadata(providerId: 'acme', additional: {'other': 'kept'}));
       await republish(b, k1K2AndK3);
-      final AppMetadata stored = (await record(b)).metaData!.appMetadata!;
+      final AppMetadata stored = await appMetadataOn(b);
       expect(stored.providerId, 'acme');
       expect(stored.additional!['other'], 'kept');
       expect(await linksOn(b), {k1: l1, k2: l2});
@@ -831,15 +841,14 @@ void main() {
       await put(b, jsonEncode(k3Only),
           appMetadata:
               AppMetadata(providerId: 'acme', additional: {'other': 'kept'}));
-      expect((await record(b)).metaData!.appMetadata!.additional,
-          {'other': 'kept'});
+      expect((await appMetadataOn(b)).additional, {'other': 'kept'});
       await put(b, jsonEncode(k1AndK2));
       await link(etu.primaryEnId, b, {
         k1: {'link': l1, 'expect': null}
       });
       await put(b, jsonEncode(k3Only),
           appMetadata: AppMetadata(providerId: 'acme'));
-      expect((await record(b)).metaData!.appMetadata!.additional, isNull);
+      expect((await appMetadataOn(b)).additional, isNull);
     });
 
     test(
@@ -1256,8 +1265,8 @@ void main() {
             entry(k2, 'rsa2048', p2)
           ])));
       final String before = await apkamPublicKeyOf(b);
-      await expectLater(rotateOntoK(b),
-          refusedNaming<IllegalArgumentException>('an entry'));
+      await expectLater(
+          rotateOntoK(b), refusedNaming<IllegalArgumentException>('an entry'));
       expect(await apkamPublicKeyOf(b), before);
     });
 
@@ -1297,10 +1306,11 @@ void main() {
     test(
         'an update installing a key while B\'s stored _apsk lists another kid '
         'twice is accepted', () async {
-      final b = await enrollment('b', apsk: listForm([entry(k2, 'rsa2048', p2)]));
+      final b =
+          await enrollment('b', apsk: listForm([entry(k2, 'rsa2048', p2)]));
       await storeDirectly(b,
-          value: jsonEncode(listForm(
-              [entry(k2, 'rsa2048', p2), entry(k2, 'mldsa65', p3)])));
+          value: jsonEncode(
+              listForm([entry(k2, 'rsa2048', p2), entry(k2, 'mldsa65', p3)])));
       await rotateOntoK(b);
       expect(await apkamPublicKeyOf(b), pubK);
     });
@@ -1411,8 +1421,8 @@ void main() {
         'in the same write', () async {
       await put(
           b,
-          jsonEncode(listForm(
-              [entry(k1, 'mldsa65', p3), entry(k2, 'rsa2048', p2)])));
+          jsonEncode(
+              listForm([entry(k1, 'mldsa65', p3), entry(k2, 'rsa2048', p2)])));
       expect(await linksOn(b), {k2: l2});
     });
 
@@ -1428,8 +1438,8 @@ void main() {
         'an update:meta of a record listing another public key under K1\'s '
         'kid removes K1\'s link', () async {
       await storeDirectly(b,
-          value: jsonEncode(listForm(
-              [entry(k1, 'mldsa65', p3), entry(k2, 'rsa2048', p2)])));
+          value: jsonEncode(
+              listForm([entry(k1, 'mldsa65', p3), entry(k2, 'rsa2048', p2)])));
       await updateMeta(b, AppMetadata(providerId: 'legacy'));
       expect(await linksOn(b), {k2: l2});
     });
@@ -1479,7 +1489,7 @@ void main() {
           appMetadata:
               AppMetadata(providerId: 'legacy', additional: {'other': 'kept'}));
       await republish(b, listForm([entry(k2, 'rsa2048', p2)]));
-      final AppMetadata kept = (await record(b)).metaData!.appMetadata!;
+      final AppMetadata kept = await appMetadataOn(b);
       expect(kept.providerId, 'legacy');
       expect(kept.additional, {'other': 'kept'});
     });
@@ -1489,7 +1499,7 @@ void main() {
       await put(b, jsonEncode(k1AndK2),
           appMetadata: AppMetadata(providerId: 'another'));
       await republish(b, listForm([entry(k2, 'rsa2048', p2)]));
-      expect((await record(b)).metaData!.appMetadata!.providerId, 'another');
+      expect((await appMetadataOn(b)).providerId, 'another');
     });
 
     test(
@@ -1498,7 +1508,7 @@ void main() {
       final c = await enrollment('c', apsk: k1AndK2);
       await put(c, jsonEncode(k1AndK2),
           appMetadata: AppMetadata(providerId: 'legacy'));
-      expect((await record(c)).metaData!.appMetadata!.providerId, 'legacy');
+      expect((await appMetadataOn(c)).providerId, 'legacy');
     });
   });
 
@@ -1560,8 +1570,9 @@ void main() {
                   providerId: 'legacy',
                   additional: {'other': 'z' * (limit - 10000)})),
           refusedNaming<IllegalArgumentException>(overLimit));
-      expect((await record(b)).metaData!.appMetadata!.additional,
-          {'apskLinks': {k1: l1, k2: l2}});
+      expect((await appMetadataOn(b)).additional, {
+        'apskLinks': {k1: l1, k2: l2}
+      });
     });
 
     test('a put that keeps the record and its links within 500 KiB is written',
@@ -1574,11 +1585,11 @@ void main() {
     test(
         'a put that takes the record and its links to exactly 500 KiB is '
         'written, and one byte more is refused', () async {
-      final int appMetadataBytes = utf8
-          .encode(jsonEncode((await record(b)).metaData!.appMetadata!.toJson()))
-          .length;
+      final int appMetadataBytes =
+          utf8.encode(jsonEncode((await appMetadataOn(b)).toJson())).length;
       final String atLimit = jsonEncode(padded(limit - appMetadataBytes));
-      await expectLater(put(b, jsonEncode(padded(limit - appMetadataBytes + 1))),
+      await expectLater(
+          put(b, jsonEncode(padded(limit - appMetadataBytes + 1))),
           refusedNaming<IllegalArgumentException>(overLimit));
       await put(b, atLimit);
       expect((await record(b)).data, atLimit);
@@ -1602,7 +1613,8 @@ void main() {
       await storeDirectly(b, value: jsonEncode(k1AndK2), immutable: true);
     });
 
-    test('a link for a key of an immutable record is refused, and nothing is '
+    test(
+        'a link for a key of an immutable record is refused, and nothing is '
         'written', () async {
       await expectLater(
           link(etu.primaryEnId, b, {
@@ -1644,7 +1656,8 @@ void main() {
     });
   });
 
-  group('every write of B\'s _apsk lists each kid once, each with a kid, alg '
+  group(
+      'every write of B\'s _apsk lists each kid once, each with a kid, alg '
       'and pub', () {
     late String b;
 
@@ -1697,8 +1710,11 @@ void main() {
         ],
         'entry 2'
       ),
-      ('an entry that is not an object', [entry(k1, 'mldsa65', p1), k2],
-          'entry 2'),
+      (
+        'an entry that is not an object',
+        [entry(k1, 'mldsa65', p1), k2],
+        'entry 2'
+      ),
     ]) {
       test(
           'a republish listing $name is refused, naming the entry, and '
@@ -1715,8 +1731,8 @@ void main() {
         'a republish of apskLegacy in the list form listing one kid twice is '
         'refused, naming it', () async {
       await expectLater(
-          republishLegacy(jsonEncode(listForm(
-              [entry(k1, 'mldsa65', p1), entry(k1, 'rsa2048', p2)]))),
+          republishLegacy(jsonEncode(
+              listForm([entry(k1, 'mldsa65', p1), entry(k1, 'rsa2048', p2)]))),
           refusedNaming<IllegalArgumentException>(k1));
       expect((await record(b)).data, jsonEncode(k1AndK2));
     });
@@ -1734,8 +1750,8 @@ void main() {
     test('an enroll:link for a kid the record lists twice is refused',
         () async {
       await storeDirectly(b,
-          value: jsonEncode(listForm(
-              [entry(k1, 'mldsa65', p1), entry(k1, 'rsa2048', p2)])));
+          value: jsonEncode(
+              listForm([entry(k1, 'mldsa65', p1), entry(k1, 'rsa2048', p2)])));
       await expectLater(
           link(etu.primaryEnId, b, {
             k1: {
@@ -1808,10 +1824,8 @@ void main() {
         'a request whose apsk lists one kid twice is refused, naming it, '
         'before its OTP is spent', () async {
       final String otp = await etu.getOtp();
-      final EnrollParams twice = request(
-          'twice',
-          listForm(
-              [entry(k2, 'rsa2048', p2), entry(k2, 'mldsa65', p3)]))
+      final EnrollParams twice = request('twice',
+          listForm([entry(k2, 'rsa2048', p2), entry(k2, 'mldsa65', p3)]))
         ..otp = otp;
       await expectLater(send(twice, overCram: false),
           refusedNaming<IllegalArgumentException>(k2));
@@ -1901,8 +1915,8 @@ void main() {
     Future<void> linkPrimary() async {
       l1 = chainLink(payload(primary, k1, 'mldsa65', p1));
       l2 = rootLink(payload(primary, k2, 'rsa2048', p2));
-      await keyValueStore.put(apskKey(primary),
-          AtData()..data = jsonEncode(k1AndK2));
+      await keyValueStore.put(
+          apskKey(primary), AtData()..data = jsonEncode(k1AndK2));
       await link(null, primary, {
         k1: {'link': l1, 'expect': null},
         k2: {'link': l2, 'expect': null}
@@ -1912,9 +1926,9 @@ void main() {
     Future<String> primaryKey() async =>
         (await enMgr.getEnrollmentById(primary)).apkamPublicKey;
 
-    Future<void> installFlatKey(String value) => keyValueStore.put(
-        AtConstants.atPkamPublicKey, AtData()..data = value,
-        skipCommit: true);
+    Future<void> installFlatKey(String value) =>
+        keyValueStore.put(AtConstants.atPkamPublicKey, AtData()..data = value,
+            skipCommit: true);
 
     test(
         'a CRAM update of at_pkam_publickey onto K1, which primary\'s _apsk '
@@ -2031,6 +2045,25 @@ void main() {
       await storeAside({k9: stray}, immutable: true);
       await etu.unrevokeEnrollment(etu.primaryEnId, b);
       expect(await linksOn(b), {k9: stray});
+    });
+
+    test(
+        'a moved-aside record its links would take over 500 KiB comes back '
+        'with none', () async {
+      const int limit = 500 * 1024;
+      final int unpadded =
+          utf8.encode(jsonEncode({...k1AndK2, 'pad': ''})).length;
+      final String value =
+          jsonEncode({...k1AndK2, 'pad': 'z' * (limit - 100 - unpadded)});
+      final AtData aside = (await keyValueStore.get(revokedKey(b)))!;
+      aside.data = value;
+      await keyValueStore.put(revokedKey(b), aside);
+      await storeAside({k2: l2});
+      await etu.unrevokeEnrollment(etu.primaryEnId, b);
+      expect((await record(b)).data, value);
+      expect(await linksOn(b), isNull,
+          reason: 'K2\'s link would take the record over 500 KiB, and a move '
+              'that cannot be refused keeps no link rather than exceed it');
     });
   });
 

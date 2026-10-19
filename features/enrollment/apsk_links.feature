@@ -132,7 +132,7 @@ Feature: Links vouch for an enrollment's client data signing keys, one per key
   Scenario: an unrevoked enrollment's _apsk keeps only the links a write of it keeps
     Given B revoked, its _apsk record moved aside, and links stored on that record since
     When B is unrevoked and the record moves back
-    Then it keeps only the links a write of it would keep: none for a kid it does not list, and none that names another kid, alg or public key
+    Then it keeps only the links a write of it would keep: none for a kid it does not list, none that names another kid, alg or public key, and none at all when they would take it over 500 KiB
     And an immutable record moves back as it stands
 
   Scenario: the atServer reads an _apsk value trimmed, as a client does
