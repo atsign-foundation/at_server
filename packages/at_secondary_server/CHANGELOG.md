@@ -87,6 +87,11 @@
   its `@` is now refused; a `notify` to one, for example, is answered with
   an error.
 
+- build: `at_utils` 3.5.0. In a log message, control characters other than a
+  line feed, bidirectional formatting characters, and line and paragraph
+  separators appear as escapes such as `\x1b` and `\u202e`, and each line
+  after a line feed is indented by two spaces.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
