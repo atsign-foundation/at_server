@@ -39,14 +39,15 @@ set -euo pipefail
 # compose project named after the base port when there is one; that checks
 # the pack's own containers, not which atServer each test reached.
 #
-# Each pack runs in its own process group, with stdin from /dev/null. An
-# interrupt, TERM, HUP or ALRM stops the running pack, and every container a
-# pack left behind, then each of their networks no running container uses, is
-# removed before the worktree is. The cleanup ignores a further signal, and so
-# do the commands it runs: each docker call runs in a process group of its
-# own, which a terminal's signals do not reach. A signal during the build
-# takes effect once the build ends. KILL ends the runner alone, leaving the
-# running pack, its containers and the worktree behind.
+# Each pack runs in its own process group, with stdin from /dev/null, and
+# whatever is still running in that group once the pack's runner exits is
+# stopped. An interrupt, TERM, HUP or ALRM stops the running pack, and every
+# container a pack left behind, then each of their networks no running
+# container uses, is removed before the worktree is. The cleanup ignores a
+# further signal, and so do the commands it runs: each docker call runs in a
+# process group of its own, which a terminal's signals do not reach. A signal
+# during the build takes effect once the build ends. KILL ends the runner
+# alone, leaving the running pack, its containers and the worktree behind.
 #
 # Exits non-zero if any pack fails, after running the rest, and 2 if the run
 # is refused. When GITHUB_STEP_SUMMARY is set, the runner appends to it, as
@@ -204,7 +205,8 @@ explained=""
 inCleanup=""
 exitStatus=0
 
-# Stops the running pack's process group, giving it 30 seconds to tidy up.
+# Stops whatever is running in the pack's process group, giving it 30 seconds
+# to tidy up.
 stopPack() {
   local pid="$packPid"
   # NOTE a signal between the pack's launch and the line recording its pid
@@ -216,6 +218,7 @@ stopPack() {
     return 0
   fi
   if kill -0 -- "-${pid}" 2>/dev/null; then
+    echo "*** Stopping what is still running in process group ${pid}"
     kill -TERM -- "-${pid}" || true
     kill -CONT -- "-${pid}" || true
     local waited=0
@@ -466,8 +469,8 @@ for pack in "${packs[@]}"; do
   else
     status=$?
   fi
-  packPid=""
   stopWatchdog
+  stopPack
   stopWatching
   downPackContainers
   if [[ -z "$hostedNamed" && -f "${sdkWorktree}/pubspec.lock" ]]; then
