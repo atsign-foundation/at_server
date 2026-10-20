@@ -1,3 +1,21 @@
+# 3.18.1
+- fix: `enroll:link` refuses an immutable `_apsk` record. Every other write
+  of an enrollment's `_apsk` record, its move back when the enrollment is
+  unrevoked included, keeps the link on each key it lists once with the alg
+  and public key the link names, other than the enrollment's client
+  authentication signing key. A put, `update:meta` or `enroll:update` that
+  would take the record with those links over 500 KiB is refused with
+  AT0022.
+
+- fix: an `enroll:request`, `enroll:update`, put or `update:meta` is refused
+  with AT0022 when the `_apsk` it would leave lists the enrollment's client
+  authentication signing key beside another key, or when the `_apsk` value
+  it writes lists a kid twice or an entry without a string kid, alg and
+  pub. An `enroll:update`, or a CRAM update of `at_pkam_publickey`, is also
+  refused when the key it installs is listed beside another key or carries
+  a link, and an `enroll:update` republishing an immutable `_apsk` record
+  is refused with AT0032.
+
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text

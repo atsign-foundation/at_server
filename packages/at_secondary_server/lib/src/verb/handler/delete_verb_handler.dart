@@ -89,30 +89,29 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     assert(deleteKey.isNotEmpty);
     // NOTE the keystore's own fold, not a copy of it: the checks below decide
     // by string equality against this value.
-    deleteKey = canonicalAtKey(deleteKey);
+    final String keyToDelete = canonicalAtKey(deleteKey);
 
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
     bool isAuthorized =
-        await super.isAuthorized(inboundConnectionMetadata, atKey: deleteKey);
+        await super.isAuthorized(inboundConnectionMetadata, atKey: keyToDelete);
 
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-          ' is not authorized to delete key: $deleteKey');
+          ' is not authorized to delete key: $keyToDelete');
     }
     bool cramSecretExisted = false;
-    final String removedKey = deleteKey;
     try {
       await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .serialiseIfApsk(removedKey, () async {
+          .serialiseIfApsk(keyToDelete, () async {
         // NOTE cached data is exempt: another atSign's cached copy may always
         // be deleted.
         if (verbParams['isCached'] != 'true') {
-          if (await keyStore.exists(removedKey)) {
-            AtData atData = (await keyStore.get(removedKey))!;
+          if (await keyStore.exists(keyToDelete)) {
+            AtData atData = (await keyStore.get(keyToDelete))!;
             if (atData.metaData?.immutable == true) {
               bool force = verbParams[AtConstants.force] == AtConstants.force;
               if (!force) {
@@ -124,16 +123,16 @@ class DeleteVerbHandler extends ChangeVerbHandler {
         }
         // NOTE read immediately before the removal: removing a key the store
         // does not hold is not an error here.
-        cramSecretExisted = removedKey == AtConstants.atCramSecret &&
-            await keyStore.exists(removedKey);
-        var result = await keyStore.remove(removedKey,
+        cramSecretExisted = keyToDelete == AtConstants.atCramSecret &&
+            await keyStore.exists(keyToDelete);
+        var result = await keyStore.remove(keyToDelete,
             skipCommit: verbParams[WireParams.noCommit] != null,
             deletedAt: deletedAt);
         response.data = result?.toString();
-        logger.finer('delete success. delete key: $removedKey');
+        logger.finer('delete success. delete key: $keyToDelete');
       });
     } on KeyNotFoundException {
-      logger.warning('key $deleteKey does not exist in keystore');
+      logger.warning('key $keyToDelete does not exist in keystore');
       rethrow;
     }
 
@@ -146,7 +145,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
 
     try {
-      if (!deleteKey.startsWith('@')) {
+      if (!keyToDelete.startsWith('@')) {
         return;
       }
       var forAtSign = verbParams[AtConstants.forAtSign];
