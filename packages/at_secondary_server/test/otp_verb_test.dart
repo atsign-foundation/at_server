@@ -254,18 +254,57 @@ void main() {
       expect(await otpVerbHandler.isPasscodeValid(otp), false);
     });
 
-    test('validate backwards compatability with legacy otp key', () async {
-      String atsign = alice;
+    test('A test to verify a namespace-less private record is not an OTP',
+        () async {
       String testOtp = 'ABCD12';
-      String otpLegacyKey = 'private:${testOtp.toLowerCase()}$atsign';
+      String key = 'private:${testOtp.toLowerCase()}$alice';
       AtData value = AtData()
         ..data = testOtp
         ..metaData = (AtMetaData()
           ..ttl = OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
-      await keyValueStore.put(otpLegacyKey, value);
+      await keyValueStore.put(key, value);
 
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
-      expect(await otpVerbHandler.isPasscodeValid(testOtp), true);
+      expect(await otpVerbHandler.isPasscodeValid(testOtp), false);
+      expect((await keyValueStore.get(key))?.data, testOtp);
+    });
+
+    for (final (String first, String second) in [
+      ('ABC124', 'ABC124'),
+      ('ABC124', ' ABC124'),
+      ('ABC124', 'ABC 124'),
+    ]) {
+      test(
+          'A test to verify one OTP checked at once as "$first" and "$second"'
+          ' is accepted once', () async {
+        OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+        await otpVerbHandler.savePasscode('ABC124', ttl: 60000, isSpp: false);
+        expect(
+            await Future.wait([
+              otpVerbHandler.isPasscodeValid(first),
+              otpVerbHandler.isPasscodeValid(second),
+            ]),
+            unorderedEquals([true, false]));
+      });
+    }
+
+    test('A test to verify a refused passcode can be accepted once issued',
+        () async {
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      expect(await otpVerbHandler.isPasscodeValid('ABC126'), false);
+      await otpVerbHandler.savePasscode('ABC126', ttl: 60000, isSpp: false);
+      expect(await otpVerbHandler.isPasscodeValid('ABC126'), true);
+    });
+
+    test('A test to verify a refused expired OTP is not removed', () async {
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      await otpVerbHandler.savePasscode('ABC125', ttl: 1, isSpp: false);
+      await Future.delayed(Duration(milliseconds: 2));
+      expect(await otpVerbHandler.isPasscodeValid('ABC125'), false);
+      expect(
+          await keyValueStore
+              .exists(OtpVerbHandler.passcodeKey('ABC125', isSpp: false)),
+          true);
     });
     tearDown(() async => await verbTestsTearDown());
   });

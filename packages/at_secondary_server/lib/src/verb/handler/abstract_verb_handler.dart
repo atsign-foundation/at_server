@@ -587,15 +587,22 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return null;
   }
 
+  /// The folded OTP keys [isPasscodeValid] callers are claiming right now.
+  static final Set<String> _otpKeysBeingClaimed = {};
+
+  /// The shape of a passcode `otp:get` issues.
+  static final RegExp _otpShape = RegExp(r'^\w{6,}$');
+
   /// Whether [passcode] is a live SPP or OTP. A valid OTP is removed from the
-  /// keystore so it cannot be reused; an SPP is not.
+  /// keystore so it cannot be reused, and only one caller can accept it; an
+  /// SPP is not removed. A refused passcode changes no record.
   Future<bool> isPasscodeValid(String? passcode) async {
     if (passcode == null) {
       return false;
     }
     String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
     if (!await keyStore.exists(passcodeKey)) {
-      // NOTE falls back to the namespace-less form an older client stored.
+      // NOTE falls back to the namespace-less form older atServers stored.
       passcodeKey =
           'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
@@ -613,23 +620,32 @@ abstract class AbstractVerbHandler implements VerbHandler {
       logger.finest('No SPP found in KeyStore. Validating as OTP');
     }
 
-    String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
-    if (!await keyStore.exists(otpKey)) {
-      otpKey =
-          'private:${passcode.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    }
-
-    AtData? otpAtData;
-    try {
-      otpAtData ??= await keyStore.get(otpKey);
-    } on KeyNotFoundException {
+    // NOTE only a passcode in the shape otp:get issues names an OTP record.
+    if (!_otpShape.hasMatch(passcode)) {
       return false;
     }
-
-    bool isOTPValid = SecondaryUtil.isActiveKey(otpAtData);
-    await keyStore.remove(otpKey);
-
-    return isOTPValid;
+    final String otpKey =
+        canonicalAtKey(OtpVerbHandler.passcodeKey(passcode, isSpp: false));
+    // NOTE claimed with no await between the check and the add, so only one
+    // caller at a time reads and removes an OTP.
+    if (!_otpKeysBeingClaimed.add(otpKey)) {
+      return false;
+    }
+    try {
+      final AtData? otpAtData;
+      try {
+        otpAtData = await keyStore.get(otpKey);
+      } on KeyNotFoundException {
+        return false;
+      }
+      if (!SecondaryUtil.isActiveKey(otpAtData)) {
+        return false;
+      }
+      await keyStore.remove(otpKey);
+      return true;
+    } finally {
+      _otpKeysBeingClaimed.remove(otpKey);
+    }
   }
 
   /// Reads the one-time challenge `from:` stored under [storedSecretId],
