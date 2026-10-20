@@ -10,9 +10,11 @@ import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -92,6 +94,19 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (!isAuthorized) {
       throw UnAuthorizedException(
           apkamUnauthorizedMsg(md.enrollmentId ?? 'primary', atKey));
+    }
+    // NOTE a reserved namespace's records change only through the verbs that
+    // own it.
+    final String? reserved = reservedNamespaceBarringChange(atKey,
+        atSign: atSign.toAtsign(), enrollmentId: md.enrollmentId);
+    if (reserved != null) {
+      throw UnAuthorizedException('Record in reserved namespace'
+          ' ${sanitiseForLogging(reserved)} may not be updated');
+    }
+    if (isPerEnrollmentRecordForAnotherAtSign(atKey,
+        atSign: atSign.toAtsign())) {
+      throw UnAuthorizedException(
+          'A per-enrollment record may not be for another atSign');
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
