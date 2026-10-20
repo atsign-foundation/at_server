@@ -13,7 +13,7 @@
 - fix: an `enroll:request` passcode is accepted only as the SPP or as an OTP
   issued with `otp:get`, and each OTP admits one request. OTPs stored in the
   namespace-less form older atServers used are no longer accepted; an SPP in
-  that form still is.
+  that form still is, until `otp:put` sets an SPP, which removes it.
 
 - fix: a `plookup` that spells `publickey` in another case no longer changes
   this atServer's copy of another atSign's encryption public key.

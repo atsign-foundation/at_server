@@ -7,8 +7,8 @@ Feature: An enroll:request passcode is accepted only as the SPP or as an OTP the
   or underscores, and only from that OTP's own record, so an issued OTP in
   another spelling is not read as that OTP. No record outside the __otp
   namespace is read as an OTP. An SPP stored in the namespace-less form older
-  atServers used still counts as the SPP. A refused passcode changes no
-  record.
+  atServers used still counts as the SPP, until otp:put sets an SPP, which
+  removes it. A refused passcode changes no record.
 
   Races: an OTP is claimed by its folded key with no await between checking
   and claiming it, so of two otherwise valid requests presenting one OTP at
@@ -55,3 +55,9 @@ Feature: An enroll:request passcode is accepted only as the SPP or as an OTP the
     Given @alice's atServer holds private:spp@alice, whose value is ABC123, and no SPP in the __otp namespace
     When an unauthenticated connection sends enroll:request with passcode ABC123
     Then the request is accepted as pending
+
+  Scenario: Setting an SPP with otp:put removes one stored in the namespace-less form
+    Given @alice's atServer holds private:spp@alice, whose value is OLD111
+    When @alice sets the SPP NEW111 with otp:put
+    Then private:spp@alice no longer exists
+    And once the SPP NEW111 is gone, an enroll:request with passcode OLD111 is refused as an invalid OTP

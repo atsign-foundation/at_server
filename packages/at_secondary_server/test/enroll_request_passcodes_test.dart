@@ -108,4 +108,16 @@ void main() {
     await keyValueStore.put('private:spp$alice', AtData()..data = 'ABC123');
     expect(await request('ABC123'), 'pending');
   });
+
+  test(
+      'Setting an SPP with otp:put removes one stored in the namespace-less form',
+      () async {
+    final String legacyKey = 'private:spp$alice';
+    await keyValueStore.put(legacyKey, AtData()..data = 'OLD111');
+    await otp('otp:put:NEW111');
+    expect(await keyValueStore.exists(legacyKey), false);
+    await keyValueStore
+        .remove(OtpVerbHandler.passcodeKey('NEW111', isSpp: true));
+    await expectLater(request('OLD111'), refusedAsInvalidOtp);
+  });
 }
