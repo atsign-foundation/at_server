@@ -18,6 +18,8 @@
 
 - fix: consolidate management of reserved namespaces.
 
+- fix: `batch:` answers an entry it has no verb for with AT0003.
+
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text

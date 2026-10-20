@@ -56,31 +56,30 @@ class BatchVerbHandler extends AbstractVerbHandler {
 
       var verbHandler = verbHandlerManager.getVerbHandler(command);
 
-      if (verbHandler is AbstractVerbHandler) {
-        try {
-          if (verbHandler is CramVerbHandler ||
-              verbHandler is PkamVerbHandler) {
-            logger.warning('Refusing entry $batchId of a batch on session '
-                '${atConnection.metaData.sessionID}: $authenticationRefusal');
-            throw UnAuthorizedException(authenticationRefusal);
-          }
-          var response =
-              await verbHandler.processInternal(command, atConnection);
+      try {
+        if (verbHandler is! AbstractVerbHandler) {
+          throw InvalidSyntaxException('invalid command');
+        }
+        if (verbHandler is CramVerbHandler || verbHandler is PkamVerbHandler) {
+          logger.warning('Refusing entry $batchId of a batch on session '
+              '${atConnection.metaData.sessionID}: $authenticationRefusal');
+          throw UnAuthorizedException(authenticationRefusal);
+        }
+        var response = await verbHandler.processInternal(command, atConnection);
+        var batchResponse = BatchResponse(batchId, response);
+        batchResponses.add(batchResponse);
+      } on Exception catch (e) {
+        var response = Response();
+        response.errorCode =
+            GlobalExceptionHandler.getInstance().getErrorCode(e);
+        if (response.errorCode != null) {
+          response.errorMessage = GlobalExceptionHandler.getInstance()
+              .getErrorDescription(response.errorCode);
           var batchResponse = BatchResponse(batchId, response);
           batchResponses.add(batchResponse);
-        } on Exception catch (e) {
-          var response = Response();
-          response.errorCode =
-              GlobalExceptionHandler.getInstance().getErrorCode(e);
-          if (response.errorCode != null) {
-            response.errorMessage = GlobalExceptionHandler.getInstance()
-                .getErrorDescription(response.errorCode);
-            var batchResponse = BatchResponse(batchId, response);
-            batchResponses.add(batchResponse);
-          } else {
-            logger.severe(
-                'No error code found. Exception executing command in a batch. ${e.toString()}');
-          }
+        } else {
+          logger.severe(
+              'No error code found. Exception executing command in a batch. ${e.toString()}');
         }
       }
     }

@@ -81,5 +81,18 @@ void main() {
       expect(entry['response']['error_code'], isNull);
       expect(entry['response']['data'], isNotNull);
     });
+
+    test(
+        'when a batch runs a command no verb handles, then that command is '
+        'refused with AT0003', () async {
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+
+      final Map entry = await onlyEntry('nosuchverb:abc');
+
+      expect(entry['id'], 1);
+      expect(entry['response']['error_code'], 'AT0003');
+    });
   });
 }
