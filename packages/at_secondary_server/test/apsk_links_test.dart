@@ -7,6 +7,7 @@ import 'package:at_chops/at_chops.dart' show RsaSignatureAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/apsk_links.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
@@ -1953,6 +1954,31 @@ void main() {
           refusedNaming<IllegalArgumentException>(k1));
       expect(await primaryKey(), p3);
     });
+
+    for (final String state in ['revoked', 'deleted']) {
+      test(
+          'a CRAM update of at_pkam_publickey onto K1 while primary is '
+          '$state, its _apsk listing K1 beside K2, is refused, naming K1, and '
+          'primary is unchanged', () async {
+        await enMgr.serialiseMutation(() => enMgr.mintPrimary(p3));
+        await linkPrimary();
+        await enMgr.serialiseMutation(() async {
+          final EnrollDataStoreValue stored =
+              await enMgr.getEnrollmentById(primary);
+          stored.approval = EnrollApproval(EnrollmentStatus.revoked.name);
+          await enMgr.put(primary, AtData()..data = jsonEncode(stored.toJson()),
+              EnrollmentStatus.revoked);
+        });
+        if (state == 'deleted') await enMgr.remove(enId: primary);
+
+        await expectLater(enMgr.installLegacyKeyIntoPrimary(p1),
+            refusedNaming<IllegalArgumentException>(k1));
+        final EnrollDataStoreValue? after = await enMgr.primaryEnrollment();
+        expect(after?.approval?.state,
+            state == 'revoked' ? EnrollmentStatus.revoked.name : null);
+        expect(after?.apkamPublicKey, state == 'revoked' ? p3 : null);
+      });
+    }
 
     test(
         'a legacy pkam: absorbing a flat key onto K1 removes K1\'s link from '

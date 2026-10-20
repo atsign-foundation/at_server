@@ -263,10 +263,13 @@ class EnrollmentManager {
         return true;
       });
 
-  /// Enrollment [enId]'s stored `_apsk` record, or null when it has none.
-  Future<AtData?> _apskOf(String enId) async {
+  /// Enrollment [enId]'s stored `_apsk` record at [location], the approved
+  /// one unless another is named, or null when it has none there.
+  Future<AtData?> _apskOf(String enId,
+      {String location = EnrollmentConstants.perEnrollmentApproved}) async {
     try {
-      return await keyStore.get(ApskLinks.keyFor(enId, atSign));
+      return await keyStore
+          .get(ApskLinks.keyFor(enId, atSign, location: location));
     } on KeyNotFoundException {
       return null;
     }
@@ -331,7 +334,9 @@ class EnrollmentManager {
   ///
   /// Throws [IllegalStateException] when a stored enrollment other than
   /// `primary` already holds the key, and [IllegalArgumentException] when
-  /// the value is not APKAM key material.
+  /// the value is not APKAM key material, or when `primary`'s `_apsk`,
+  /// approved, revoked or deleted, lists the key beside another key or with
+  /// a link.
   Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
       serialiseMutation(() async {
         if (apkamPublicKey.trim().isEmpty ||
@@ -353,7 +358,18 @@ class EnrollmentManager {
               'this atSign; every enrollment needs a keypair of its own '
               '(held by enrollment ${holder.$1}, ${holder.$2.approval?.state})');
         }
-        final AtData? apsk = await _apskOf(primaryEnrollmentId);
+        // NOTE: a revoked or deleted primary's _apsk moves back when this
+        // re-approves or re-mints primary, so it is checked wherever it
+        // stands.
+        AtData? apsk;
+        for (final String location in const [
+          EnrollmentConstants.perEnrollmentApproved,
+          EnrollmentConstants.perEnrollmentRevoked,
+          EnrollmentConstants.perEnrollmentDeleted,
+        ]) {
+          apsk = await _apskOf(primaryEnrollmentId, location: location);
+          if (apsk != null) break;
+        }
         if (apsk != null) {
           ApskLinks.settle(
               writer: 'update of ${AtConstants.atPkamPublicKey}',

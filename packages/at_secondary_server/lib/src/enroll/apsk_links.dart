@@ -29,10 +29,11 @@ abstract final class ApskLinks {
 
   static const String _keyPrefix = 'public:_apsk.';
 
-  /// The key of enrollment [enrollmentId]'s `_apsk` record on [atSign].
-  static String keyFor(String enrollmentId, String atSign) =>
-      '$_keyPrefix$enrollmentId'
-      '.${EnrollmentConstants.perEnrollmentApproved}$atSign';
+  /// The key of enrollment [enrollmentId]'s `_apsk` record on [atSign], at
+  /// [location]: the approved record unless another is named.
+  static String keyFor(String enrollmentId, String atSign,
+          {String location = EnrollmentConstants.perEnrollmentApproved}) =>
+      '$_keyPrefix$enrollmentId.$location$atSign';
 
   /// The enrollment id [atKey] names when it is an approved enrollment's
   /// `_apsk` record on [atSign], and null for any other key.
