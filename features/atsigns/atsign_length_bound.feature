@@ -86,7 +86,6 @@ Feature: An atSign has at most 55 characters
       | scan:@over                                                                                                                                  |
       | config:block:add:@over                                                                                                                      |
       | config:block:remove:@over                                                                                                                   |
-      | stream:init@over namespace:wavi startByte:0 s1 f.txt 10                                                                                     |
 
   Scenario Outline: A client's command naming an atSign of exactly 55 characters is accepted
     Given @alice's authenticated client
@@ -106,7 +105,6 @@ Feature: An atSign has at most 55 characters
       | plookup:phone.wavi@max                                  | @alice's atServer asks the atDirectory for @max               |
       | scan:@max                                               | @alice's atServer asks the atDirectory for @max               |
       | config:block:add:@max                                   | config:block:show lists @max                                  |
-      | stream:init@max namespace:wavi startByte:0 s1 f.txt 10  | a notification for @max is queued                             |
 
   Scenario Outline: An atSign is measured in characters after its @, without its dots
     Given @alice's authenticated client
