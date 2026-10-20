@@ -1980,6 +1980,53 @@ void main() {
       });
     }
 
+    /// Revokes `primary` the way an owner's `enroll:revoke` leaves it.
+    Future<void> revokePrimary() => enMgr.serialiseMutation(() async {
+          final EnrollDataStoreValue stored =
+              await enMgr.getEnrollmentById(primary);
+          stored.approval = EnrollApproval(EnrollmentStatus.revoked.name);
+          await enMgr.put(primary, AtData()..data = jsonEncode(stored.toJson()),
+              EnrollmentStatus.revoked);
+        });
+
+    test(
+        'a CRAM update of at_pkam_publickey re-approving a revoked primary '
+        'onto K1, the only key its _apsk lists and with no link, moves the '
+        'record back listing K1 alone and linkless', () async {
+      await enMgr.serialiseMutation(() => enMgr.mintPrimary(p3));
+      await keyValueStore.put(apskKey(primary),
+          AtData()..data = jsonEncode(listForm([entry(k1, 'mldsa65', p1)])));
+      await revokePrimary();
+
+      await enMgr.installLegacyKeyIntoPrimary(p1);
+
+      final EnrollDataStoreValue after = await enMgr.getEnrollmentById(primary);
+      expect(after.approval?.state, EnrollmentStatus.approved.name);
+      expect(after.apkamPublicKey, p1);
+      expect(jsonDecode((await record(primary)).data!),
+          listForm([entry(k1, 'mldsa65', p1)]));
+      expect(await linksOn(primary), isNull);
+    });
+
+    test(
+        'a CRAM update of at_pkam_publickey re-approving a revoked primary '
+        'onto K2 keeps the link on K1, which is not its authentication key',
+        () async {
+      await enMgr.serialiseMutation(() => enMgr.mintPrimary(p3));
+      l1 = chainLink(payload(primary, k1, 'mldsa65', p1));
+      await keyValueStore.put(apskKey(primary),
+          AtData()..data = jsonEncode(listForm([entry(k1, 'mldsa65', p1)])));
+      await link(null, primary, {
+        k1: {'link': l1, 'expect': null}
+      });
+      await revokePrimary();
+
+      await enMgr.installLegacyKeyIntoPrimary(p2);
+
+      expect(await primaryKey(), p2);
+      expect(await linksOn(primary), {k1: l1});
+    });
+
     test(
         'a legacy pkam: absorbing a flat key onto K1 removes K1\'s link from '
         'primary\'s _apsk, and K2\'s link stays', () async {
