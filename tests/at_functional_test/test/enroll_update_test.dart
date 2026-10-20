@@ -235,6 +235,7 @@ void main() {
         'v': 1,
         'keys': [
           {
+            'kid': 'e74a2a6bebafcb3f',
             'use': 'sign',
             'alg': 'mldsa65',
             'pub': 'ZnVuY3Rpb25hbC10ZXN0LWtleQ==',

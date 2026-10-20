@@ -75,6 +75,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
           throw InvalidRequestException('otp:put requires a passcode');
         }
         await savePasscode(spp, ttl: sppTtl, isSpp: true);
+        // NOTE the namespace-less SPP older atServers stored is removed, so an
+        // SPP once replaced is never accepted again.
+        await keyStore.remove(
+            'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}');
         response.data = 'ok';
         break;
       case 'list':
