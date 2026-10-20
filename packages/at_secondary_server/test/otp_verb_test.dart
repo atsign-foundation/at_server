@@ -612,6 +612,36 @@ void main() {
               {'*': 'rw', '__manage': 'rw'}, {'*': 'rw', '__manage': 'rw'}),
           true);
     });
+
+    test('otp:list shows one SPP when the current and legacy keys both exist',
+        () async {
+      await run('otp:put:abc123');
+      await keyValueStore.put('private:spp$alice', AtData()..data = 'old123');
+      expect(entries(await run('otp:list')), ['spp:abc123']);
+    });
+
+    test('otp:list gives an SPP set without a ttl an expiresAt of -1',
+        () async {
+      await run('otp:put:abc123');
+      final List listed = jsonDecode((await run('otp:list')).data!);
+      expect(listed.single['expiresAt'], -1);
+    });
+
+    test('otp:list leaves out an expired legacy SPP', () async {
+      await keyValueStore.put(
+          'private:spp$alice',
+          AtData()
+            ..data = 'old123'
+            ..metaData = (AtMetaData()..ttl = 1));
+      await Future.delayed(Duration(milliseconds: 5));
+      expect(entries(await run('otp:list')), isEmpty);
+    });
+
+    test('otp:delete:spp with no SPP adds nothing to the commit log', () async {
+      final before = atCommitLog.lastCommittedSequenceNumber();
+      expect((await run('otp:delete:spp')).data, 'ok');
+      expect(atCommitLog.lastCommittedSequenceNumber(), before);
+    });
   });
 
   test('info lists otp.list and otp.delete as Beta', () {

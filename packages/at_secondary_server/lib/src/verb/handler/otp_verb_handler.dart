@@ -289,8 +289,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
   }
 
   /// Whether the connection holds access to the `__manage` namespace, which
-  /// `otp:get` and `otp:put` require: a CRAM connection always does, any
-  /// other connection is judged on the enrollment it carries, and a
+  /// `otp:get`, `otp:list` and `otp:delete` require: a CRAM connection always
+  /// does, any other connection is judged on the enrollment it carries, and a
   /// connection carrying none is refused.
   Future<bool> _hasManageNamespaceAccess(
       InboundConnectionMetadata atConnectionMetadata) async {
