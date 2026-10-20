@@ -2100,18 +2100,28 @@ void main() {
       expect(await linksOn(b), {k2: l2});
     });
 
-    test('a link on a kid the moved-aside record lists twice is not restored',
-        () async {
-      final AtData aside = (await keyValueStore.get(revokedKey(b)))!;
-      aside.data = jsonEncode(listForm([
-        entry(k1, 'mldsa65', p1),
-        entry(k2, 'rsa2048', p2),
-        entry(k2, 'mldsa65', p3)
-      ]));
-      await keyValueStore.put(revokedKey(b), aside);
-      await etu.unrevokeEnrollment(etu.primaryEnId, b);
-      expect(await linksOn(b), {k1: chainLink(payload(b, k1, 'mldsa65', p1))});
-    });
+    for (final (String order, List<Map<String, dynamic>> twice) in [
+      (
+        'the key its link names listed last',
+        [entry(k2, 'mldsa65', p3), entry(k2, 'rsa2048', p2)]
+      ),
+      (
+        'another key listed last',
+        [entry(k2, 'rsa2048', p2), entry(k2, 'mldsa65', p3)]
+      ),
+    ]) {
+      test(
+          'a link on a kid the moved-aside record lists twice is not '
+          'restored, $order', () async {
+        final AtData aside = (await keyValueStore.get(revokedKey(b)))!;
+        aside.data = jsonEncode(listForm([entry(k1, 'mldsa65', p1), ...twice]));
+        await keyValueStore.put(revokedKey(b), aside);
+        await etu.unrevokeEnrollment(etu.primaryEnId, b);
+        expect(await linksOn(b), {k1: chainLink(payload(b, k1, 'mldsa65', p1))},
+            reason: 'a kid listed twice keeps no link, whichever of its '
+                'entries the link names');
+      });
+    }
 
     test('an immutable moved-aside record comes back as it stands', () async {
       final Map<String, dynamic> stray = chainLink(payload(b, k9, 'x', p1));
