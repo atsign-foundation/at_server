@@ -239,25 +239,17 @@ class OtpVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (isSpp) {
-      await _removeIfExists(passcodeKey(passcode, isSpp: true));
-      await _removeIfExists('private:spp$atSign');
+      await keyStore.remove(passcodeKey(passcode, isSpp: true));
+      await keyStore.remove('private:spp$atSign');
       return;
     }
-    await _removeIfExists(passcodeKey(passcode, isSpp: false));
+    await keyStore.remove(passcodeKey(passcode, isSpp: false));
     // NOTE private:<otp>@ is also an ordinary key name, so it is removed
     // only when it holds this passcode.
     final String legacyKey = 'private:${passcode.toLowerCase()}$atSign';
     final AtData? legacy = await _getOrNull(legacyKey);
     if (legacy?.data?.toLowerCase() == passcode.toLowerCase()) {
       await keyStore.remove(legacyKey);
-    }
-  }
-
-  /// Removes [key] only if present, since remove() records a delete in the
-  /// commit log even for a key that was never there.
-  Future<void> _removeIfExists(String key) async {
-    if (await keyStore.exists(key)) {
-      await keyStore.remove(key);
     }
   }
 

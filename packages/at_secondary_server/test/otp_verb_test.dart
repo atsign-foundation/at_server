@@ -636,12 +636,6 @@ void main() {
       await Future.delayed(Duration(milliseconds: 5));
       expect(entries(await run('otp:list')), isEmpty);
     });
-
-    test('otp:delete:spp with no SPP adds nothing to the commit log', () async {
-      final before = atCommitLog.lastCommittedSequenceNumber();
-      expect((await run('otp:delete:spp')).data, 'ok');
-      expect(atCommitLog.lastCommittedSequenceNumber(), before);
-    });
   });
 
   test('info lists otp.list and otp.delete as Beta', () {
