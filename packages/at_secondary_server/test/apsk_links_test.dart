@@ -2091,6 +2091,25 @@ void main() {
           reason: 'K2\'s link would take the record over 500 KiB, and a move '
               'that cannot be refused keeps no link rather than exceed it');
     });
+
+    test('a link on the enrollment\'s authentication key is not restored',
+        () async {
+      final c = await enrollment('c',
+          apkamPublicKey: p1,
+          signingAlgo: 'mldsa65',
+          apsk: listForm([entry(k1, 'mldsa65', p1)]));
+      await etu.revokeEnrollment(etu.primaryEnId, c);
+      final AtData aside = (await keyValueStore.get(revokedKey(c)))!;
+      aside.metaData!.appMetadata =
+          AppMetadata(providerId: 'legacy', additional: {
+        'apskLinks': {k1: chainLink(payload(c, k1, 'mldsa65', p1))}
+      });
+      await keyValueStore.put(revokedKey(c), aside);
+
+      await etu.unrevokeEnrollment(etu.primaryEnId, c);
+
+      expect(await linksOn(c), isNull);
+    });
   });
 
   group('the atServer reads an _apsk value trimmed, as a client does', () {
