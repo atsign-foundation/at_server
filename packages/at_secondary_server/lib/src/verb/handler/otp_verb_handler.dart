@@ -303,18 +303,26 @@ class OtpVerbHandler extends AbstractVerbHandler {
   }
 
   /// An OTP record's value: `{"passcode", "namespaces"}`, or, for an OTP
-  /// stored before OTPs carried namespaces, the bare passcode.
+  /// stored before OTPs carried namespaces, the bare passcode. A value that
+  /// is neither is read as a namespace-less OTP, so only a full-privilege
+  /// connection can list or delete it.
   @visibleForTesting
   static ({String passcode, Map<String, String>? namespaces}) readOtp(
       String data) {
-    if (!data.startsWith('{')) {
-      return (passcode: data, namespaces: null);
+    if (data.startsWith('{')) {
+      try {
+        final Map<String, dynamic> json = jsonDecode(data);
+        final Map? namespaces = json['namespaces'] as Map?;
+        return (
+          passcode: json['passcode'] as String,
+          namespaces:
+              namespaces == null ? null : Map<String, String>.from(namespaces),
+        );
+      } catch (_) {
+        // NOTE not the shape otp:get writes; fall through to namespace-less.
+      }
     }
-    final Map<String, dynamic> json = jsonDecode(data);
-    return (
-      passcode: json['passcode'] as String,
-      namespaces: (json['namespaces'] as Map?)?.cast<String, String>(),
-    );
+    return (passcode: data, namespaces: null);
   }
 
   /// Whether [scope] may manage an OTP issued with [namespaces]. One with
@@ -326,15 +334,19 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// Whether [held] is a superset of [wanted]: each namespace held with at
   /// least the same letters ("rw" covers "r"). `*` covers any other
   /// namespace, while `*` and `__manage` must be held literally, as in
-  /// EnrollVerbHandler.verifyNoEscalation.
+  /// EnrollVerbHandler.verifyNoEscalation. Namespaces are compared in lower
+  /// case.
   @visibleForTesting
   static bool covers(Map<String, String> held, Map<String, String> wanted) {
+    final Map<String, String> heldFolded = held
+        .map((namespace, access) => MapEntry(namespace.toLowerCase(), access));
     for (final entry in wanted.entries) {
-      String? access = held[entry.key];
-      final bool isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
-          entry.key == EnrollmentConstants.enrollManageNamespace;
+      final String namespace = entry.key.toLowerCase();
+      String? access = heldFolded[namespace];
+      final bool isSpecial = namespace == EnrollmentConstants.allNamespaces ||
+          namespace == EnrollmentConstants.enrollManageNamespace;
       if (access == null && !isSpecial) {
-        access = held[EnrollmentConstants.allNamespaces];
+        access = heldFolded[EnrollmentConstants.allNamespaces];
       }
       if (access == null ||
           !entry.value.split('').every(access.split('').contains)) {

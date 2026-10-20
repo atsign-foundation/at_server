@@ -636,6 +636,31 @@ void main() {
       await Future.delayed(Duration(milliseconds: 5));
       expect(entries(await run('otp:list')), isEmpty);
     });
+
+    test('covers compares namespaces in lower case', () {
+      expect(OtpVerbHandler.covers({'App_1': 'rw'}, {'app_1': 'r'}), true);
+      expect(OtpVerbHandler.covers({'app_1': 'rw'}, {'APP_1': 'rw'}), true);
+      expect(OtpVerbHandler.covers({'*': 'rw'}, {'__MANAGE': 'rw'}), false);
+    });
+
+    test('readOtp reads a malformed record as a namespace-less OTP', () {
+      expect(OtpVerbHandler.readOtp('{oops'),
+          (passcode: '{oops', namespaces: null));
+      expect(OtpVerbHandler.readOtp('{"passcode": 1}'),
+          (passcode: '{"passcode": 1}', namespaces: null));
+    });
+
+    test('a malformed OTP record does not break otp:list', () async {
+      await keyValueStore.put(
+          OtpVerbHandler.passcodeKey('BADREC', isSpp: false),
+          AtData()..data = '{oops');
+      await useEnrollment('two', {'app_2': 'rw', '__manage': 'rw'});
+      final otp = (await run('otp:get')).data!;
+      expect(entries(await run('otp:list')), ['otp:$otp']);
+      useCram();
+      expect(entries(await run('otp:list')),
+          unorderedEquals(['otp:{oops', 'otp:$otp']));
+    });
   });
 
   test('info lists otp.list and otp.delete as Beta', () {
