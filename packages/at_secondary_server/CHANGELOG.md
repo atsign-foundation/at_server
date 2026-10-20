@@ -16,6 +16,8 @@
   a link, and an `enroll:update` republishing an immutable `_apsk` record
   is refused with AT0032.
 
+- fix: consolidate management of reserved namespaces.
+
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
