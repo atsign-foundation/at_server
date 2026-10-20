@@ -20,6 +20,10 @@
 
 - fix: `batch:` answers an entry it has no verb for with AT0003.
 
+- fix: the stream verb is removed: `stream:` commands, batched ones included,
+  are refused with AT0003, and a `stream:init` notification from an older
+  atServer is dropped.
+
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text

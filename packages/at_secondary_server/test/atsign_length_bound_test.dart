@@ -97,7 +97,6 @@ void main() {
       'scan:$over',
       'config:block:add:$over',
       'config:block:remove:$over',
-      'stream:init$over namespace:wavi startByte:0 s1 f.txt 10',
     ]) {
       test(command.replaceAll(over, '@over'), () async {
         final before = await footprint();
@@ -169,12 +168,6 @@ void main() {
       await send('config:block:add:$max', connection);
       await send('config:block:show', connection);
       expect(connection.writes.last, 'data:["$max"]\n@alice@');
-    });
-
-    test('stream:init@max namespace:wavi startByte:0 s1 f.txt 10', () async {
-      await send(
-          'stream:init$max namespace:wavi startByte:0 s1 f.txt 10', connection);
-      expect(await sentTo(max), [NotificationStatus.queued]);
     });
   });
 

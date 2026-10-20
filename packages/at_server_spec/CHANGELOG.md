@@ -1,4 +1,7 @@
-## 5.3.0
+## 6.0.0
+- ⚠️ BREAKING: the stream verb is removed, with `StreamVerb` and
+  `AtConnectionMetaData.isStream` and `streamId`; `acceptRequests` no longer
+  takes a stream callback.
 - docs: every form of `info`, `info:brief` included, lists `features`. The
   `Info` dartdoc points at at_commons' `InfoFeature`, `InfoFeatureStatus` and
   `InfoFeatures` for their names, statuses and how to read them. The `Notify`
