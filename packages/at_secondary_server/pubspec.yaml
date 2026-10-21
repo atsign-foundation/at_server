@@ -55,9 +55,9 @@ dependency_overrides:
     path: ../at_persistence_secondary_server
   # Without this, `dart pub get` resolves at_server_spec from pub.dev instead
   # of the sibling in this repo, so a build silently compiles against a
-  # different version of the spec than the tree it was built from. It resolves
-  # rather than failing because the constraint above is satisfiable by a
-  # published version, so nothing goes red.
+  # different version of the spec than the tree it was built from. Whenever
+  # the constraint above is satisfiable by a published version, it resolves
+  # rather than failing, so nothing goes red.
   #
   # The melos-generated pubspec_overrides.yaml pins this too, but that file is
   # gitignored, so it protects only a working tree that has been bootstrapped —

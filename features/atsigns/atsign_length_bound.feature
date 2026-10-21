@@ -5,10 +5,10 @@ Feature: An atSign has at most 55 characters
   removed: @a.b has 2 characters, and a single-code-point emoji such as 😀
   has 1. An atServer refuses a longer atSign wherever a command names one:
   the atSign a connection declares, a key's owner or recipient, a
-  notification's recipient or sender, a stream's receiver, or a blocklist
-  entry. It answers AT0003 with "invalid @sign: must have at most 55
-  characters after the @" before it looks anything up, stores, queues or
-  sends anything. An authenticated client, or a peer that has proved itself
+  notification's recipient or sender, or a blocklist entry. It answers
+  AT0003 with "invalid @sign: must have at most 55 characters after the @"
+  before it looks anything up, stores, queues or sends anything. An
+  authenticated client, or a peer that has proved itself
   by pol, keeps its connection. Any other connection is closed. An atSign of
   exactly 55 characters is accepted everywhere. An atServer does not start
   for an atSign longer than 55 characters.

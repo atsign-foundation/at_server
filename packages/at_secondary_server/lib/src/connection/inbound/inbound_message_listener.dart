@@ -100,9 +100,8 @@ class InboundMessageListener {
         return;
       }
       await onBufferEndCallBack(command, connection);
-      // NOTE A handler may have closed the connection - a revoked
-      // enrollment, an invalid stream id. Anything queued behind it must not
-      // be dispatched onto it.
+      // NOTE A handler may have closed the connection, for a revoked
+      // enrollment. Anything queued behind it must not be dispatched onto it.
       if (connection.metaData.isClosed || connection.metaData.isStale) {
         _buffer.clear();
         return;
