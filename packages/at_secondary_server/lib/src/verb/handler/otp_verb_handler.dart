@@ -226,7 +226,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
   }
 
   /// Removes [passcode], or the SPP when [passcode] is `spp` in any case,
-  /// including the namespace-less keys older clients stored. A [scope]
+  /// including the namespace-less SPP key older clients stored. A [scope]
   /// limits it to an OTP that scope covers; the SPP and namespace-less keys
   /// then stay.
   @visibleForTesting
@@ -252,13 +252,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
       return;
     }
     await keyStore.remove(passcodeKey(passcode, isSpp: false));
-    // NOTE private:<otp>@ is also an ordinary key name, so it is removed
-    // only when it holds this passcode.
-    final String legacyKey = 'private:${passcode.toLowerCase()}$atSign';
-    final AtData? legacy = await _getOrNull(legacyKey);
-    if (legacy?.data?.toLowerCase() == passcode.toLowerCase()) {
-      await keyStore.remove(legacyKey);
-    }
   }
 
   Future<AtData?> _getOrNull(String key) async {

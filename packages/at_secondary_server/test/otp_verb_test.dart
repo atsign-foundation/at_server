@@ -559,16 +559,11 @@ void main() {
       expect(await OtpVerbHandler(keyValueStore).isPasscodeValid(otp), true);
     });
 
-    test('otp:delete removes a legacy OTP key only if it holds the passcode',
-        () async {
-      await keyValueStore.put('private:abcd12$alice', AtData()..data = 'other');
-      await run('otp:delete:ABCD12');
-      expect(await keyValueStore.exists('private:abcd12$alice'), true);
-
+    test('otp:delete leaves a namespace-less private key alone', () async {
       await keyValueStore.put(
           'private:abcd12$alice', AtData()..data = 'ABCD12');
-      await run('otp:delete:ABCD12');
-      expect(await keyValueStore.exists('private:abcd12$alice'), false);
+      expect((await run('otp:delete:ABCD12')).data, 'ok');
+      expect(await keyValueStore.exists('private:abcd12$alice'), true);
     });
 
     test("otp:get records the issuing enrollment's namespaces", () async {
