@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -51,9 +52,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
               'otp:get requires access to the __manage namespace');
         }
         String otp = generateOTP();
-        // Extract the ttl from the verb parameters if supplied, or use the default value.
-        int otpTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
-            defaultOtpExpiry.inMilliseconds;
+        // The ttl from the verb parameters, within the configured maximum.
+        int otpTtl = _otpTtl(verbParams[AtConstants.ttl]);
         await savePasscode(otp,
             ttl: otpTtl,
             isSpp: false,
@@ -113,6 +113,25 @@ class OtpVerbHandler extends AbstractVerbHandler {
       default:
         throw InvalidSyntaxException('$operation is not a valid operation');
     }
+  }
+
+  /// The ttl, in milliseconds, for an OTP that `otp:get` issues: [requested]
+  /// if given, otherwise [defaultOtpExpiry], cut to the maximum when that is
+  /// shorter. A [requested] ttl that is 0 (the keystore's "never expires"),
+  /// too large to parse, or above AtSecondaryConfig.otpMaxTtlInMinutes is
+  /// refused.
+  int _otpTtl(String? requested) {
+    final int maxTtl =
+        Duration(minutes: AtSecondaryConfig.otpMaxTtlInMinutes).inMilliseconds;
+    if (requested == null) {
+      return min(defaultOtpExpiry.inMilliseconds, maxTtl);
+    }
+    final int? ttl = int.tryParse(requested);
+    if (ttl == null || ttl <= 0 || ttl > maxTtl) {
+      throw IllegalArgumentException(
+          'otp:get ttl must be between 1 and $maxTtl milliseconds');
+    }
+    return ttl;
   }
 
   /// This function generates a UUID and converts it into a 6-character alpha-numeric string.

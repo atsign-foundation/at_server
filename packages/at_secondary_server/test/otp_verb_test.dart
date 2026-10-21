@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
@@ -719,6 +720,73 @@ void main() {
           run('otp:list'), throwsA(isA<UnAuthenticatedException>()));
       await expectLater(
           run('otp:delete:ABC123'), throwsA(isA<UnAuthenticatedException>()));
+    });
+  });
+
+  group('A group of tests related to the otp:get ttl limit', () {
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      AtSecondaryConfig.otpMaxTtlInMinutes = 1;
+    });
+    tearDown(() async {
+      AtSecondaryConfig.otpMaxTtlInMinutes = null;
+      await verbTestsTearDown();
+    });
+
+    Future<String> issue(String command) async {
+      Response response = Response();
+      await OtpVerbHandler(keyValueStore).processVerb(
+          response, getVerbParam(VerbSyntax.otp, command), inboundConnection);
+      return response.data!;
+    }
+
+    Future<int?> storedTtl(String otp) async => (await keyValueStore
+            .get('private:$otp.${OtpVerbHandler.otpNamespace}$atSign'))
+        ?.metaData
+        ?.ttl;
+
+    test('otp:get accepts a ttl equal to the maximum', () async {
+      String otp = await issue('otp:get:ttl:60000');
+      expect(await storedTtl(otp), 60000);
+    });
+
+    test('otp:get refuses a ttl above the maximum, and stores nothing',
+        () async {
+      await expectLater(
+          issue('otp:get:ttl:60001'), throwsA(isA<IllegalArgumentException>()));
+      expect(await OtpVerbHandler(keyValueStore).listPasscodes(), isEmpty);
+    });
+
+    test('otp:get refuses ttl:0, which would never expire', () async {
+      await expectLater(
+          issue('otp:get:ttl:0'), throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test('otp:get refuses a ttl too large to parse', () async {
+      await expectLater(issue('otp:get:ttl:99999999999999999999'),
+          throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test('otp:get without a ttl is cut to a shorter maximum', () async {
+      String otp = await issue('otp:get');
+      expect(await storedTtl(otp), 60000);
+    });
+
+    test('otp:get without a ttl keeps the default under a longer maximum',
+        () async {
+      AtSecondaryConfig.otpMaxTtlInMinutes = null;
+      String otp = await issue('otp:get');
+      expect(
+          await storedTtl(otp), OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
+    });
+
+    test('a maximum of 0 or less falls back to 60 minutes', () {
+      AtSecondaryConfig.otpMaxTtlInMinutes = 0;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 60);
+      AtSecondaryConfig.otpMaxTtlInMinutes = -5;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 60);
     });
   });
 
