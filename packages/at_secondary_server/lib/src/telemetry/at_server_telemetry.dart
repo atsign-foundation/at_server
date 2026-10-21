@@ -111,12 +111,31 @@ final class AtServerTelemetry {
     return telemetry.shutdown(timeout: timeout);
   }
 
+  void connectionOpened(InboundConnection connection) {
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (!isEnabled || metaData is! InboundConnectionMetadata) {
+      return;
+    }
+    metaData.telemetryAnnounced = true;
+    final DateTime? created = metaData.created;
+    emitEvent(
+      atServerConnectionOpenedEventName,
+      attributes: <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        if (created != null)
+          connectionOpenedAtAttribute: created.millisecondsSinceEpoch,
+        connectionTransportAttribute: _transportOf(connection),
+      },
+    );
+  }
+
   void connectionAuthenticated(AtConnection connection) {
     if (!isEnabled || connection is! InboundConnection) {
       return;
     }
     final AtConnectionMetaData metaData = connection.metaData;
-    if (metaData is! InboundConnectionMetadata || !metaData.isAuthenticated) {
+    if (metaData is! InboundConnectionMetadata ||
+        (!metaData.isAuthenticated && !metaData.isPolAuthenticated)) {
       return;
     }
     metaData.telemetryAnnounced = true;
@@ -165,6 +184,8 @@ final class AtServerTelemetry {
       atServerConnectionClosedEventName,
       attributes: <String, Object?>{
         connectionIdAttribute: metaData.connectionId,
+        if (_authTypeOf(metaData) case final String authType)
+          connectionAuthTypeAttribute: authType,
         connectionCloseReasonAttribute: reason.wireName,
         if (created != null)
           connectionDurationAttribute:
@@ -182,16 +203,17 @@ final class AtServerTelemetry {
     InboundConnectionMetadata metaData,
   ) {
     final DateTime? created = metaData.created;
-    final AuthType? authType = metaData.authType;
     final String clientVersion = metaData.clientVersion;
     return <String, Object?>{
       connectionIdAttribute: metaData.connectionId,
       if (created != null)
         connectionOpenedAtAttribute: created.millisecondsSinceEpoch,
-      connectionTransportAttribute:
-          connection is InboundWebSocketConnection ? 'websocket' : 'tls',
-      if (authType != null)
-        connectionAuthTypeAttribute: _authTypeName(authType),
+      connectionTransportAttribute: _transportOf(connection),
+      if (_authTypeOf(metaData) case final String authType)
+        connectionAuthTypeAttribute: authType,
+      if (metaData.fromAtSign case final String peer
+          when metaData.isPolAuthenticated)
+        connectionPeerAttribute: _bounded(peer),
       if (metaData.enrollmentId case final String enrollmentId)
         AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
       if (metaData.enrollmentAppName case final String appName)
@@ -211,12 +233,20 @@ final class AtServerTelemetry {
     };
   }
 
-  String _authTypeName(AuthType authType) {
-    return switch (authType) {
-      AuthType.cram => 'cram',
-      AuthType.pkamLegacy => 'pkam_legacy',
-      AuthType.apkam => 'apkam',
-    };
+  String _transportOf(InboundConnection connection) {
+    return connection is InboundWebSocketConnection ? 'websocket' : 'tls';
+  }
+
+  String? _authTypeOf(InboundConnectionMetadata metaData) {
+    if (metaData.isAuthenticated) {
+      return switch (metaData.authType) {
+        AuthType.cram => 'cram',
+        AuthType.pkamLegacy => 'pkam_legacy',
+        AuthType.apkam => 'apkam',
+        null => null,
+      };
+    }
+    return metaData.isPolAuthenticated ? 'pol' : null;
   }
 
   String _bounded(String value) {

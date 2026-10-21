@@ -1,5 +1,6 @@
 import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -62,6 +63,55 @@ void main() {
     await telemetry.shutdown();
   });
 
+  group('connectionOpened', () {
+    test('announces every connection, before it authenticates', () {
+      final InboundConnectionImpl connection = newConnection();
+      final InboundConnectionMetadata metaData = metaDataOf(connection);
+
+      telemetry.connectionOpened(connection);
+
+      expect(names(), <String>[atServerConnectionOpenedEventName]);
+      expect(records.single.attributes, <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        connectionOpenedAtAttribute: metaData.created!.millisecondsSinceEpoch,
+        connectionTransportAttribute: 'tls',
+      });
+      expect(metaData.telemetryAnnounced, isTrue);
+    });
+
+    test('sends nothing while telemetry is off', () async {
+      await telemetry.shutdown();
+      records.clear();
+      final InboundConnectionImpl connection = newConnection();
+
+      telemetry.connectionOpened(connection);
+
+      expect(records, isEmpty);
+      expect(metaDataOf(connection).telemetryAnnounced, isFalse);
+    });
+
+    test('the connection manager announces each connection it creates', () {
+      final AtServerTelemetry serverTelemetry =
+          AtSecondaryServerImpl.getInstance().telemetry;
+      serverTelemetry.enable(
+        exporter: _RecordingExporter(records),
+        serverId: '$alice',
+        bootId: 'boot-2',
+      );
+      addTearDown(serverTelemetry.shutdown);
+      records.clear();
+      final InboundConnectionManager manager =
+          InboundConnectionManager(serverAtSign: alice, poolSize: 10);
+
+      final InboundConnection connection =
+          manager.createSocketConnection(FakeSocket());
+
+      expect(names(), <String>[atServerConnectionOpenedEventName]);
+      expect(records.single.attributes[connectionIdAttribute],
+          metaDataOf(connection).connectionId);
+    });
+  });
+
   group('connectionAuthenticated', () {
     test('describes the enrollment and the client', () {
       final InboundConnectionImpl connection = apkamConnection();
@@ -119,17 +169,50 @@ void main() {
       );
     });
 
-    test('ignores connections that are not the atSign\'s own', () {
+    test('describes a peer atServer that passed pol', () {
+      final InboundConnectionImpl connection = newConnection();
+      final InboundConnectionMetadata metaData = metaDataOf(connection)
+        ..from = true
+        ..fromAtSign = bob
+        ..isPolAuthenticated = true;
+
+      telemetry.connectionAuthenticated(connection);
+
+      expect(names(), <String>[atServerConnectionAuthenticatedEventName]);
+      expect(records.single.attributes, <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        connectionOpenedAtAttribute: metaData.created!.millisecondsSinceEpoch,
+        connectionTransportAttribute: 'tls',
+        connectionAuthTypeAttribute: 'pol',
+        connectionPeerAttribute: '@bob',
+      });
+      expect(metaData.telemetryAnnounced, isTrue);
+    });
+
+    test('leaves out the peer until pol succeeds', () {
+      final InboundConnectionImpl connection = newConnection();
+      metaDataOf(connection)
+        ..from = true
+        ..fromAtSign = bob
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+
+      telemetry.connectionAuthenticated(connection);
+
+      expect(records.single.attributes.containsKey(connectionPeerAttribute),
+          isFalse);
+    });
+
+    test('ignores connections that have not authenticated', () {
       final InboundConnectionImpl anonymous = newConnection();
-      final InboundConnectionImpl peer = newConnection();
-      metaDataOf(peer).isPolAuthenticated = true;
+      metaDataOf(anonymous)
+        ..from = true
+        ..fromAtSign = bob;
 
       telemetry.connectionAuthenticated(anonymous);
-      telemetry.connectionAuthenticated(peer);
 
       expect(records, isEmpty);
       expect(metaDataOf(anonymous).telemetryAnnounced, isFalse);
-      expect(metaDataOf(peer).telemetryAnnounced, isFalse);
     });
 
     test('sends nothing while telemetry is off', () async {
@@ -160,9 +243,44 @@ void main() {
       final Map<String, Object?> attributes = records.single.attributes;
       expect(attributes[connectionIdAttribute],
           metaDataOf(connection).connectionId);
+      expect(attributes[connectionAuthTypeAttribute], 'apkam');
       expect(attributes[connectionCloseReasonAttribute], 'idle_timeout');
       expect(attributes[connectionDurationAttribute],
           isA<int>().having((int value) => value, 'duration', isNonNegative));
+    });
+
+    test('reports a connection that never authenticated', () {
+      final InboundConnectionImpl connection = newConnection();
+      telemetry.connectionOpened(connection);
+      records.clear();
+
+      metaDataOf(connection)
+          .markCloseReason(InboundConnectionCloseReason.protocolError);
+      telemetry.connectionClosed(connection);
+
+      expect(names(), <String>[atServerConnectionClosedEventName]);
+      expect(
+        records.single.attributes.keys,
+        unorderedEquals(<String>[
+          connectionIdAttribute,
+          connectionCloseReasonAttribute,
+          connectionDurationAttribute,
+        ]),
+      );
+    });
+
+    test('names a peer\'s connection pol', () {
+      final InboundConnectionImpl connection = newConnection();
+      metaDataOf(connection)
+        ..from = true
+        ..fromAtSign = bob
+        ..isPolAuthenticated = true;
+      telemetry.connectionAuthenticated(connection);
+      records.clear();
+
+      telemetry.connectionClosed(connection);
+
+      expect(records.single.attributes[connectionAuthTypeAttribute], 'pol');
     });
 
     test('falls back to stale, then unknown', () {
