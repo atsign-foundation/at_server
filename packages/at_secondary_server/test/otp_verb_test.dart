@@ -111,21 +111,16 @@ void main() {
       assert(RegExp('\\d').hasMatch(response.data!));
     });
 
-    test('A test to verify same OTP is not returned', () async {
+    test('A test to verify same OTP is not returned', () {
+      // NOTE generateOTP directly: 1000 live OTPs through otp:get would be far
+      // over the live-OTP cap, and each otp:get counts the live ones.
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       Set<String> otpSet = {};
       for (int i = 1; i <= 1000; i++) {
-        Response response = Response();
-        HashMap<String, String?> verbParams =
-            getVerbParam(VerbSyntax.otp, 'otp:get');
-        inboundConnection.metaData.isAuthenticated = true;
-        inboundConnection.metaData.authType = AuthType.cram;
-        OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
-        await otpVerbHandler.processVerb(
-            response, verbParams, inboundConnection);
-        expect(response.data, isNotNull);
-        expect(response.data!.length, 6);
-        assert(RegExp('\\d').hasMatch(response.data!));
-        bool isUnique = otpSet.add(response.data!);
+        String otp = otpVerbHandler.generateOTP();
+        expect(otp.length, 6);
+        assert(RegExp('\\d').hasMatch(otp));
+        bool isUnique = otpSet.add(otp);
         expect(isUnique, true);
       }
       expect(otpSet.length, 1000);
