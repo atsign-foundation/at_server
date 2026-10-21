@@ -10,17 +10,7 @@ environment:
 
 dependencies:
   meta: ^1.11.0
-  at_commons: ^5.19.0
+  at_commons: ^5.24.0
 
 dev_dependencies:
   lints: ^5.0.0
-
-dependency_overrides:
-  # TEMPORARY: at_commons with the otp:list / otp:delete grammar
-  # (atsign-foundation/at_client_sdk#2367). Replace with the published
-  # at_commons version before merge.
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      path: packages/at_commons
-      ref: a42228f893c85594f63bae1429598d8baff0a5cf

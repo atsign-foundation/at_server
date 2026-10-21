@@ -1,3 +1,26 @@
+# 3.19.0
+- ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
+  full privilege: a CRAM connection, or an enrollment with `*:rw` and
+  `__manage:rw`. An enrollment holding `__manage` alone could set it before;
+  it is now refused with AT0009.
+
+- feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
+  `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
+  them all; an enrollment holding `__manage` sees only the OTPs whose
+  namespaces it holds, and never the SPP.
+
+- feat: `otp:delete:<otp>` deletes an OTP and `otp:delete:spp` the SPP, by the
+  same rules as `otp:list`. It always answers `data:ok`, so it does not reveal
+  which passcodes exist.
+
+- feat: an OTP records the namespaces of the enrollment that issued it. An OTP
+  issued before this, or over a CRAM connection, carries none, and only a
+  full-privilege connection can list or delete it.
+
+- feat: `info` lists `otp.list` and `otp.delete` as Beta.
+
+- build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
+
 # 3.18.1
 - fix: `enroll:link` refuses an immutable `_apsk` record. Every other write
   of an enrollment's `_apsk` record, its move back when the enrollment is
@@ -22,26 +45,6 @@
   is no longer supported`); one from another atServer is accepted and dropped.
   `info` lists `notify.text` as `Retired`. Text notifications already stored
   still list and fetch.
-
-- ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
-  full privilege: a CRAM connection, or an enrollment with `*:rw` and
-  `__manage:rw`. An enrollment holding `__manage` alone could set it before;
-  it is now refused with AT0009.
-
-- feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
-  `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
-  them all; an enrollment holding `__manage` sees only the OTPs whose
-  namespaces it holds, and never the SPP.
-
-- feat: `otp:delete:<otp>` deletes an OTP and `otp:delete:spp` the SPP, by the
-  same rules as `otp:list`. It always answers `data:ok`, so it does not reveal
-  which passcodes exist.
-
-- feat: an OTP records the namespaces of the enrollment that issued it. An OTP
-  issued before this, or over a CRAM connection, carries none, and only a
-  full-privilege connection can list or delete it.
-
-- feat: `info` lists `otp.list` and `otp.delete` as Beta.
 
 - fix: looking up another atSign's public record no longer leaves a copy on
   this atServer unless the record has a `ttr`, and the 24-hour copies kept

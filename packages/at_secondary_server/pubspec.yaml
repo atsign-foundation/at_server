@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.18.1
+version: 3.19.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -19,7 +19,7 @@ dependencies:
   basic_utils: ^5.7.0
   ecdsa: ^0.1.2
   encrypt: ^5.0.3
-  at_commons: ^5.23.0
+  at_commons: ^5.24.0
   at_utils: ^3.5.0
   at_chops: ^3.6.0
   at_lookup: ^3.6.0
@@ -68,12 +68,3 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
-
-  # TEMPORARY: at_commons with the otp:list / otp:delete grammar
-  # (atsign-foundation/at_client_sdk#2367). Replace with the published
-  # at_commons version before merge.
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      path: packages/at_commons
-      ref: a42228f893c85594f63bae1429598d8baff0a5cf
