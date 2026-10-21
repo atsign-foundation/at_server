@@ -3,6 +3,11 @@
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
   `__manage:rw`. An enrollment holding `__manage` alone could set it before;
   it is now refused with AT0009.
+  
+- ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
+  `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
+  Without a ttl an OTP still lives 5 minutes, or the maximum if that is
+  shorter.
 
 - feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
   `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
@@ -18,6 +23,9 @@
   full-privilege connection can list or delete it.
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
+
+- feat: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive` OTPs are
+  live (env `maxLiveOtps`, default 10). The SPP is not counted.
 
 - build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
 
