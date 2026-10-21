@@ -12,8 +12,10 @@ Feature: An atSign's own clients change reserved-namespace records only through 
   apkam, that sends update, update:meta or delete for one, on its own or in
   a batch, is refused with AT0009, keeps its connection, and the record is
   unchanged. The exception is the connection's own per-enrollment namespace,
-  <enrollmentId>.a.__e, whose records that enrollment may change; a cram or
-  pkam connection's enrollment is primary. A record in a per-enrollment
+  <enrollmentId>.a.__e, whose records of this atSign that enrollment may
+  change; a pkam connection's enrollment is primary, and so is a cram
+  connection's until an enroll:request on it, after which it is the
+  enrollment that request created. A record in a per-enrollment
   namespace is never for another atSign: an enrollment's records there are
   public, shared with this atSign, or have no scope, so an update or
   update:meta of one shared with another atSign is refused with AT0009. A
@@ -31,7 +33,9 @@ Feature: An atSign's own clients change reserved-namespace records only through 
   length, and stores nothing.
   Forgery and impersonation: no own client can write a record that enroll:,
   otp:, keys: or the atServer vouches for, such as an enrollment, a passcode,
-  conveyed keys or an event, and no grant of * reads a stored passcode.
+  conveyed keys or an event; no grant of * reads a stored passcode; and a
+  cached copy of another atSign's record is never one of this atSign's
+  enrollments.
 
   Scenario Outline: An atSign's own client may not change a record in a reserved namespace
     Given @alice's client authenticated by <auth>
@@ -51,6 +55,12 @@ Feature: An atSign's own clients change reserved-namespace records only through 
       | apkam as an enrollment holding *:rw | update:meta:x.__global@alice:ttl:1000                              |
       | apkam as an enrollment holding *:rw | delete:x.__global@alice                                            |
       | apkam as enrollment e1              | update:x.e2.a.__e@alice v                                          |
+      | cram                                | update:x.e2.a.__e@alice v                                          |
+      | cram                                | update:x.xprimary.a.__e@alice v                                    |
+      | cram                                | update:x.primary.a.__e.__global@alice v                            |
+      | apkam as enrollment e9 holding *:rw | update:x.e9.a.__e.__private@alice v                                |
+      | apkam as enrollment e1              | update:json:{"atKey":"x.e1.a.__e@bob","value":"v"}                 |
+      | cram, after an enroll:request on it | update:public:_apsk.primary.a.__e@alice v                          |
       | cram                                | delete:1700000000000000.events.__atserver@alice                    |
       | cram                                | update:json:{"atKey":"x.new.enrollments.__manage@bob","value":"v"} |
 
@@ -66,12 +76,13 @@ Feature: An atSign's own clients change reserved-namespace records only through 
     Then it succeeds
 
     Examples:
-      | auth                        | command                                   |
-      | apkam as enrollment e1      | update:__ckcur.bob.wavi.e1.a.__e@alice v  |
-      | apkam as enrollment e1      | delete:__ckcur.bob.wavi.e1.a.__e@alice    |
-      | pkam, as enrollment primary | update:public:_apsk.primary.a.__e@alice v |
-      | cram, as enrollment primary | update:public:_apsk.primary.a.__e@alice v |
-      | apkam as enrollment e1      | update:@alice:x.e1.a.__e@alice v          |
+      | auth                                                       | command                                   |
+      | apkam as enrollment e1                                     | update:__ckcur.bob.wavi.e1.a.__e@alice v  |
+      | apkam as enrollment e1                                     | delete:__ckcur.bob.wavi.e1.a.__e@alice    |
+      | pkam, as enrollment primary                                | update:public:_apsk.primary.a.__e@alice v |
+      | cram, as enrollment primary                                | update:public:_apsk.primary.a.__e@alice v |
+      | cram, as enrollment n1 after its enroll:request created n1 | update:public:_apsk.n1.a.__e@alice v      |
+      | apkam as enrollment e1                                     | update:@alice:x.e1.a.__e@alice v          |
 
   Scenario Outline: An enrollment's records in its own per-enrollment namespace are never for another atSign
     Given @alice's client authenticated by apkam as enrollment e1
@@ -99,8 +110,15 @@ Feature: An atSign's own clients change reserved-namespace records only through 
       | apkam as an enrollment holding *:r | private:spp.__otp@alice | lookup:all:private:spp.__otp@alice |
       | apkam as an enrollment holding *:r | private:spp@alice       | llookup:private:spp@alice          |
       | cram                               | private:spp@alice       | lookup:private:spp@alice           |
+      | cram                               | private:spp@alice       | llookup:PRIVATE:SPP@alice          |
+      | apkam as an enrollment holding *:r | private:spp.__otp@alice | llookup:private:spp.__OTP@alice    |
 
   Scenario: An atSign's own client still reads what its enrollment may read in a reserved namespace
     Given @alice's client authenticated by apkam as an enrollment holding *:r
     When it sends llookup:1700000000000000.events.__atserver@alice
     Then it gets the record's value
+
+  Scenario: A cached copy of another atSign's record is never one of this atSign's enrollments
+    Given @alice's atServer holds cached:@alice:x.new.enrollments.__manage@bob, holding an approved enrollment of *:rw and __manage:rw
+    When @alice's atServer lists its enrollments, for enroll:list, enroll:listns or its own checks
+    Then that record is not among them

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
@@ -46,6 +47,24 @@ void main() {
 
   Future<String?> valueOf(String key) async =>
       (await keyValueStore.get(key))?.data;
+
+  /// Sends a cram `enroll:request` on [client], returning the id of the
+  /// enrollment it creates.
+  Future<String> cramEnrollRequest(Connection client) async {
+    client.metaData.sessionID = 'cram-session';
+    final EnrollParams params = EnrollParams()
+      ..appName = 'wavi'
+      ..deviceName = 'pixel'
+      ..apkamPublicKey = 'apkam public key'
+      ..encryptedAPKAMSymmetricKey = 'encrypted apkam symmetric key'
+      ..namespaces = {'*': 'rw'};
+    await send('enroll:request:${jsonEncode(params.toJson())}', client);
+    final Map<String, dynamic> created = jsonDecode(
+        client.writes.first.substring('data:'.length).split('\n').first);
+    expect(created['status'], 'approved');
+    client.writes.clear();
+    return created['enrollmentId'];
+  }
 
   group(
       "An atSign's own client may not change a record in a reserved "
@@ -130,6 +149,43 @@ void main() {
       (
         'cram',
         cram,
+        'update:x.e2.a.__e@alice v',
+        'x.e2.a.__e@alice',
+        'Record in reserved namespace __e may not be updated'
+      ),
+      (
+        'cram',
+        cram,
+        'update:x.xprimary.a.__e@alice v',
+        'x.xprimary.a.__e@alice',
+        'Record in reserved namespace __e may not be updated'
+      ),
+      (
+        'cram',
+        cram,
+        'update:x.primary.a.__e.__global@alice v',
+        'x.primary.a.__e.__global@alice',
+        'Record in reserved namespace __global may not be updated'
+      ),
+      (
+        'apkam as enrollment e9 holding *:rw',
+        starRw,
+        'update:x.e9.a.__e.__private@alice v',
+        'x.e9.a.__e.__private@alice',
+        'Record in reserved namespace __private may not be updated'
+      ),
+      (
+        'apkam as enrollment e1',
+        e1,
+        'update:json:{"atKey":"x.e1.a.__e@bob","value":"v",'
+            '"metadata":{"isPublic":false,"isBinary":false,'
+            '"isEncrypted":false}}',
+        'x.e1.a.__e@bob',
+        'Record in reserved namespace __e may not be updated'
+      ),
+      (
+        'cram',
+        cram,
         'update:json:{"atKey":"x.new.enrollments.__manage@bob","value":"v",'
             '"metadata":{"isPublic":false,"isBinary":false,'
             '"isEncrypted":false}}',
@@ -182,6 +238,71 @@ void main() {
     expect(await valueOf('x.wavi@alice'), 'v');
   });
 
+  test(
+      'cram, after an enroll:request on it, '
+      'update:public:_apsk.primary.a.__e@alice v', () async {
+    await keyValueStore.put(
+        'public:_apsk.primary.a.__e@alice', AtData()..data = 'before');
+    final Connection client = UnthrottledCram();
+    await cramEnrollRequest(client);
+
+    await send('update:public:_apsk.primary.a.__e@alice v', client);
+
+    expect(client.writes.first, startsWith('error:AT0009'));
+    expect(client.writes.first,
+        contains('Record in reserved namespace __e may not be updated'));
+    expect(await valueOf('public:_apsk.primary.a.__e@alice'), 'before');
+  });
+
+  group(
+      "A cached copy of another atSign's record is never one of this atSign's "
+      'enrollments', () {
+    const String cachedCopy = 'cached:@alice:x.new.enrollments.__manage@bob';
+    final String root = jsonEncode({
+      'sessionId': '123',
+      'appName': 'x',
+      'deviceName': 'x',
+      'namespaces': {'*': 'rw', '__manage': 'rw'},
+      'apkamPublicKey': 'chosen key',
+      'requestType': 'newEnrollment',
+      'approval': {'state': 'approved'}
+    });
+
+    setUp(() async => await keyValueStore.put(
+        cachedCopy,
+        AtData()
+          ..data = root
+          ..metaData = (AtMetaData()..ttr = -1)));
+
+    test('when the roster is listed, then the copy is not among it', () async {
+      await enrolled('e7', {'wavi': 'rw'});
+
+      for (final bool includeExpired in [false, true]) {
+        final List<String> keys =
+            await enMgr.getAllEnrollmentKeys(includeExpired: includeExpired);
+        expect(keys, contains('e7.new.enrollments.__manage@alice'));
+        expect(keys, isNot(contains(cachedCopy)));
+      }
+      expect((await enMgr.storedEnrollments()).map((e) => e.$1),
+          allOf(contains('e7'), isNot(contains('cached:@alice:x'))));
+      expect(
+          (await enMgr.getEnrollmentsForNamespace('wavi'))
+              .map((e) => e['enrollmentId']),
+          allOf(contains('e7'), isNot(contains('cached:@alice:x'))));
+    });
+
+    test('when the atServer looks for a permanent root, then the copy is none',
+        () async {
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isFalse);
+
+      await keyValueStore.put(
+          'e6.new.enrollments.__manage@alice', AtData()..data = root);
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
+          reason: 'a root of this atSign is found');
+    });
+  });
+
   group('An enrollment changes records in its own per-enrollment namespace',
       () {
     test('apkam as enrollment e1, update:__ckcur.bob.wavi.e1.a.__e@alice v',
@@ -227,6 +348,18 @@ void main() {
 
       expect(client.writes.first, startsWith('data:'));
       expect(await valueOf('public:_apsk.primary.a.__e@alice'), 'v');
+    });
+
+    test(
+        'cram, as enrollment n1 after its enroll:request created n1, '
+        'update:public:_apsk.n1.a.__e@alice v', () async {
+      final Connection client = UnthrottledCram();
+      final String n1 = await cramEnrollRequest(client);
+
+      await send('update:public:_apsk.$n1.a.__e@alice v', client);
+
+      expect(client.writes.first, startsWith('data:'));
+      expect(await valueOf('public:_apsk.$n1.a.__e@alice'), 'v');
     });
 
     test('apkam as enrollment e1, update:@alice:x.e1.a.__e@alice v', () async {
@@ -336,6 +469,13 @@ void main() {
         'llookup:private:spp@alice'
       ),
       ('cram', cram, 'private:spp@alice', 'lookup:private:spp@alice'),
+      ('cram', cram, 'private:spp@alice', 'llookup:PRIVATE:SPP@alice'),
+      (
+        'apkam as an enrollment holding *:r',
+        starR,
+        'private:spp.__otp@alice',
+        'llookup:private:spp.__OTP@alice'
+      ),
     ]) {
       test('$auth, $command', () async {
         await keyValueStore.put(record, AtData()..data = 'SPP123');
@@ -440,4 +580,15 @@ void main() {
       });
     }
   });
+}
+
+/// A cram client of @alice that the enroll:request throttle never stops.
+class UnthrottledCram extends Connection {
+  UnthrottledCram()
+      : super(InboundConnectionMetadata()
+          ..isAuthenticated = true
+          ..authType = AuthType.cram);
+
+  @override
+  bool isRequestAllowed() => true;
 }

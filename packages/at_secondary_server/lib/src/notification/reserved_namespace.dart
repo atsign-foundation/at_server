@@ -61,16 +61,18 @@ String? reservedNamespaceOf(String atKey) {
 /// The reserved namespace that keeps a client of [atSign], on a connection
 /// that is enrollment [enrollmentId], from changing the record [atKey]
 /// directly; null when [atKey] is a cached copy of another atSign's record,
-/// uses no reserved namespace, or lies in that enrollment's own
-/// per-enrollment namespace. A cram connection, which has no [enrollmentId],
+/// uses no reserved namespace, or is a record of [atSign] in that
+/// enrollment's own per-enrollment namespace. A connection that carries no
+/// [enrollmentId], as a cram connection does until an enroll:request on it,
 /// counts as enrollment primary.
 String? reservedNamespaceBarringChange(String atKey,
     {required Atsign atSign, required String? enrollmentId}) {
   String key = canonicalAtKey(atKey);
   final int owner = key.lastIndexOf('@');
+  bool ownedByAtSign = true;
   if (owner > 0) {
-    if (key.startsWith('${AtConstants.cached}:') &&
-        key.substring(owner) != canonicalAtKey('$atSign')) {
+    ownedByAtSign = key.substring(owner) == canonicalAtKey('$atSign');
+    if (key.startsWith('${AtConstants.cached}:') && !ownedByAtSign) {
       return null;
     }
     key = key.substring(0, owner);
@@ -82,7 +84,7 @@ String? reservedNamespaceBarringChange(String atKey,
   final String ownNamespace =
       '.${canonicalAtKey(enrollmentId ?? EnrollmentManager.primaryEnrollmentId)}'
       '.${EnrollmentConstants.perEnrollmentApproved}';
-  if (key.endsWith(ownNamespace)) {
+  if (ownedByAtSign && key.endsWith(ownNamespace)) {
     return null;
   }
   return reservedNamespaceOf(key);
