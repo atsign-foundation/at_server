@@ -790,6 +790,81 @@ void main() {
     });
   });
 
+  group('A group of tests related to the live-OTP limit', () {
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      AtSecondaryConfig.maxLiveOtps = 2;
+    });
+    tearDown(() async {
+      AtSecondaryConfig.maxLiveOtps = null;
+      await verbTestsTearDown();
+    });
+
+    Future<String> issue(String command) async {
+      Response response = Response();
+      await OtpVerbHandler(keyValueStore).processVerb(
+          response, getVerbParam(VerbSyntax.otp, command), inboundConnection);
+      return response.data!;
+    }
+
+    Future<int> liveCount() async =>
+        (await OtpVerbHandler(keyValueStore).listPasscodes()).length;
+
+    test('otp:get is refused once the maximum is live, and stores nothing',
+        () async {
+      await issue('otp:get');
+      await issue('otp:get');
+      await expectLater(
+          issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
+      expect(await liveCount(), 2);
+    });
+
+    test('the SPP does not count toward the maximum', () async {
+      await issue('otp:put:abc123');
+      await issue('otp:get');
+      await issue('otp:get');
+      expect(await liveCount(), 3);
+    });
+
+    test('an expired OTP does not count toward the maximum', () async {
+      await issue('otp:get:ttl:1');
+      await Future.delayed(Duration(milliseconds: 10));
+      await issue('otp:get');
+      await issue('otp:get');
+      expect(await liveCount(), 2);
+    });
+
+    test('otp:delete frees a place', () async {
+      String first = await issue('otp:get');
+      await issue('otp:get');
+      await issue('otp:delete:$first');
+      await issue('otp:get');
+      expect(await liveCount(), 2);
+    });
+
+    test('concurrent otp:gets never exceed the maximum', () async {
+      int refused = 0;
+      await Future.wait(List.generate(5, (_) async {
+        try {
+          await issue('otp:get');
+        } on AtThrottleLimitExceeded {
+          refused++;
+        }
+      }));
+      expect(refused, 3);
+      expect(await liveCount(), 2);
+    });
+
+    test('a maximum of 0 or less falls back to 10', () {
+      AtSecondaryConfig.maxLiveOtps = 0;
+      expect(AtSecondaryConfig.maxLiveOtps, 10);
+      AtSecondaryConfig.maxLiveOtps = -1;
+      expect(AtSecondaryConfig.maxLiveOtps, 10);
+    });
+  });
+
   test('info lists otp.list and otp.delete as Beta', () {
     final features = InfoFeatures.parse(
         'data:${jsonEncode({'features': InfoVerbHandler.features})}')!;

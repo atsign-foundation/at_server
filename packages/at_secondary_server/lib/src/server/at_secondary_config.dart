@@ -796,11 +796,13 @@ class AtSecondaryConfig {
   }
 
   /// The most OTPs that may be live at once; `otp:get` is refused beyond it.
+  /// A value of 0 or less falls back to the default, as for
+  /// [otpMaxTtlInMinutes].
   static int get maxLiveOtps {
-    return _maxLiveOtps ??
+    final int? configured = _maxLiveOtps ??
         _getIntEnvVar('maxLiveOtps') ??
-        getNullableIntFromYaml(['otp', 'maxLive']) ??
-        10;
+        getNullableIntFromYaml(['otp', 'maxLive']);
+    return (configured != null && configured > 0) ? configured : 10;
   }
 
   // The stream subscribers listen on for config:set updates.
