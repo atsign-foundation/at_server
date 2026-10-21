@@ -155,6 +155,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
             '${AtSecondaryServerImpl.getInstance().currentAtSign}';
   }
 
+  /// The passcode an OTP's key names: `<otp>` in `private:<otp>.__otp@<atSign>`.
+  static String _passcodeFromKey(String key) =>
+      key.substring('private:'.length, key.lastIndexOf('.$otpNamespace'));
+
   /// Stores [passcode]. An OTP's value also records [namespaces], the grants
   /// of the enrollment that issued it. The SPP's value stays the bare
   /// passcode, which isPasscodeValid compares.
@@ -207,7 +211,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
         }
         continue;
       }
-      final otp = readOtp(atData.data!);
+      final otp = readOtp(atData.data!, keyPasscode: _passcodeFromKey(key));
       if (scope != null && !_mayManage(scope, otp.namespaces)) {
         continue;
       }
@@ -309,10 +313,12 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// An OTP record's value: `{"passcode", "namespaces"}`, or, for an OTP
   /// stored before OTPs carried namespaces, the bare passcode. A value that
   /// is neither is read as a namespace-less OTP, so only a full-privilege
-  /// connection can list or delete it.
+  /// connection can list or delete it, under [keyPasscode] when given: the
+  /// passcode its key names, which `otp:delete` takes.
   @visibleForTesting
   static ({String passcode, Map<String, String>? namespaces}) readOtp(
-      String data) {
+      String data,
+      {String? keyPasscode}) {
     if (data.startsWith('{')) {
       try {
         final Map<String, dynamic> json = jsonDecode(data);
@@ -323,7 +329,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
               namespaces == null ? null : Map<String, String>.from(namespaces),
         );
       } catch (_) {
-        // NOTE not the shape otp:get writes; fall through to namespace-less.
+        // NOTE not the shape otp:get writes; read as namespace-less.
+        return (passcode: keyPasscode ?? data, namespaces: null);
       }
     }
     return (passcode: data, namespaces: null);
@@ -338,14 +345,14 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// Whether [held] is a superset of [wanted]: each namespace held with at
   /// least the same letters ("rw" covers "r"). `*` covers any other
   /// namespace, while `*` and `__manage` must be held literally, as in
-  /// EnrollVerbHandler.verifyNoEscalation. Namespaces are compared in lower
-  /// case.
+  /// EnrollVerbHandler.verifyNoEscalation. Namespaces are folded with
+  /// [canonicalAtKey], as the keystore folds key names.
   @visibleForTesting
   static bool covers(Map<String, String> held, Map<String, String> wanted) {
-    final Map<String, String> heldFolded = held
-        .map((namespace, access) => MapEntry(namespace.toLowerCase(), access));
+    final Map<String, String> heldFolded = held.map(
+        (namespace, access) => MapEntry(canonicalAtKey(namespace), access));
     for (final entry in wanted.entries) {
-      final String namespace = entry.key.toLowerCase();
+      final String namespace = canonicalAtKey(entry.key);
       String? access = heldFolded[namespace];
       final bool isSpecial = namespace == EnrollmentConstants.allNamespaces ||
           namespace == EnrollmentConstants.enrollManageNamespace;

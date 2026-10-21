@@ -676,9 +676,10 @@ void main() {
       expect(entries(await run('otp:list')), isEmpty);
     });
 
-    test('covers compares namespaces in lower case', () {
+    test('covers folds namespaces as the keystore does', () {
       expect(OtpVerbHandler.covers({'App_1': 'rw'}, {'app_1': 'r'}), true);
       expect(OtpVerbHandler.covers({'app_1': 'rw'}, {'APP_1': 'rw'}), true);
+      expect(OtpVerbHandler.covers({' App 1 ': 'rw'}, {'app1': 'r'}), true);
       expect(OtpVerbHandler.covers({'*': 'rw'}, {'__MANAGE': 'rw'}), false);
     });
 
@@ -687,9 +688,12 @@ void main() {
           (passcode: '{oops', namespaces: null));
       expect(OtpVerbHandler.readOtp('{"passcode": 1}'),
           (passcode: '{"passcode": 1}', namespaces: null));
+      expect(OtpVerbHandler.readOtp('{oops', keyPasscode: 'badrec'),
+          (passcode: 'badrec', namespaces: null));
     });
 
-    test('a malformed OTP record does not break otp:list', () async {
+    test('a malformed OTP record is listed under its key and can be deleted',
+        () async {
       await keyValueStore.put(
           OtpVerbHandler.passcodeKey('BADREC', isSpp: false),
           AtData()..data = '{oops');
@@ -698,7 +702,9 @@ void main() {
       expect(entries(await run('otp:list')), ['otp:$otp']);
       useCram();
       expect(entries(await run('otp:list')),
-          unorderedEquals(['otp:{oops', 'otp:$otp']));
+          unorderedEquals(['otp:badrec', 'otp:$otp']));
+      await run('otp:delete:badrec');
+      expect(entries(await run('otp:list')), ['otp:$otp']);
     });
   });
 
