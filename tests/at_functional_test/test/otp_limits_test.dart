@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
@@ -27,9 +29,12 @@ void main() {
         () async {
       // NOTE the VE runs with the default maximum, 60 minutes.
       for (final String ttl in ['0', '3600001', '99999999999999999999']) {
-        expect(
-            await firstAtSignConnection.sendRequestToServer('otp:get:ttl:$ttl'),
-            startsWith('error:AT0022'));
+        final String response =
+            await firstAtSignConnection.sendRequestToServer('otp:get:ttl:$ttl');
+        // NOTE an authenticated connection answers errors as JSON.
+        expect(response, startsWith('error:'));
+        expect(jsonDecode(response.replaceFirst('error:', ''))['errorCode'],
+            'AT0022');
       }
       final String otp = (await firstAtSignConnection
               .sendRequestToServer('otp:get:ttl:3600000'))
