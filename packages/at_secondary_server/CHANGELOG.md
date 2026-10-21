@@ -1,3 +1,13 @@
+# 3.19.0
+- fix: consolidate management of reserved namespaces.
+
+- fix: `batch:` answers an entry it has no verb for, or that is not a command,
+  with AT0003, and runs the rest of the batch.
+
+- fix: the stream verb is removed: `stream:` commands, batched ones included,
+  are refused with AT0003, and a `stream:init` notification from an older
+  atServer is dropped.
+
 # 3.18.1
 - fix: `enroll:link` refuses an immutable `_apsk` record. Every other write
   of an enrollment's `_apsk` record, its move back when the enrollment is
@@ -15,15 +25,6 @@
   refused when the key it installs is listed beside another key or carries
   a link, and an `enroll:update` republishing an immutable `_apsk` record
   is refused with AT0032.
-
-- fix: consolidate management of reserved namespaces.
-
-- fix: `batch:` answers an entry it has no verb for, or that is not a command,
-  with AT0003, and runs the rest of the batch.
-
-- fix: the stream verb is removed: `stream:` commands, batched ones included,
-  are refused with AT0003, and a `stream:init` notification from an older
-  atServer is dropped.
 
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
