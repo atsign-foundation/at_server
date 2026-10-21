@@ -308,7 +308,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// is neither is read as a namespace-less OTP, so only a full-privilege
   /// connection can list or delete it, under [keyPasscode] when given: the
   /// passcode its key names, which `otp:delete` takes.
-  @visibleForTesting
   static ({String passcode, Map<String, String>? namespaces}) readOtp(
       String data,
       {String? keyPasscode}) {
@@ -340,7 +339,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// namespace, while `*` and `__manage` must be held literally, as in
   /// EnrollVerbHandler.verifyNoEscalation. Namespaces are folded with
   /// [canonicalAtKey], as the keystore folds key names.
-  @visibleForTesting
   static bool covers(Map<String, String> held, Map<String, String> wanted) {
     final Map<String, String> heldFolded = held.map(
         (namespace, access) => MapEntry(canonicalAtKey(namespace), access));
