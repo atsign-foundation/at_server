@@ -1,3 +1,44 @@
+# 3.19.0
+- ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
+  full privilege: a CRAM connection, or an enrollment with `*:rw` and
+  `__manage:rw`. An enrollment holding `__manage` alone could set it before;
+  it is now refused with AT0009.
+
+- feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
+  `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
+  them all; an enrollment holding `__manage` sees only the OTPs whose
+  namespaces it holds, and never the SPP.
+
+- feat: `otp:delete:<otp>` deletes an OTP and `otp:delete:spp` the SPP, by the
+  same rules as `otp:list`. It always answers `data:ok`, so it does not reveal
+  which passcodes exist.
+
+- feat: an OTP records the namespaces of the enrollment that issued it. An OTP
+  issued before this, or over a CRAM connection, carries none, and only a
+  full-privilege connection can list or delete it.
+
+- feat: `info` lists `otp.list` and `otp.delete` as Beta.
+
+- build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
+
+# 3.18.1
+- fix: `enroll:link` refuses an immutable `_apsk` record. Every other write
+  of an enrollment's `_apsk` record, its move back when the enrollment is
+  unrevoked included, keeps the link on each key it lists once with the alg
+  and public key the link names, other than the enrollment's client
+  authentication signing key. A put, `update:meta` or `enroll:update` that
+  would take the record with those links over 500 KiB is refused with
+  AT0022.
+
+- fix: an `enroll:request`, `enroll:update`, put or `update:meta` is refused
+  with AT0022 when the `_apsk` it would leave lists the enrollment's client
+  authentication signing key beside another key, or when the `_apsk` value
+  it writes lists a kid twice or an entry without a string kid, alg and
+  pub. An `enroll:update`, or a CRAM update of `at_pkam_publickey`, is also
+  refused when the key it installs is listed beside another key or carries
+  a link, and an `enroll:update` republishing an immutable `_apsk` record
+  is refused with AT0032.
+
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
@@ -9,6 +50,11 @@
   this atServer unless the record has a `ttr`, and the 24-hour copies kept
   before are removed. **App authors:** `cached:public:` finds nothing for such
   a record; look the record up instead.
+
+- fix: an `enroll:request` passcode is accepted only as the SPP or as an OTP
+  issued with `otp:get`, and each OTP admits one request. OTPs stored in the
+  namespace-less form older atServers used are no longer accepted; an SPP in
+  that form still is, until `otp:put` sets an SPP, which removes it.
 
 - fix: a `plookup` that spells `publickey` in another case no longer changes
   this atServer's copy of another atSign's encryption public key.
