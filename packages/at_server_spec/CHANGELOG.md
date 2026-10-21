@@ -2,6 +2,8 @@
 - ⚠️ BREAKING: the stream verb is removed, with `StreamVerb` and
   `AtConnectionMetaData.isStream` and `streamId`; `acceptRequests` no longer
   takes a stream callback.
+- fix: the `Batch` verb's `usage()` example spells each entry's `command` key
+  correctly.
 - docs: every form of `info`, `info:brief` included, lists `features`. The
   `Info` dartdoc points at at_commons' `InfoFeature`, `InfoFeatureStatus` and
   `InfoFeatures` for their names, statuses and how to read them. The `Notify`

@@ -48,15 +48,19 @@ class BatchVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var batchCommand = verbParams['json']!;
     var batchJson = jsonDecode(batchCommand);
-    //handle invalid json
+    if (batchJson is! List) {
+      throw InvalidSyntaxException('a batch is a list of entries');
+    }
     var batchResponses = <BatchResponse>[];
     for (var value in batchJson) {
-      var batchId = value['id'];
-      var command = value['command'];
-
-      var verbHandler = verbHandlerManager.getVerbHandler(command);
-
+      final Object? id = value is Map ? value['id'] : null;
+      final int? batchId = id is int ? id : null;
       try {
+        final Object? command = value is Map ? value['command'] : null;
+        if ((id != null && batchId == null) || command is! String) {
+          throw InvalidSyntaxException('invalid batch entry');
+        }
+        var verbHandler = verbHandlerManager.getVerbHandler(command);
         if (verbHandler is! AbstractVerbHandler) {
           throw InvalidSyntaxException('invalid command');
         }

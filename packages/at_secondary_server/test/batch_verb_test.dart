@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -93,6 +94,52 @@ void main() {
 
       expect(entry['id'], 1);
       expect(entry['response']['error_code'], 'AT0003');
+    });
+
+    test(
+        'when a batch entry is not a command, then that entry is refused with '
+        'AT0003 and the batch runs on', () async {
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+
+      final response = await batchHandler().processInternal(
+          'batch:${jsonEncode([
+                {'id': 1, 'command': 'update:public:phone$alice 1'},
+                {'id': 2, 'command': 7},
+                {'id': 3},
+                {'id': 4, 'commmand': 'update:public:phone$alice 2'},
+                {'id': '5', 'command': 'update:public:phone$alice 3'},
+                5,
+                'update:public:phone$alice 4',
+                {'id': 8, 'command': 'update:public:mobile$alice 8'},
+              ])}',
+          inboundConnection);
+
+      final List<dynamic> entries = jsonDecode(response.data!);
+      expect(entries, hasLength(8));
+      expect(entries[0]['response']['error_code'], isNull);
+      for (final int i in [1, 2, 3, 4, 5, 6]) {
+        expect(entries[i]['response']['error_code'], 'AT0003',
+            reason: 'entry ${i + 1}');
+      }
+      expect(entries[7]['response']['error_code'], isNull);
+      expect((await keyValueStore.get('public:phone$alice'))?.data, '1');
+      expect((await keyValueStore.get('public:mobile$alice'))?.data, '8');
+    });
+
+    test('when a batch is not a list, then it is refused with AT0003',
+        () async {
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+
+      await expectLater(
+          batchHandler().processInternal(
+              'batch:{"id":1,"command":"update:public:phone$alice 1"}',
+              inboundConnection),
+          throwsA(isA<InvalidSyntaxException>()));
+      expect(await keyValueStore.exists('public:phone$alice'), isFalse);
     });
   });
 }

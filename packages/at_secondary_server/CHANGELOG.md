@@ -18,7 +18,8 @@
 
 - fix: consolidate management of reserved namespaces.
 
-- fix: `batch:` answers an entry it has no verb for with AT0003.
+- fix: `batch:` answers an entry it has no verb for, or that is not a command,
+  with AT0003, and runs the rest of the batch.
 
 - fix: the stream verb is removed: `stream:` commands, batched ones included,
   are refused with AT0003, and a `stream:init` notification from an older
