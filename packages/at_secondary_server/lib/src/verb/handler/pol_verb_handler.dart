@@ -8,7 +8,6 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -114,9 +113,6 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     atConnectionMetadata.isPolAuthenticated = true;
     response.data = 'pol:$fromAtSign@';
-    AtSecondaryServerImpl.getInstance()
-        .telemetry
-        .connectionAuthenticated(atConnection);
     await _insertIntoAccessLog(fromAtSign, pol.name());
     logger.info('response : $fromAtSign@');
 

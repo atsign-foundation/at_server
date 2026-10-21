@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:at_secondary/src/connection/connection_factory.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_commons/at_commons.dart';
@@ -39,9 +38,6 @@ class InboundConnectionManager implements AtConnectionFactory {
     var atConnection =
         InboundConnectionImpl(socket, sessionId, owningPool: pool);
     pool.add(atConnection);
-    AtSecondaryServerImpl.getInstance()
-        .telemetry
-        .connectionOpened(atConnection);
 
     return atConnection;
   }
@@ -64,9 +60,6 @@ class InboundConnectionManager implements AtConnectionFactory {
     sessionId ??= SecondaryUtil.makeSessionId();
     var atConnection = InboundWebSocketConnection(ws, sessionId, pool);
     pool.add(atConnection);
-    AtSecondaryServerImpl.getInstance()
-        .telemetry
-        .connectionOpened(atConnection);
 
     return atConnection;
   }

@@ -8,8 +8,6 @@ const String atServerHeartbeatEventName =
     '$atServerTelemetryEventPrefix.lifecycle.heartbeat';
 const String atServerStoppedEventName =
     '$atServerTelemetryEventPrefix.lifecycle.stopped';
-const String atServerConnectionOpenedEventName =
-    '$atServerTelemetryEventPrefix.connection.opened';
 const String atServerConnectionAuthenticatedEventName =
     '$atServerTelemetryEventPrefix.connection.authenticated';
 const String atServerConnectionMonitoringEventName =
@@ -23,7 +21,6 @@ const String connectionIdAttribute = 'atsign.connection.id';
 const String connectionOpenedAtAttribute = 'atsign.connection.opened_at';
 const String connectionTransportAttribute = 'atsign.connection.transport';
 const String connectionAuthTypeAttribute = 'atsign.connection.auth_type';
-const String connectionPeerAttribute = 'atsign.connection.peer';
 const String connectionSelfNotificationsAttribute =
     'atsign.connection.self_notifications';
 const String connectionCloseReasonAttribute = 'atsign.connection.close_reason';

@@ -63,34 +63,8 @@ void main() {
     await telemetry.shutdown();
   });
 
-  group('connectionOpened', () {
-    test('announces every connection, before it authenticates', () {
-      final InboundConnectionImpl connection = newConnection();
-      final InboundConnectionMetadata metaData = metaDataOf(connection);
-
-      telemetry.connectionOpened(connection);
-
-      expect(names(), <String>[atServerConnectionOpenedEventName]);
-      expect(records.single.attributes, <String, Object?>{
-        connectionIdAttribute: metaData.connectionId,
-        connectionOpenedAtAttribute: metaData.created!.millisecondsSinceEpoch,
-        connectionTransportAttribute: 'tls',
-      });
-      expect(metaData.telemetryAnnounced, isTrue);
-    });
-
-    test('sends nothing while telemetry is off', () async {
-      await telemetry.shutdown();
-      records.clear();
-      final InboundConnectionImpl connection = newConnection();
-
-      telemetry.connectionOpened(connection);
-
-      expect(records, isEmpty);
-      expect(metaDataOf(connection).telemetryAnnounced, isFalse);
-    });
-
-    test('the connection manager announces each connection it creates', () {
+  group('InboundConnectionManager', () {
+    test('sends nothing for a connection it creates', () {
       final AtServerTelemetry serverTelemetry =
           AtSecondaryServerImpl.getInstance().telemetry;
       serverTelemetry.enable(
@@ -106,9 +80,8 @@ void main() {
       final InboundConnection connection =
           manager.createSocketConnection(FakeSocket());
 
-      expect(names(), <String>[atServerConnectionOpenedEventName]);
-      expect(records.single.attributes[connectionIdAttribute],
-          metaDataOf(connection).connectionId);
+      expect(records, isEmpty);
+      expect(metaDataOf(connection).telemetryAnnounced, isFalse);
     });
   });
 
@@ -169,38 +142,18 @@ void main() {
       );
     });
 
-    test('describes a peer atServer that passed pol', () {
+    test('ignores a peer atServer that passed pol', () {
       final InboundConnectionImpl connection = newConnection();
-      final InboundConnectionMetadata metaData = metaDataOf(connection)
+      metaDataOf(connection)
         ..from = true
         ..fromAtSign = bob
         ..isPolAuthenticated = true;
 
       telemetry.connectionAuthenticated(connection);
+      telemetry.connectionClosed(connection);
 
-      expect(names(), <String>[atServerConnectionAuthenticatedEventName]);
-      expect(records.single.attributes, <String, Object?>{
-        connectionIdAttribute: metaData.connectionId,
-        connectionOpenedAtAttribute: metaData.created!.millisecondsSinceEpoch,
-        connectionTransportAttribute: 'tls',
-        connectionAuthTypeAttribute: 'pol',
-        connectionPeerAttribute: '@bob',
-      });
-      expect(metaData.telemetryAnnounced, isTrue);
-    });
-
-    test('leaves out the peer until pol succeeds', () {
-      final InboundConnectionImpl connection = newConnection();
-      metaDataOf(connection)
-        ..from = true
-        ..fromAtSign = bob
-        ..isAuthenticated = true
-        ..authType = AuthType.cram;
-
-      telemetry.connectionAuthenticated(connection);
-
-      expect(records.single.attributes.containsKey(connectionPeerAttribute),
-          isFalse);
+      expect(records, isEmpty);
+      expect(metaDataOf(connection).telemetryAnnounced, isFalse);
     });
 
     test('ignores connections that have not authenticated', () {
@@ -217,10 +170,7 @@ void main() {
 
     test('ignores a connection that closed while it authenticated', () {
       final InboundConnectionImpl connection = apkamConnection();
-      telemetry.connectionOpened(connection);
       metaDataOf(connection).isClosed = true;
-      telemetry.connectionClosed(connection);
-      records.clear();
 
       telemetry.connectionAuthenticated(connection);
 
@@ -262,38 +212,15 @@ void main() {
           isA<int>().having((int value) => value, 'duration', isNonNegative));
     });
 
-    test('reports a connection that never authenticated', () {
+    test('says nothing about a connection that never authenticated', () {
       final InboundConnectionImpl connection = newConnection();
-      telemetry.connectionOpened(connection);
-      records.clear();
+      telemetry.connectionAuthenticated(connection);
 
       metaDataOf(connection)
           .markCloseReason(InboundConnectionCloseReason.protocolError);
       telemetry.connectionClosed(connection);
 
-      expect(names(), <String>[atServerConnectionClosedEventName]);
-      expect(
-        records.single.attributes.keys,
-        unorderedEquals(<String>[
-          connectionIdAttribute,
-          connectionCloseReasonAttribute,
-          connectionDurationAttribute,
-        ]),
-      );
-    });
-
-    test('names a peer\'s connection pol', () {
-      final InboundConnectionImpl connection = newConnection();
-      metaDataOf(connection)
-        ..from = true
-        ..fromAtSign = bob
-        ..isPolAuthenticated = true;
-      telemetry.connectionAuthenticated(connection);
-      records.clear();
-
-      telemetry.connectionClosed(connection);
-
-      expect(records.single.attributes[connectionAuthTypeAttribute], 'pol');
+      expect(records, isEmpty);
     });
 
     test('falls back to stale, then unknown', () {
