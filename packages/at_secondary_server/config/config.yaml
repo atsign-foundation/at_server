@@ -217,3 +217,12 @@ enrollment:
   # If the duration between the last received invalid OTP and the current date-time
   # exceeds the delayIntervalThreshold, trigger a reset to the default value.
   delayIntervalThreshold: 55
+
+# OTP (otp:get) limits
+otp:
+  # The longest ttl otp:get accepts, in minutes; a longer ttl, or ttl:0, is refused.
+  # Default value is 60 minutes.
+  maxTtlInMinutes: 60
+  # The most OTPs that may be live at once; otp:get is refused beyond it.
+  # Default value is 10.
+  maxLive: 10

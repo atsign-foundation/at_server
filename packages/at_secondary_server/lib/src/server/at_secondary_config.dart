@@ -771,6 +771,36 @@ class AtSecondaryConfig {
     }
   }
 
+  static int? _otpMaxTtlInMinutes;
+
+  /// Overrides the configured maximum ttl for `otp:get`; null restores it.
+  static set otpMaxTtlInMinutes(int? value) {
+    _otpMaxTtlInMinutes = value;
+  }
+
+  /// The longest ttl `otp:get` accepts, in minutes.
+  static int get otpMaxTtlInMinutes {
+    return _otpMaxTtlInMinutes ??
+        _getIntEnvVar('otpMaxTtlInMinutes') ??
+        getNullableIntFromYaml(['otp', 'maxTtlInMinutes']) ??
+        60;
+  }
+
+  static int? _maxLiveOtps;
+
+  /// Overrides the configured maximum number of live OTPs; null restores it.
+  static set maxLiveOtps(int? value) {
+    _maxLiveOtps = value;
+  }
+
+  /// The most OTPs that may be live at once; `otp:get` is refused beyond it.
+  static int get maxLiveOtps {
+    return _maxLiveOtps ??
+        _getIntEnvVar('maxLiveOtps') ??
+        getNullableIntFromYaml(['otp', 'maxLive']) ??
+        10;
+  }
+
   // The stream subscribers listen on for config:set updates.
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (!_streamListeners.containsKey(configName)) {
