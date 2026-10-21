@@ -701,6 +701,25 @@ void main() {
       await run('otp:delete:badrec');
       expect(entries(await run('otp:list')), ['otp:$otp']);
     });
+
+    test('otp:put without a passcode is a syntax error', () async {
+      await expectLater(run('otp:put'), throwsA(isA<InvalidSyntaxException>()));
+    });
+
+    test('otp:delete of the SPP\'s value leaves the SPP', () async {
+      await run('otp:put:abc123');
+      expect((await run('otp:delete:abc123')).data, 'ok');
+      expect(
+          await OtpVerbHandler(keyValueStore).isPasscodeValid('abc123'), true);
+    });
+
+    test('otp:list and otp:delete require authentication', () async {
+      inboundConnection.metaData.isAuthenticated = false;
+      await expectLater(
+          run('otp:list'), throwsA(isA<UnAuthenticatedException>()));
+      await expectLater(
+          run('otp:delete:ABC123'), throwsA(isA<UnAuthenticatedException>()));
+    });
   });
 
   test('info lists otp.list and otp.delete as Beta', () {

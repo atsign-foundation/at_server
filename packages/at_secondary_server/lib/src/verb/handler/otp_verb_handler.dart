@@ -72,7 +72,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
         int sppTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ?? -1;
         String? spp = verbParams['otp'];
         if (spp == null) {
-          throw InvalidRequestException('otp:put requires a passcode');
+          throw InvalidSyntaxException('otp:put requires a passcode');
         }
         await savePasscode(spp, ttl: sppTtl, isSpp: true);
         // NOTE the namespace-less SPP older atServers stored is removed, so an
@@ -96,7 +96,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
       case 'delete':
         String? passcode = verbParams['otp'];
         if (passcode == null) {
-          throw InvalidRequestException('otp:delete requires a passcode');
+          throw InvalidSyntaxException('otp:delete requires a passcode');
         }
         final deleteMetaData =
             atConnection.metaData as InboundConnectionMetadata;
