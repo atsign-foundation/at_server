@@ -1574,6 +1574,11 @@ void main() {
           authType: AuthType.cram);
       String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
+      // A second OTP from this full-privilege connection, for the buzz
+      // request below.
+      String buzzOtp =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
+      buzzOtp = buzzOtp.replaceAll('data:', '');
 
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
@@ -1609,7 +1614,8 @@ void main() {
               privateKey: keys.privateKey);
       expect(authResponse, 'data:success');
 
-      // Fetch OTP and submit another enrollment request
+      // An OTP from the wavi enrollment cannot ask for buzz, which that
+      // enrollment does not hold.
       otp = await enrollmentAuthenticatedConnection
           .sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
@@ -1618,6 +1624,13 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
           'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
+      expect(enrollmentResponse, startsWith('error:AT0009'));
+
+      // Submit the buzz request with the full-privilege connection's OTP
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$buzzOtp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       String secondEnrollmentId =
           jsonDecode(enrollmentResponse)['enrollmentId'];
@@ -1688,9 +1701,10 @@ void main() {
               privateKey: keys.privateKey);
       expect(authResponse, 'data:success');
 
-      // Fetch OTP and submit another enrollment request
-      otp = await enrollmentAuthenticatedConnection
-          .sendRequestToServer('otp:get');
+      // Fetch an OTP from the full-privilege connection and submit another
+      // enrollment request: an OTP from the wavi enrollment cannot ask for
+      // buzz, which it does not hold.
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
 
       await unAuthenticatedConnection.initiateConnectionWithListener(
