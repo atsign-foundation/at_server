@@ -215,6 +215,19 @@ void main() {
       expect(metaDataOf(anonymous).telemetryAnnounced, isFalse);
     });
 
+    test('ignores a connection that closed while it authenticated', () {
+      final InboundConnectionImpl connection = apkamConnection();
+      telemetry.connectionOpened(connection);
+      metaDataOf(connection).isClosed = true;
+      telemetry.connectionClosed(connection);
+      records.clear();
+
+      telemetry.connectionAuthenticated(connection);
+
+      expect(records, isEmpty);
+      expect(metaDataOf(connection).telemetryAnnounced, isFalse);
+    });
+
     test('sends nothing while telemetry is off', () async {
       await telemetry.shutdown();
       records.clear();

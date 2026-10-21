@@ -135,6 +135,7 @@ final class AtServerTelemetry {
     }
     final AtConnectionMetaData metaData = connection.metaData;
     if (metaData is! InboundConnectionMetadata ||
+        metaData.isClosed ||
         (!metaData.isAuthenticated && !metaData.isPolAuthenticated)) {
       return;
     }
