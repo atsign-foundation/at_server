@@ -1,4 +1,24 @@
 # 3.19.0
+- ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
+  full privilege: a CRAM connection, or an enrollment with `*:rw` and
+  `__manage:rw`. An enrollment holding `__manage` alone could set it before;
+  it is now refused with AT0009.
+
+- feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
+  `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
+  them all; an enrollment holding `__manage` sees only the OTPs whose
+  namespaces it holds, and never the SPP.
+
+- feat: `otp:delete:<otp>` deletes an OTP and `otp:delete:spp` the SPP, by the
+  same rules as `otp:list`. It always answers `data:ok`, so it does not reveal
+  which passcodes exist.
+
+- feat: an OTP records the namespaces of the enrollment that issued it. An OTP
+  issued before this, or over a CRAM connection, carries none, and only a
+  full-privilege connection can list or delete it.
+
+- feat: `info` lists `otp.list` and `otp.delete` as Beta.
+
 - fix: consolidate management of reserved namespaces.
 
 - fix: `batch:` answers an entry it has no verb for, or that is not a command,
@@ -9,6 +29,8 @@
 - fix: the stream verb is removed: `stream:` commands, batched ones included,
   are refused with AT0003, and a `stream:init` notification from an older
   atServer is dropped.
+
+- build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
 
 # 3.18.1
 - fix: `enroll:link` refuses an immutable `_apsk` record. Every other write

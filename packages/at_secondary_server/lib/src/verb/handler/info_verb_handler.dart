@@ -38,6 +38,16 @@ class InfoVerbHandler extends AbstractVerbHandler {
       'status': InfoFeatureStatus.retired,
       'description': 'messageType:text: send a key notification instead',
     },
+    {
+      'name': InfoFeature.otpList,
+      'status': InfoFeatureStatus.beta,
+      'description': 'otp:list: the OTPs and the SPP a caller may manage',
+    },
+    {
+      'name': InfoFeature.otpDelete,
+      'status': InfoFeatureStatus.beta,
+      'description': 'otp:delete: delete an OTP, or the SPP',
+    },
   ];
   static int? approximateStartTimeMillis;
 
