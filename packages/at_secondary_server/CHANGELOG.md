@@ -4,6 +4,8 @@
 - fix: `batch:` answers an entry it has no verb for, or that is not a command,
   with AT0003, and runs the rest of the batch.
 
+- fix: `update:json` applies `update`'s owner rule to the atKey it carries.
+
 - fix: the stream verb is removed: `stream:` commands, batched ones included,
   are refused with AT0003, and a `stream:init` notification from an older
   atServer is dropped.

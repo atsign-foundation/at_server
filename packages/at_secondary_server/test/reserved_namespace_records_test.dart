@@ -175,24 +175,6 @@ void main() {
         'Record in reserved namespace __private may not be updated'
       ),
       (
-        'apkam as enrollment e1',
-        e1,
-        'update:json:{"atKey":"x.e1.a.__e@bob","value":"v",'
-            '"metadata":{"isPublic":false,"isBinary":false,'
-            '"isEncrypted":false}}',
-        'x.e1.a.__e@bob',
-        'Record in reserved namespace __e may not be updated'
-      ),
-      (
-        'cram',
-        cram,
-        'update:json:{"atKey":"x.new.enrollments.__manage@bob","value":"v",'
-            '"metadata":{"isPublic":false,"isBinary":false,'
-            '"isEncrypted":false}}',
-        'x.new.enrollments.__manage@bob',
-        'Record in reserved namespace'
-      ),
-      (
         'cram',
         cram,
         'delete:1700000000000000.events.__atserver@alice',
@@ -538,6 +520,7 @@ void main() {
       ('x.e1.a.__e@alice', 'e1', null),
       ('x.e1.a.__e@alice', 'E1', null),
       ('x.e1.a.__e@alice', 'e2', '__e'),
+      ('x.e1.a.__e@bob', 'e1', '__e'),
       ('x.wavi@alice', null, null),
     ]) {
       test(

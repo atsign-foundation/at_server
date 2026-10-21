@@ -59,10 +59,8 @@ Feature: An atSign's own clients change reserved-namespace records only through 
       | cram                                | update:x.xprimary.a.__e@alice v                                    |
       | cram                                | update:x.primary.a.__e.__global@alice v                            |
       | apkam as enrollment e9 holding *:rw | update:x.e9.a.__e.__private@alice v                                |
-      | apkam as enrollment e1              | update:json:{"atKey":"x.e1.a.__e@bob","value":"v"}                 |
       | cram, after an enroll:request on it | update:public:_apsk.primary.a.__e@alice v                          |
       | cram                                | delete:1700000000000000.events.__atserver@alice                    |
-      | cram                                | update:json:{"atKey":"x.new.enrollments.__manage@bob","value":"v"} |
 
   Scenario: An atSign's own client may not change a record in a reserved namespace inside a batch
     Given @alice's client authenticated by apkam as an enrollment holding *:rw

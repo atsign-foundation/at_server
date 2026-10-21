@@ -450,6 +450,17 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       updateParams.sharedWith = updateParams.sharedWith!.toAtsign();
     }
 
+    // NOTE the owner an atKey ends in is held to the rule sharedBy is.
+    final String atKey = canonicalAtKey(updateParams.atKey ?? '');
+    final int owner = atKey.lastIndexOf('@');
+    if (owner > 0 && atKey.substring(owner) != canonicalAtKey(atSign)) {
+      final String message = 'Invalid update command - sharedBy atsign'
+          ' ${atKey.substring(owner)}'
+          ' should be same as current atsign $atSign';
+      logger.warning(message);
+      throw InvalidAtKeyException(message);
+    }
+
     final Metadata? metadata = updateParams.metadata;
     if (metadata == null) {
       return;
