@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:at_root_server/src/directory_lookup.dart';
 import 'package:at_root_server/src/server/at_root_server_impl.dart';
 import 'package:at_root_server/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -10,7 +12,10 @@ import 'package:test/test.dart';
 
 /// Catalogue: features/directory/alpn_http.feature
 void main() {
-  const Map<String, String> records = {'alice': 'alice.example:6464'};
+  const Map<String, String> records = {
+    'alice': 'alice.example:6464',
+    '🦄': 'unicorn.example:6464',
+  };
 
   group('Given an atDirectory with TLS', () {
     late RootServerImpl directory;
@@ -35,6 +40,11 @@ void main() {
       for (final (String offer, List<String>? protocols, String? selected) in [
         ('no ALPN', null, null),
         ('atProtocol/1.0', ['atProtocol/1.0'], 'atProtocol/1.0'),
+        (
+          'atProtocol/1.0, http/1.1',
+          ['atProtocol/1.0', 'http/1.1'],
+          'atProtocol/1.0'
+        ),
         ('h2', ['h2'], null),
       ]) {
         test('offering $offer', () async {
@@ -59,7 +69,15 @@ void main() {
           302,
           'location https://alice.example:6464/@alice/x/y?z=1'
         ),
+        (
+          ['http/1.1'],
+          '/@alice/a%0D%0A%3F%23',
+          302,
+          'location https://alice.example:6464/@alice/a%0D%0A%3F%23'
+        ),
         (['http/1.1'], '/@nobody', 404, ''),
+        (['http/1.1'], '/@', 404, ''),
+        (['http/1.1'], '/@a!b', 404, ''),
         (['http/1.1'], '/@alice/', 200, 'body alice.example:6464'),
         (['http/1.1'], '/%ff', 400, ''),
         (['http/1.1'], '/@alice/${'a' * 993}', 400, ''),
@@ -192,6 +210,29 @@ void main() {
     });
 
     test(
+        'when a redirect names an atSign outside ASCII, then the atSign is '
+        'percent-encoded in its Location', () async {
+      final _Answer answer = await _http(
+          await _tls(tlsPort, ['http/1.1']), 'GET /@%F0%9F%A6%84/x');
+
+      expect(answer.status, 302, reason: answer.raw);
+      expect(answer.headers['location'],
+          'https://unicorn.example:6464/@%F0%9F%A6%84/x');
+    });
+
+    test(
+        'when an Atsign Protocol lookup names no atSign, or not a valid one, '
+        'then it is answered null', () async {
+      for (final String name in ['', 'a!b']) {
+        final SecureSocket socket = await _tls(tlsPort, null);
+
+        expect(await _atProtocolLookup(socket, name), 'null',
+            reason: 'looking up "$name"');
+        socket.destroy();
+      }
+    });
+
+    test(
         'when an Atsign Protocol lookup names an atSign in another spelling, '
         'then it is looked up in canonical form', () async {
       final SecureSocket socket = await _tls(tlsPort, null);
@@ -255,6 +296,86 @@ void main() {
     RootServerImpl.alpnHttpServer = null;
   });
 
+  group('Given an atDirectory whose every uncaught error is recorded', () {
+    late RootServerImpl directory;
+    late int tlsPort;
+    late int httpsPort;
+    final List<Object> uncaught = [];
+
+    setUpAll(() async {
+      tlsPort = await _freePort();
+      httpsPort = await _freePort();
+      runZonedGuarded(() {
+        directory = _directory(records,
+            port: tlsPort, httpsPort: httpsPort, useSSL: true)
+          ..start();
+      }, (Object e, _) => uncaught.add(e));
+      await _accepting(tlsPort);
+      await _accepting(httpsPort);
+    });
+
+    tearDownAll(() async => await directory.stop());
+
+    group('The atDirectory keeps answering when a connection fails', () {
+      for (final (String port, String fails) in [
+        ('its HTTPS port', 'resets the connection before sending anything'),
+        (
+          'its HTTPS port',
+          'resets the connection partway through its TLS hello'
+        ),
+        ('its TLS port', 'resets the connection before sending anything'),
+        (
+          'its HTTPS port',
+          'sends GET /@alice and resets the connection before its answer'
+        ),
+      ]) {
+        test('$port, $fails', () async {
+          uncaught.clear();
+          final int target = port == 'its TLS port' ? tlsPort : httpsPort;
+
+          if (fails.startsWith('sends GET')) {
+            final saved = directory.lookup;
+            directory.lookup = (String atSign) async {
+              await Future.delayed(Duration(milliseconds: 400));
+              return records[atSign];
+            };
+            final SecureSocket socket = await _tls(target, null);
+            socket.write('GET /@alice HTTP/1.1\r\nHost: x\r\n\r\n');
+            await socket.flush();
+            await Future.delayed(Duration(milliseconds: 50));
+            socket.setRawOption(_lingerZero);
+            socket.destroy();
+            await Future.delayed(Duration(milliseconds: 1000));
+            directory.lookup = saved;
+          } else {
+            await _reset(target,
+                send: fails.contains('TLS hello') ? _halfClientHello : []);
+            await Future.delayed(Duration(milliseconds: 500));
+          }
+
+          expect(uncaught, isEmpty, reason: 'the atDirectory keeps running');
+          final _Answer answer =
+              await _http(await _tls(httpsPort, null), 'GET /@alice');
+          expect(answer.status, 200, reason: answer.raw);
+        });
+      }
+    });
+  });
+
+  group('Given a name the atDirectory is asked for', () {
+    for (final (String name, String? key) in [
+      ('alice', 'alice'),
+      ('@alice', 'alice'),
+      ('Ali.ce', 'alice'),
+      ('', null),
+      ('a!b', null),
+    ]) {
+      test('when it is "$name", then its key is $key', () {
+        expect(directoryKeyOf(name), key);
+      });
+    }
+  });
+
   group('Given an atDirectory without TLS', () {
     late RootServerImpl directory;
     late int port;
@@ -312,6 +433,30 @@ class _TestSecurityContext implements AtSecurityContext {
   @override
   String bundle() => throw UnimplementedError();
 }
+
+/// The first bytes of a TLS ClientHello, stopping partway through it.
+const List<int> _halfClientHello = [
+  0x16, 0x03, 0x01, 0x00, 0xa0, 0x01, 0x00, 0x00, 0x9c, 0x03, 0x03 //
+];
+
+/// Connects to [port], sends [send], then resets the connection.
+Future<void> _reset(int port, {required List<int> send}) async {
+  final RawSocket socket =
+      await RawSocket.connect(InternetAddress.loopbackIPv4, port);
+  socket.listen((RawSocketEvent event) {
+    if (event == RawSocketEvent.read) socket.read();
+  }, onError: (_) {});
+  if (send.isNotEmpty) socket.write(send);
+  await Future.delayed(Duration(milliseconds: 200));
+  socket.setRawOption(_lingerZero);
+  await socket.close();
+}
+
+/// An SO_LINGER of zero, which makes a socket's close a reset.
+final RawSocketOption _lingerZero = RawSocketOption(
+    RawSocketOption.levelSocket,
+    Platform.isMacOS ? 0x0080 : 13,
+    Uint8List.fromList([1, 0, 0, 0, 0, 0, 0, 0]));
 
 Future<int> _freePort() async {
   final ServerSocket socket =

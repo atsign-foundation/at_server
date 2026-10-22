@@ -10,10 +10,11 @@
 - feat: a redirect for a path below an atSign keeps the atSign first:
   `GET /@alice/x` redirects to `https://<atServer>/@alice/x`, which an
   atServer from 3.11.1 on reads as `/x`.
-- feat: an atSign is matched in any spelling, over HTTP and the Atsign
-  Protocol alike.
+- feat: an atSign is matched whatever its case and dots, over HTTP and the
+  Atsign Protocol alike.
 - fix: an HTTP request whose path does not decode is answered 400, and one
   the atDirectory cannot answer 500.
+- fix: the atDirectory keeps answering when a connection fails.
  - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
 - build: `at_utils` 3.5.0. In a log message, control characters other than a
   line feed, bidirectional formatting characters, and line and paragraph

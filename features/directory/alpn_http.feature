@@ -42,10 +42,11 @@ Feature: The atDirectory answers HTTP on its Atsign Protocol port to a client th
     And it is answered alice.example:6464
 
     Examples:
-      | offer          | selected       |
-      | no ALPN        | none           |
-      | atProtocol/1.0 | atProtocol/1.0 |
-      | h2             | none           |
+      | offer                    | selected       |
+      | no ALPN                  | none           |
+      | atProtocol/1.0           | atProtocol/1.0 |
+      | atProtocol/1.0, http/1.1 | atProtocol/1.0 |
+      | h2                       | none           |
 
   Scenario Outline: A client that negotiates http/1.1 is answered over HTTP
     Given the atDirectory holds @alice at alice.example:6464
@@ -53,14 +54,17 @@ Feature: The atDirectory answers HTTP on its Atsign Protocol port to a client th
     Then it is answered <answer>
 
     Examples:
-      | offer        | path                      | answer                                           |
-      | http/1.1     | /@alice                   | 200 with body alice.example:6464                 |
-      | h2, http/1.1 | /@alice                   | 200 with body alice.example:6464                 |
-      | http/1.1     | /@alice/x/y?z=1           | 302 to https://alice.example:6464/@alice/x/y?z=1 |
-      | http/1.1     | /@nobody                  | 404                                              |
-      | http/1.1     | /@alice/                  | 200 with body alice.example:6464                 |
-      | http/1.1     | /%ff                      | 400                                              |
-      | http/1.1     | a path of 1001 characters | 400                                              |
+      | offer        | path                      | answer                                                 |
+      | http/1.1     | /@alice                   | 200 with body alice.example:6464                       |
+      | h2, http/1.1 | /@alice                   | 200 with body alice.example:6464                       |
+      | http/1.1     | /@alice/x/y?z=1           | 302 to https://alice.example:6464/@alice/x/y?z=1       |
+      | http/1.1     | /@alice/a%0D%0A%3F%23     | 302 to https://alice.example:6464/@alice/a%0D%0A%3F%23 |
+      | http/1.1     | /@nobody                  | 404                                                    |
+      | http/1.1     | /@                        | 404                                                    |
+      | http/1.1     | /@a!b                     | 404                                                    |
+      | http/1.1     | /@alice/                  | 200 with body alice.example:6464                       |
+      | http/1.1     | /%ff                      | 400                                                    |
+      | http/1.1     | a path of 1001 characters | 400                                                    |
 
   Scenario Outline: Any origin may read an HTTP answer
     Given the atDirectory holds @alice at alice.example:6464
@@ -100,6 +104,19 @@ Feature: The atDirectory answers HTTP on its Atsign Protocol port to a client th
     Given the atDirectory cannot read its records
     When a client on its TLS port, negotiating http/1.1, sends GET /@alice
     Then it is answered 500, with Connection: close
+
+  Scenario Outline: The atDirectory keeps answering when a connection fails
+    Given the atDirectory holds @alice at alice.example:6464
+    When a client on <port> <fails>
+    Then the atDirectory keeps running
+    And a client that then sends GET /@alice to the HTTPS port is answered 200
+
+    Examples:
+      | port           | fails                                                         |
+      | its HTTPS port | resets the connection before sending anything                 |
+      | its HTTPS port | resets the connection partway through its TLS hello           |
+      | its TLS port   | resets the connection before sending anything                 |
+      | its HTTPS port | sends GET /@alice and resets the connection before its answer |
 
   Scenario: The HTTPS port answers HTTP whatever ALPN the client offers
     Given the atDirectory holds @alice at alice.example:6464

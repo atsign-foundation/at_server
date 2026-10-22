@@ -152,7 +152,9 @@ class RootServerImpl implements AtRootServer {
 
     logger.info('HttpsServer listening at ${serverContext.httpsPort}');
 
-    httpServer!.listen(handleHttpRequest);
+    httpServer!.listen(handleHttpRequest,
+        onError: (Object e) =>
+            logger.warning('A connection to the HTTPS port failed: $e'));
   }
 
   /// Answers one HTTP request from [lookup]'s records: the record for
