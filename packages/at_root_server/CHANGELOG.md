@@ -1,5 +1,19 @@
 ## 2.2.1
 
+- feat: the atDirectory answers HTTP on its Atsign Protocol port to a client
+  that negotiates `http/1.1` by ALPN, as on its HTTPS port. A client that
+  negotiates `atProtocol/1.0`, or no protocol, speaks the Atsign Protocol as
+  before.
+- feat: every HTTP answer carries `Access-Control-Allow-Origin: *` and closes
+  its connection, and an HTTP connection that sends no complete request is
+  closed within 10 seconds.
+- feat: a redirect for a path below an atSign keeps the atSign first:
+  `GET /@alice/x` redirects to `https://<atServer>/@alice/x`, which an
+  atServer from 3.11.1 on reads as `/x`.
+- feat: an atSign is matched in any spelling, over HTTP and the Atsign
+  Protocol alike.
+- fix: an HTTP request whose path does not decode is answered 400, and one
+  the atDirectory cannot answer 500.
  - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
 - build: `at_utils` 3.5.0. In a log message, control characters other than a
   line feed, bidirectional formatting characters, and line and paragraph

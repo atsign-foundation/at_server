@@ -41,11 +41,21 @@ other atProtocol connections in the same process negotiate.
 
 ### Through the atDirectory
 
-Where the atDirectory's HTTPS server is enabled (`httpsEnabled`, on
-`httpsPort`),
-`GET https://<atDirectory>/<atSign>/<path>?<query>` answers `302` with a
-`Location` on the atServer, keeping the path and query. Without a path it
-answers the atServer's `<host>:<port>`.
+The atDirectory answers HTTP the same way an atServer does: on its Atsign
+Protocol port to a connection that negotiates `http/1.1` by ALPN, and on its
+HTTPS port too where that server is enabled (`httpsEnabled`, on `httpsPort`).
+`GET https://<atDirectory>/@<atSign>/<path>?<query>` answers `302` with a
+`Location` on the atServer that keeps the atSign, path and query,
+`https://<host>:<port>/@<atSign>/<path>?<query>`, which an atServer from
+3.11.1 on reads as `/<path>`, since it removes a leading `@<atSign>/` (see
+[which key a path names](#which-key-a-path-names)). Without a path it answers
+the atServer's `<host>:<port>`, and an atSign it does not hold answers `404`.
+
+Each HTTP connection to the atDirectory carries one request: the answer ends
+with `Connection: close`. Every answer carries
+`Access-Control-Allow-Origin: *`, so a web page on any origin can read it, and
+once its TLS handshake has completed, a connection that sends no complete
+request is closed within 10 seconds.
 
 ## Which key a path names
 
