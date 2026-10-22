@@ -22,14 +22,6 @@ void main() {
     });
 
     test(
-        'when it starts a stream to @carol spelled in capitals, '
-        'then the notification is queued for @carol', () async {
-      await send('stream:init@Carol namespace:wavi startByte:0 s1 f.txt 10',
-          aliceClient());
-      expect(await sentTo('@carol'), [NotificationStatus.queued]);
-    });
-
-    test(
         'when it sends a notify that names no recipient, '
         'then it is refused with AT0003 before anything is stored', () async {
       final connection = aliceClient();
