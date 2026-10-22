@@ -29,7 +29,6 @@ import 'package:at_secondary/src/verb/handler/pol_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
@@ -139,7 +138,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(StatsVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore, commitLog: commitLog));
     _verbHandlers.add(MonitorVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(StreamVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyListVerbHandler(
       keyStore,

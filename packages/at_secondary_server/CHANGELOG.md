@@ -19,6 +19,17 @@
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 
+- fix: consolidate management of reserved namespaces.
+
+- fix: `batch:` answers an entry it has no verb for, or that is not a command,
+  with AT0003, and runs the rest of the batch.
+
+- fix: `update:json` applies `update`'s owner rule to the atKey it carries.
+
+- fix: the stream verb is removed: `stream:` commands, batched ones included,
+  are refused with AT0003, and a `stream:init` notification from an older
+  atServer is dropped.
+
 - build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
 
 # 3.18.1

@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -75,6 +76,11 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
           ' is not authorized to llookup key: $key');
+    }
+    // NOTE a passcode is read only through otp:.
+    if (isPasscodeRecord(key)) {
+      throw UnAuthorizedException(
+          'A passcode is read only through otp:');
     }
 
     await enMgr.moveExpiredEnrollmentData(key);
