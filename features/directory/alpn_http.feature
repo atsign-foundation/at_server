@@ -109,7 +109,7 @@ Feature: The atDirectory answers HTTP on its Atsign Protocol port to a client th
     Given the atDirectory holds @alice at alice.example:6464
     When a client on <port> <fails>
     Then the atDirectory keeps running
-    And a client that then sends GET /@alice to the HTTPS port is answered 200
+    And a client that then sends GET /@alice over HTTP to <port> is answered 200
 
     Examples:
       | port           | fails                                                         |

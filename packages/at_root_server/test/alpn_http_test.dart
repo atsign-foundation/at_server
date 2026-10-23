@@ -362,8 +362,6 @@ void main() {
           }
 
           expect(uncaught, isEmpty, reason: 'the atDirectory keeps running');
-          // NOTE the port whose connection failed is the one probed; the TLS
-          // port answers HTTP once http/1.1 is negotiated.
           final _Answer answer = await _http(
               await _tls(target, target == tlsPort ? ['http/1.1'] : null),
               'GET /@alice');
