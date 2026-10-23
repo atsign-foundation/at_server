@@ -5,13 +5,15 @@
   affected.
 
 - feat: an HTTP connection with no request in progress is closed within 10
-  seconds of its TLS handshake completing or its last answer.
+  seconds of its TLS handshake completing or its last answer, and one whose
+  answer is not fully sent within 30 seconds of its request is closed then.
 
-- fix: an HTTP request whose path or query does not decode is answered 400,
-  not 200, and one the atServer cannot otherwise answer is answered 500.
+- fix: an HTTP `GET` whose path or query does not decode is answered 400, and
+  one that fails once its record has been read is answered 500.
 
-- fix: an error the HTTP server raises is logged, and the atServer keeps
-  serving.
+- fix: an error the HTTP server raises is logged.
+
+- fix: stopping the atServer closes its HTTP connections.
 
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs

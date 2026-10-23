@@ -95,6 +95,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   dynamic _serverSocket;
+  HttpConnections? _http;
   bool _isRunning = false;
   late Atsign currentAtSign;
   late AtCommitLog commitLog;
@@ -649,16 +650,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
   }
 
-  /// Serves the atProtocol on each connection [serverSocket] accepts, and
-  /// HTTP on those that negotiate it, holding at most [httpMaxLimit] HTTP
-  /// connections at once.
+  /// Serves the Atsign Protocol on each connection [serverSocket] accepts,
+  /// and HTTP on those that negotiate it, holding at most [httpMaxLimit] HTTP
+  /// connections at once. An HTTP connection is held idle for at most
+  /// [idleTimeout], checked as often, and closed when an answer is not sent
+  /// within [answerDeadline].
   @visibleForTesting
   HttpConnections listenOn(SecureServerSocket serverSocket,
-      {required int httpMaxLimit}) {
+      {required int httpMaxLimit,
+      Duration idleTimeout = HttpConnections.defaultIdleTimeout,
+      Duration answerDeadline = HttpConnections.defaultAnswerDeadline}) {
     final httpReqHandler = AtServerHttpRequestHandler(
         currentAtSign, keyValueStore, enrollmentManager);
     final HttpConnections http = HttpConnections.serve(serverSocket,
         maxConnections: httpMaxLimit,
+        idleTimeout: idleTimeout,
+        answerDeadline: answerDeadline,
         onRequest: (HttpRequest req) => routeHttpRequest(req, httpReqHandler));
 
     logger.finer('serverSocket listenOn : ${serverSocket.runtimeType}');
@@ -669,8 +676,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     return http;
   }
 
-  /// Serves the atProtocol on [clientSocket], or hands it to [http] when it
-  /// negotiated another ALPN protocol. An unexpected error closes only
+  /// Serves the Atsign Protocol on [clientSocket], or hands it to [http] when
+  /// it negotiated another ALPN protocol. An unexpected error closes only
   /// [clientSocket].
   @visibleForTesting
   Future<void> acceptSocket(
@@ -746,7 +753,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.shout(
           'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
       logger.shout('Secure Socket open for $currentAtSign !');
-      listenOn(_serverSocket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
+      _http = listenOn(_serverSocket,
+          httpMaxLimit: AtSecondaryConfig.http_max_limit);
     } else {
       logger.severe('certs not available');
     }
@@ -757,7 +765,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
     logger.shout('Unsecure Socket open');
-    listenOn(_serverSocket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
+    _http = listenOn(_serverSocket,
+        httpMaxLimit: AtSecondaryConfig.http_max_limit);
   }
 
   /// Executes [command] on [connection].
@@ -809,6 +818,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       logger.shout("Closing ServerSocket");
       _serverSocket.close();
+
+      logger.shout("Closing the HTTP server and its connections");
+      await _http?.close();
+      _http = null;
 
       logger.shout("Stopping StatsNotificationService");
       await statsNotificationService.cancel();

@@ -31,8 +31,8 @@ class AtServerHttpRequestHandler {
         return;
       }
 
-      final String decodedPath;
-      final Map<String, String> queryParameters;
+      String? decodedPath;
+      Map<String, String>? queryParameters;
       try {
         decodedPath = Uri.decodeComponent(request.uri.path);
         queryParameters = request.uri.queryParameters;
@@ -40,15 +40,15 @@ class AtServerHttpRequestHandler {
         if (e is! FormatException && e is! ArgumentError) {
           rethrow;
         }
-        request.response.statusCode = HttpStatus.badRequest;
-        await request.response.close();
-        return;
       }
 
       if (request.method.toUpperCase() != 'GET') {
-        logger.info(
-            sanitiseForLogging('Ignoring ${request.method} $decodedPath'));
+        logger.info(sanitiseForLogging(
+            'Ignoring ${request.method} ${decodedPath ?? request.uri.path}'));
         request.response.statusCode = HttpStatus.methodNotAllowed;
+        await request.response.close();
+      } else if (decodedPath == null || queryParameters == null) {
+        request.response.statusCode = HttpStatus.badRequest;
         await request.response.close();
       } else {
         logger.info(sanitiseForLogging('Path: $decodedPath'

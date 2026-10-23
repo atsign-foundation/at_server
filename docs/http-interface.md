@@ -45,7 +45,9 @@ other Atsign Protocol connections in the same process negotiate.
 
 An HTTP connection to an atServer may carry several requests. Once its TLS
 handshake has completed, a connection with no request in progress, or one that
-sends part of a request and then nothing, is closed within 10 seconds. An
+sends part of a request and then nothing, is closed within 10 seconds, and one
+whose answer is not fully sent within 30 seconds of its request, as when the
+client reads none of it, is closed then. An
 atServer holds at most `connection.http_max_limit` HTTP connections at once,
 50 by default and none when it is 0 or less, apart from its Atsign Protocol
 connections; a connection beyond that is closed without an answer. A
@@ -54,8 +56,8 @@ connection instead.
 
 ### Through the atDirectory
 
-The atDirectory answers HTTP the same way an atServer does: on its Atsign
-Protocol port to a connection that negotiates `http/1.1` by ALPN, and on its
+The atDirectory, like an atServer, answers HTTP on its Atsign Protocol port to
+a connection that negotiates `http/1.1` by ALPN, and on its
 HTTPS port too where that server is enabled (`httpsEnabled`, on `httpsPort`).
 `GET https://<atDirectory>/@<atSign>/<path>?<query>` answers `302` with a
 `Location` on the atServer that keeps the atSign, path and query,
@@ -90,11 +92,11 @@ For `@alice`:
 | `/wavi/location`          | `public:location.wavi@alice`   |
 | `/@alice/demo/index.html` | `public:index.html.demo@alice` |
 
-A key that does not exist, that is not public, or that holds an expired
-enrollment's per-enrollment data answers `404`. A method other than `GET`
-answers `405`. A URI longer than 1000 characters, or one whose path or query
-does not decode, answers `400`, and a request the atServer cannot otherwise
-answer answers `500`.
+A key that does not exist, that is not public, that holds an expired
+enrollment's per-enrollment data, or that cannot be read answers `404`. A URI
+longer than 1000 characters answers `400`; otherwise a method other than `GET`
+answers `405`. A `GET` whose path or query does not decode answers `400`, and
+one that fails once its record has been read answers `500`.
 
 The path `/ws` is not a key: a request for it is upgraded to a WebSocket.
 
