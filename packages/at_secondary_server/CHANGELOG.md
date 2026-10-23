@@ -10,6 +10,13 @@
   shorter. A maximum of 0 or less means the default, and one above a year is
   cut to a year.
 
+- ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
+  OTPs are live (env `maxLiveOtps`, default 10). The count is for the atSign
+  as a whole, whichever enrollment issued them, and the SPP is not counted.
+  An OTP issued with `ttl:0` before this release never expires, so it counts
+  until a full-privilege connection finds it with `otp:list` and deletes it
+  with `otp:delete`.
+
 - feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
   `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
   them all; an enrollment holding `__manage` sees only the OTPs whose
@@ -24,9 +31,6 @@
   full-privilege connection can list or delete it.
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
-
-- feat: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive` OTPs are
-  live (env `maxLiveOtps`, default 10). The SPP is not counted.
 
 - build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
 
