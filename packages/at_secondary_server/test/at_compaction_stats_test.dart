@@ -7,6 +7,8 @@ import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:test/test.dart';
 
+import 'test_storage.dart';
+
 /// Unit-tests for [AtCompactionStatsService] — the
 /// at_secondary-shaped sink that persists per-compaction-pass
 /// metrics as atKeys in the keystore. The compaction itself is
@@ -14,9 +16,7 @@ import 'package:test/test.dart';
 /// `at_persistence_secondary_server/test/at_compaction_test.dart`.
 
 const _atSign = '@alice';
-final _storageDir = Directory.systemTemp
-    .createTempSync('at_secondary_compaction_stats_test_')
-    .path;
+final _storageDir = testStoragePath('test/hive_compaction_stats');
 
 late HiveAtPersistenceFactory _factory;
 late HiveAtPersistenceBundle _bundle;

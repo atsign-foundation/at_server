@@ -17,6 +17,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
+import 'test_storage.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -29,7 +30,7 @@ void main() {
   setUp(() async {
     mockKeyStore = MockAtKeyValueStore();
     mockSocket = FakeSocket();
-    keyValueStore = await setUpFunc(storageDir);
+    keyValueStore = await setUpFunc(_storageDir);
   });
 
   group('A group of cram verb regex test', () {
@@ -267,6 +268,7 @@ class _ClosableConnection extends DummyInboundConnection {
   }
 }
 
+final String _storageDir = testStoragePath('test/hive');
 final HiveAtPersistenceFactory _cramTestFactory = HiveAtPersistenceFactory();
 
 Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
@@ -290,8 +292,8 @@ Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
 
 Future<void> tearDownFunc() async {
   await _cramTestFactory.close();
-  var isExists = await Directory(storageDir).exists();
+  var isExists = await Directory(_storageDir).exists();
   if (isExists) {
-    Directory(storageDir).deleteSync(recursive: true);
+    Directory(_storageDir).deleteSync(recursive: true);
   }
 }

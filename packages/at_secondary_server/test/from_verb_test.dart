@@ -18,6 +18,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
+import 'test_storage.dart';
 import 'test_utils.dart';
 
 void main() async {
@@ -30,7 +31,7 @@ void main() async {
   setUp(() async {
     mockKeyStore = MockAtKeyValueStore();
     mockSocket = FakeSocket();
-    keyValueStore = await setUpFunc(storageDir);
+    keyValueStore = await setUpFunc(_storageDir);
   });
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
@@ -437,8 +438,8 @@ void main() async {
 
   tearDownAll(() async => await tearDownFunc());
 
-  if (Directory(storageDir).existsSync()) {
-    Directory(storageDir).deleteSync(recursive: true);
+  if (Directory(_storageDir).existsSync()) {
+    Directory(_storageDir).deleteSync(recursive: true);
   }
 }
 
@@ -452,6 +453,7 @@ class _ClosableConnection extends DummyInboundConnection {
   }
 }
 
+final String _storageDir = testStoragePath('test/hive');
 final HiveAtPersistenceFactory _fromTestFactory = HiveAtPersistenceFactory();
 
 Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
@@ -476,8 +478,8 @@ Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
 
 Future<void> tearDownFunc() async {
   await _fromTestFactory.close();
-  var isExists = await Directory(storageDir).exists();
+  var isExists = await Directory(_storageDir).exists();
   if (isExists) {
-    Directory(storageDir).deleteSync(recursive: true);
+    Directory(_storageDir).deleteSync(recursive: true);
   }
 }

@@ -8,10 +8,10 @@ import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
+import 'test_storage.dart';
+
 void main() {
-  final tmp = Directory.systemTemp
-      .createTempSync('at_secondary_persistence_migration_test_')
-      .path;
+  final tmp = testStoragePath('test/persistence_migration_tmp');
 
   void useTempConfig() {
     AtSecondaryConfig.configYamlMap = YamlMap.wrap({

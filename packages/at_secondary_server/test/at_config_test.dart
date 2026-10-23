@@ -6,8 +6,9 @@ import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/config/at_config.dart';
 import 'package:test/test.dart';
 
-var storageDir =
-    Directory.systemTemp.createTempSync('at_secondary_at_config_test_').path;
+import 'test_storage.dart';
+
+var storageDir = testStoragePath('test/hive');
 late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
 void main() async {
   group('Verify blocklist configuration behaviour', () {
