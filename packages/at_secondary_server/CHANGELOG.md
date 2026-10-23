@@ -1,3 +1,7 @@
+# 3.19.1
+- test: each unit test file keeps its storage in a fresh directory under the
+  system temp directory, which `TMPDIR` sets, rather than under the package.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
