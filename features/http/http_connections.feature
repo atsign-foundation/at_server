@@ -14,7 +14,8 @@ Feature: The atServer bounds the HTTP connections it holds
   connections, bounded by connection.inbound_max_limit, are not affected. A
   connection upgraded to a WebSocket at /ws leaves those bounds and is held
   as an Atsign Protocol connection. An error the HTTP server raises closes
-  at most the connection it concerns, and never stops the atServer.
+  at most the connection it concerns, and never stops the atServer. A soft
+  restart closes the HTTP connections the atServer held.
 
   Races: each connection's protocol is fixed by its own TLS handshake, and
   the count of HTTP connections changes only on the atServer's event loop,
@@ -68,6 +69,12 @@ Feature: The atServer bounds the HTTP connections it holds
     Given a client that negotiated http/1.1 has upgraded to a WebSocket at /ws
     When it sends nothing for 40 seconds
     Then its connection is still open
+
+  Scenario: A soft restart closes the HTTP connections the atServer held
+    Given a client that negotiated http/1.1 keeps its connection busy with GET requests
+    When the atServer soft restarts
+    Then that connection is closed
+    And a new connection that negotiates http/1.1 is answered
 
   Scenario: An HTTP request whose path does not decode is answered 400
     When a client that negotiated http/1.1 sends GET /%ff
