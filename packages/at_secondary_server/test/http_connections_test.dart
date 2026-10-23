@@ -406,6 +406,9 @@ class _Client {
   _Client(this.socket) {
     socket.listen((List<int> data) => _received.write(latin1.decode(data)),
         onDone: _close, onError: (_) => _close());
+    // NOTE a write to a connection the atServer has closed fails here, not on
+    // the stream above.
+    unawaited(socket.done.then((_) {}, onError: (_) => _close()));
   }
 
   static Future<_Client> connect(int port, String protocol) async =>

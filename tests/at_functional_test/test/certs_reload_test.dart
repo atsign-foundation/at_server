@@ -283,6 +283,7 @@ void main() async {
     void markClosed() => closed.isCompleted ? null : closed.complete();
     held.listen((List<int> data) => received.write(utf8.decode(data)),
         onDone: markClosed, onError: (_) => markClosed());
+    unawaited(held.done.then((_) {}, onError: (_) => markClosed()));
     void get() {
       try {
         held.write('GET /$keyName HTTP/1.1\r\nHost: x\r\n\r\n');
@@ -314,6 +315,7 @@ void main() async {
     final Completer<void> freshDone = Completer();
     fresh.listen((List<int> data) => answer.write(utf8.decode(data)),
         onDone: () => freshDone.complete(), onError: (_) {});
+    unawaited(fresh.done.then((_) {}, onError: (_) {}));
     fresh.write(
         'GET /$keyName HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n');
     await freshDone.future.timeout(Duration(seconds: 5),
