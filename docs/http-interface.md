@@ -41,6 +41,17 @@ default security context, so give it one that does, as `newHttpClient()` in
 Only that client's connections use the context, so it does not change what
 other Atsign Protocol connections in the same process negotiate.
 
+### How long a connection is held
+
+An HTTP connection to an atServer may carry several requests. Once its TLS
+handshake has completed, a connection with no request in progress, or one that
+sends part of a request and then nothing, is closed within 10 seconds. An
+atServer holds at most `connection.http_max_limit` HTTP connections at once,
+50 by default and none when it is 0 or less, apart from its Atsign Protocol
+connections; a connection beyond that is closed without an answer. A
+connection upgraded to a WebSocket at `/ws` is held as an Atsign Protocol
+connection instead.
+
 ### Through the atDirectory
 
 The atDirectory answers HTTP the same way an atServer does: on its Atsign
@@ -81,7 +92,9 @@ For `@alice`:
 
 A key that does not exist, that is not public, or that holds an expired
 enrollment's per-enrollment data answers `404`. A method other than `GET`
-answers `405`, and a URI longer than 1000 characters answers `400`.
+answers `405`. A URI longer than 1000 characters, or one whose path or query
+does not decode, answers `400`, and a request the atServer cannot otherwise
+answer answers `500`.
 
 The path `/ws` is not a key: a request for it is upgraded to a WebSocket.
 

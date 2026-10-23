@@ -39,6 +39,7 @@ import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
 
+import 'http_connections.dart';
 import 'http_request_handler.dart';
 
 /// Singleton implementation of [AtSecondaryServer].
@@ -648,32 +649,32 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
   }
 
-  /// Listens on the secondary server socket and creates an inbound connection
-  /// for each client socket. Throws [SocketException] for socket errors.
-  void _listen(final serverSocket) {
-    // NOTE sockets whose ALPN selectedProtocol is neither null nor
-    // 'atProtocol/1.0' are handed to the PseudoServerSocket.
-    final pseudoServerSocket = PseudoServerSocket(serverSocket);
-    HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
+  /// Serves the atProtocol on each connection [serverSocket] accepts, and
+  /// HTTP on those that negotiate it, holding at most [httpMaxLimit] HTTP
+  /// connections at once.
+  @visibleForTesting
+  HttpConnections listenOn(SecureServerSocket serverSocket,
+      {required int httpMaxLimit}) {
     final httpReqHandler = AtServerHttpRequestHandler(
         currentAtSign, keyValueStore, enrollmentManager);
-    httpServer
-        .listen((HttpRequest req) => routeHttpRequest(req, httpReqHandler));
+    final HttpConnections http = HttpConnections.serve(serverSocket,
+        maxConnections: httpMaxLimit,
+        onRequest: (HttpRequest req) => routeHttpRequest(req, httpReqHandler));
 
-    logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(
-        (clientSocket) => acceptSocket(clientSocket, pseudoServerSocket),
+    logger.finer('serverSocket listenOn : ${serverSocket.runtimeType}');
+    serverSocket.listen((clientSocket) => acceptSocket(clientSocket, http),
         onError: (error) {
       logger.warning("ServerSocket.listen called onError with '$error'");
     });
+    return http;
   }
 
-  /// Serves the atProtocol on [clientSocket], or hands it to
-  /// [pseudoServerSocket] when it negotiated another ALPN protocol. An
-  /// unexpected error closes only [clientSocket].
+  /// Serves the atProtocol on [clientSocket], or hands it to [http] when it
+  /// negotiated another ALPN protocol. An unexpected error closes only
+  /// [clientSocket].
   @visibleForTesting
   Future<void> acceptSocket(
-      SecureSocket clientSocket, PseudoServerSocket pseudoServerSocket) async {
+      SecureSocket clientSocket, HttpConnections http) async {
     InboundConnection? connection;
     try {
       if (logger.isLoggable('finer')) {
@@ -698,7 +699,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         }
       } else {
         logger.info('Transferring socket to HttpServer for handling');
-        pseudoServerSocket.add(clientSocket);
+        http.add(clientSocket);
       }
     } catch (e, st) {
       logger.warning(
@@ -745,7 +746,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.shout(
           'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
       logger.shout('Secure Socket open for $currentAtSign !');
-      _listen(_serverSocket);
+      listenOn(_serverSocket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
     } else {
       logger.severe('certs not available');
     }
@@ -756,7 +757,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
     logger.shout('Unsecure Socket open');
-    _listen(_serverSocket);
+    listenOn(_serverSocket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
   }
 
   /// Executes [command] on [connection].

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/http_connections.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_utils/at_utils.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -29,7 +29,7 @@ class _FakeWebSocket extends Fake implements WebSocket {
   Future close([int? code, String? reason]) async => closed = true;
 }
 
-class _FakeSecureServerSocket extends Fake implements SecureServerSocket {}
+class _FakeHttpConnections extends Fake implements HttpConnections {}
 
 void main() {
   late MockInboundConnectionManager manager;
@@ -63,8 +63,8 @@ void main() {
     final socket = _FakeSecureSocket();
 
     final uncaught = await uncaughtFrom(() =>
-        AtSecondaryServerImpl.getInstance().acceptSocket(
-            socket, PseudoServerSocket(_FakeSecureServerSocket())));
+        AtSecondaryServerImpl.getInstance()
+            .acceptSocket(socket, _FakeHttpConnections()));
 
     expect(uncaught, isEmpty);
     expect(socket.destroyed, isTrue);
@@ -82,8 +82,8 @@ void main() {
     final socket = _FakeSecureSocket();
 
     final uncaught = await uncaughtFrom(() =>
-        AtSecondaryServerImpl.getInstance().acceptSocket(
-            socket, PseudoServerSocket(_FakeSecureServerSocket())));
+        AtSecondaryServerImpl.getInstance()
+            .acceptSocket(socket, _FakeHttpConnections()));
 
     expect(uncaught, isEmpty);
     verify(() => connection.close()).called(1);

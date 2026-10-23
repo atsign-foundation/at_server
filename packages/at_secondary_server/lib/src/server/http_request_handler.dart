@@ -31,15 +31,28 @@ class AtServerHttpRequestHandler {
         return;
       }
 
+      final String decodedPath;
+      final Map<String, String> queryParameters;
+      try {
+        decodedPath = Uri.decodeComponent(request.uri.path);
+        queryParameters = request.uri.queryParameters;
+      } catch (e) {
+        if (e is! FormatException && e is! ArgumentError) {
+          rethrow;
+        }
+        request.response.statusCode = HttpStatus.badRequest;
+        await request.response.close();
+        return;
+      }
+
       if (request.method.toUpperCase() != 'GET') {
-        logger.info(sanitiseForLogging('Ignoring ${request.method}'
-            ' ${Uri.decodeComponent(request.uri.path)}'));
+        logger.info(
+            sanitiseForLogging('Ignoring ${request.method} $decodedPath'));
         request.response.statusCode = HttpStatus.methodNotAllowed;
         await request.response.close();
       } else {
-        final String decodedPath = Uri.decodeComponent(request.uri.path);
         logger.info(sanitiseForLogging('Path: $decodedPath'
-            ' params: ${request.uri.queryParameters}'));
+            ' params: $queryParameters'));
 
         final String lookupKey = getKeyToLookup(decodedPath);
         logger.info(sanitiseForLogging('Key to look up: $lookupKey'));
@@ -66,14 +79,14 @@ class AtServerHttpRequestHandler {
 
         dynamic responseContent = getResponseContent(
           atData: atData,
-          queryParams: request.uri.queryParameters,
+          queryParams: queryParameters,
         );
 
         ContentType? responseContentType;
         if (responseContent != null) {
           responseContentType = getResponseContentType(
             isBinary: atData.metaData?.isBinary ?? false,
-            queryParams: request.uri.queryParameters,
+            queryParams: queryParameters,
             keyStoreKey: lookupKey,
           );
         }
@@ -99,6 +112,11 @@ class AtServerHttpRequestHandler {
       logger.warning(
           sanitiseForLogging('Exception $e handling http request $request'));
       logger.warning(st);
+      try {
+        request.response.statusCode = HttpStatus.internalServerError;
+      } on StateError catch (_) {
+        // NOTE the headers have already been sent.
+      }
       try {
         await request.response.close();
       } catch (_) {}
