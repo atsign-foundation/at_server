@@ -11,6 +11,10 @@
   (`atsign.notification.ids`), which is the same on the sending and the
   receiving atServer.
 
+- fix: telemetry events the collector never gets, because it rejects a batch
+  or the buffer overflows, are logged as one warning per failure counting
+  them by event name, not one warning per event.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and

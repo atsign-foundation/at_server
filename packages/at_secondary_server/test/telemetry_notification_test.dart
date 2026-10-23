@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
@@ -13,6 +14,7 @@ import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_telemetry/at_telemetry.dart';
+import 'package:logging/logging.dart' show Level, LogRecord;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -243,12 +245,80 @@ void main() {
       });
     });
   });
+
+  group('undelivered events', () {
+    late AtServerTelemetry telemetry;
+    late List<String> warnings;
+    final AtNotification notification = (AtNotificationBuilder()
+          ..id = 'n-5'
+          ..toAtSign = bob)
+        .build();
+
+    setUp(() async {
+      telemetry = AtServerTelemetry(heartbeatInterval: null);
+      telemetry.logger.level = 'warning';
+      warnings = <String>[];
+      final StreamSubscription<LogRecord> subscription = telemetry
+          .logger.logger.onRecord
+          .where((LogRecord record) => record.level == Level.WARNING)
+          .listen((LogRecord record) => warnings.add(record.message));
+      addTearDown(subscription.cancel);
+      telemetry.enable(
+        exporter: _RecordingExporter(records, delivers: false),
+        serverId: '$alice',
+        bootId: 'boot-4',
+      );
+      await pumpEventQueue();
+      records.clear();
+      warnings.clear();
+    });
+
+    tearDown(() async {
+      await telemetry.shutdown();
+    });
+
+    test('make one warning for each failure, not one for each event', () async {
+      for (int i = 0; i < 500; i++) {
+        telemetry.notificationDelivered(notification);
+      }
+      await pumpEventQueue();
+      telemetry.notificationExpired(notification);
+      await pumpEventQueue();
+
+      expect(records, hasLength(501));
+      expect(warnings, <String>[
+        'Telemetry events not delivered: 500 '
+            '($atServerNotificationDeliveredEventName x500)',
+        'Telemetry events not delivered: 1 '
+            '($atServerNotificationExpiredEventName x1)',
+      ]);
+    });
+
+    test('are reported before shutdown returns', () async {
+      for (int i = 0; i < 3; i++) {
+        telemetry.notificationDelivered(notification);
+      }
+
+      await telemetry.shutdown();
+      final List<String> atShutdown = List<String>.of(warnings);
+      await pumpEventQueue();
+
+      expect(atShutdown, <String>[
+        'Telemetry events not delivered: 4 '
+            '($atServerNotificationDeliveredEventName x3, '
+            '$atServerStoppedEventName x1)',
+      ]);
+      expect(warnings, atShutdown);
+    });
+  });
 }
 
 final class _RecordingExporter implements AtTelemetryLogRecordExporter {
   final List<AtTelemetryLogRecord> _records;
+  final bool _delivers;
 
-  _RecordingExporter(this._records);
+  _RecordingExporter(this._records, {bool delivers = true})
+      : _delivers = delivers;
 
   @override
   Future<bool> export(
@@ -256,7 +326,7 @@ final class _RecordingExporter implements AtTelemetryLogRecordExporter {
     AtTelemetryResource resource,
   ) async {
     _records.add(logRecord);
-    return true;
+    return _delivers;
   }
 
   @override

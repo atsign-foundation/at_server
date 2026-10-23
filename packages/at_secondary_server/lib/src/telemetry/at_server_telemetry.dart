@@ -15,9 +15,11 @@ final class AtServerTelemetry {
   /// How often the heartbeat is sent while telemetry is enabled. Null turns
   /// the heartbeat off.
   final Duration? heartbeatInterval;
-  final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
+  final AtSignLogger logger = AtSignLogger('AtServerTelemetry');
+  final Map<String, int> _undelivered = <String, int>{};
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
+  Timer? _undeliveredReport;
 
   AtServerTelemetry({
     this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
@@ -67,8 +69,7 @@ final class AtServerTelemetry {
     if (!name.startsWith(_eventNamePrefix) ||
         name.length == _eventNamePrefix.length ||
         name.trim() != name) {
-      _logger
-          .warning('Ignoring telemetry event outside the atServer namespace');
+      logger.warning('Ignoring telemetry event outside the atServer namespace');
       return;
     }
 
@@ -77,10 +78,10 @@ final class AtServerTelemetry {
     try {
       telemetry.event(name, attributes: attributes);
     } on ArgumentError catch (error) {
-      _logger.warning('Ignoring invalid telemetry event $name: '
+      logger.warning('Ignoring invalid telemetry event $name: '
           '${error.name} ${error.message}');
     } on Object catch (error) {
-      _logger.warning('Dropped telemetry event $name: $error');
+      logger.warning('Dropped telemetry event $name: $error');
     }
   }
 
@@ -105,7 +106,9 @@ final class AtServerTelemetry {
     _heartbeat = null;
     emitEvent(atServerStoppedEventName);
     _telemetry = null;
-    return telemetry.shutdown(timeout: timeout);
+    return telemetry
+        .shutdown(timeout: timeout)
+        .whenComplete(_reportUndelivered);
   }
 
   void notificationDelivered(AtNotification notification) {
@@ -169,7 +172,31 @@ final class AtServerTelemetry {
   }
 
   void _onError(Object error, StackTrace stackTrace) {
-    _logger.warning('Telemetry export failed: $error');
+    if (error is AtTelemetryDroppedException) {
+      _undelivered.update(
+        error.logRecord.eventName ?? 'log record',
+        (int count) => count + 1,
+        ifAbsent: () => 1,
+      );
+      _undeliveredReport ??= Timer(Duration.zero, _reportUndelivered);
+      return;
+    }
+    logger.warning('Telemetry export failed: $error');
+  }
+
+  void _reportUndelivered() {
+    _undeliveredReport?.cancel();
+    _undeliveredReport = null;
+    if (_undelivered.isEmpty) {
+      return;
+    }
+    final int total =
+        _undelivered.values.fold(0, (int sum, int count) => sum + count);
+    final String counts = _undelivered.entries
+        .map((MapEntry<String, int> entry) => '${entry.key} x${entry.value}')
+        .join(', ');
+    _undelivered.clear();
+    logger.warning('Telemetry events not delivered: $total ($counts)');
   }
 
   void _emitNotificationEvent(
