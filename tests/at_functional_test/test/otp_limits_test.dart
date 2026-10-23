@@ -4,9 +4,9 @@ import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
 
-/// Functional (over-the-wire) coverage for the otp:get ttl limit. The
-/// live-OTP limit is left to the unit tests: the functional pack shares one
-/// atSign, so other tests' OTPs may be live at any moment.
+/// Functional (over-the-wire) coverage for the otp:get limits: the ttl limit
+/// and the live-OTP limit. The pack runs one file at a time
+/// (--concurrency=1), so no other test issues OTPs while the cap is full.
 void main() {
   OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
   String firstAtSign =
@@ -36,6 +36,7 @@ void main() {
         expect(jsonDecode(response.replaceFirst('error:', ''))['errorCode'],
             'AT0022');
       }
+      // NOTE exactly the maximum, which NoPorts issue_keys asks for.
       final String otp = (await firstAtSignConnection
               .sendRequestToServer('otp:get:ttl:3600000'))
           .replaceFirst('data:', '')
@@ -44,6 +45,49 @@ void main() {
       // NOTE deleted so it doesn't count toward the cap for later tests.
       expect(await firstAtSignConnection.sendRequestToServer('otp:delete:$otp'),
           'data:ok');
+    });
+  });
+
+  group('the live-OTP limit', () {
+    test('a full cap answers AT0028 and leaves the connection open', () async {
+      // NOTE the VE runs with the default maximum, 10. Other test files' OTPs
+      // may still be live, so this issues OTPs until refused rather than
+      // exactly 10, and deletes only its own.
+      final List<String> issued = [];
+      String data(String response) => response.replaceFirst('data:', '').trim();
+      // NOTE a 30-second ttl, so any OTP a failed run leaves behind stops
+      // counting toward the cap long before the pack's later tests.
+      Future<String> issue() =>
+          firstAtSignConnection.sendRequestToServer('otp:get:ttl:30000');
+      try {
+        String response = await issue();
+        for (int i = 0; i < 20 && response.startsWith('data:'); i++) {
+          issued.add(data(response));
+          response = await issue();
+        }
+        expect(response, startsWith('error:'),
+            reason: 'otp:get was never refused');
+        expect(jsonDecode(response.replaceFirst('error:', ''))['errorCode'],
+            'AT0028');
+
+        // The same connection still answers, and a delete frees a place.
+        if (issued.isNotEmpty) {
+          expect(
+              await firstAtSignConnection
+                  .sendRequestToServer('otp:delete:${issued.removeLast()}'),
+              'data:ok');
+          response = await issue();
+          expect(response, startsWith('data:'));
+          issued.add(data(response));
+        } else {
+          expect(await firstAtSignConnection.sendRequestToServer('otp:list'),
+              startsWith('data:'));
+        }
+      } finally {
+        for (final String otp in issued) {
+          await firstAtSignConnection.sendRequestToServer('otp:delete:$otp');
+        }
+      }
     });
   });
 }
