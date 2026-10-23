@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -59,11 +58,7 @@ final class AtServerTelemetry {
 
   /// Sends the event [name], which must be in the atServer's namespace, or
   /// logs why it was dropped.
-  void emitEvent(
-    String name, {
-    Map<String, Object?> attributes = const {},
-    List<String> notificationIds = const <String>[],
-  }) {
+  void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
       return;
@@ -79,11 +74,7 @@ final class AtServerTelemetry {
     // AtTelemetry throws on invalid attribute values. Telemetry must never
     // take the server down, so log and drop the event instead.
     try {
-      telemetry.event(
-        name,
-        attributes: attributes,
-        notificationIds: notificationIds,
-      );
+      telemetry.event(name, attributes: attributes);
     } on ArgumentError catch (error) {
       _logger.warning('Ignoring invalid telemetry event $name: '
           '${error.name} ${error.message}');
@@ -116,81 +107,7 @@ final class AtServerTelemetry {
     return telemetry.shutdown(timeout: timeout);
   }
 
-  void notificationDelivered(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationDeliveredEventName,
-      notification,
-      <String, Object?>{
-        if (notification.toAtSign case final String toAtSign)
-          notificationToAttribute: toAtSign,
-      },
-    );
-  }
-
-  void notificationExpired(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationExpiredEventName,
-      notification,
-      <String, Object?>{
-        if (notification.toAtSign case final String toAtSign)
-          notificationToAttribute: toAtSign,
-      },
-    );
-  }
-
-  void notificationError(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationErrorEventName,
-      notification,
-      <String, Object?>{
-        if (notification.toAtSign case final String toAtSign)
-          notificationToAttribute: toAtSign,
-      },
-    );
-  }
-
-  void notificationReceived(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationReceivedEventName,
-      notification,
-      <String, Object?>{
-        if (notification.fromAtSign case final String fromAtSign)
-          notificationFromAttribute: fromAtSign,
-      },
-    );
-  }
-
-  void notificationPushed(
-    AtNotification notification, {
-    String? enrollmentId,
-  }) {
-    _emitNotificationEvent(
-      atServerNotificationPushedEventName,
-      notification,
-      <String, Object?>{
-        if (notification.fromAtSign case final String fromAtSign)
-          notificationFromAttribute: fromAtSign,
-        if (enrollmentId != null)
-          AtTelemetryAttributes.enrollmentId: enrollmentId,
-      },
-    );
-  }
-
   void _onError(Object error, StackTrace stackTrace) {
     _logger.warning('Telemetry export failed: $error');
-  }
-
-  void _emitNotificationEvent(
-    String name,
-    AtNotification notification,
-    Map<String, Object?> attributes,
-  ) {
-    emitEvent(
-      name,
-      attributes: attributes,
-      notificationIds: <String>[
-        if (notification.id case final String id) id,
-      ],
-    );
   }
 }

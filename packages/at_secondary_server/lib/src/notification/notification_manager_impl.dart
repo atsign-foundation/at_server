@@ -5,7 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/at_server_notification_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
@@ -23,7 +23,7 @@ class NotificationManager {
   @visibleForTesting
   NotifyConnectionsPool get notifyConnectionsPool => _notifyConnectionsPool;
 
-  final AtServerTelemetry? telemetry;
+  final AtServerNotificationTelemetry? telemetry;
 
   final AtSignLogger logger = AtSignLogger(' NotificationManager ');
 
@@ -555,7 +555,7 @@ class PerAtSignNotifSender {
         if (n.isExpired()) {
           logger.info('notification ${n.id} has expired - will not deliver');
           n.notificationStatus = NotificationStatus.expired;
-          notifMgr.telemetry?.notificationExpired(n);
+          notifMgr.telemetry?.expired(n);
           try {
             await notifMgr.put(n.id, n);
           } catch (e) {
@@ -582,7 +582,7 @@ class PerAtSignNotifSender {
         // if response was data:success - great, we're done!
         if (notifyResponse == 'data:success') {
           n.notificationStatus = NotificationStatus.delivered;
-          notifMgr.telemetry?.notificationDelivered(n);
+          notifMgr.telemetry?.delivered(n);
           if (logger.isLoggable('info')) {
             logger.info('Delivered ${n.id} (${n.notification})');
           }
@@ -603,7 +603,7 @@ class PerAtSignNotifSender {
         } on SecondaryNotFoundException catch (_) {
           logger.warning('no such atSign $atSign - giving up on ${n.id}');
           n.notificationStatus = NotificationStatus.errored;
-          notifMgr.telemetry?.notificationError(n);
+          notifMgr.telemetry?.error(n);
           await notifMgr.put(n.id, n);
           return;
         }

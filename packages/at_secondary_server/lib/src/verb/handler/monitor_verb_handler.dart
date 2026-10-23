@@ -153,7 +153,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         }
         await atConnection.write('notification:'
             ' ${jsonEncode(notification.mapForClient)}\n');
-        AtSecondaryServerImpl.getInstance().telemetry.notificationPushed(
+        AtSecondaryServerImpl.getInstance().notificationTelemetry.pushed(
             notification,
             enrollmentId: (atConnection.metaData as InboundConnectionMetadata)
                 .enrollmentId);

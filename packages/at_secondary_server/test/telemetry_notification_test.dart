@@ -7,6 +7,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundClient;
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_notification_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
@@ -83,7 +84,7 @@ void main() {
         alice,
         MockAtNotificationKeystore(),
         MockNotifyConnectionsPool(),
-        telemetry: telemetry,
+        telemetry: AtServerNotificationTelemetry(telemetry),
       );
       when(() => notificationManager.notifStore.put(any(), any(),
           skipCommit: any(named: 'skipCommit'))).thenAnswer((_) async => null);
@@ -216,7 +217,7 @@ void main() {
     });
   });
 
-  group('notificationPushed', () {
+  group('AtServerNotificationTelemetry.pushed', () {
     test('names the enrollment of the monitor it was pushed to', () async {
       final AtServerTelemetry telemetry =
           AtServerTelemetry(heartbeatInterval: null)
@@ -228,7 +229,7 @@ void main() {
       addTearDown(telemetry.shutdown);
       records.clear();
 
-      telemetry.notificationPushed(
+      AtServerNotificationTelemetry(telemetry).pushed(
         (AtNotificationBuilder()
               ..id = 'n-4'
               ..fromAtSign = bob)
