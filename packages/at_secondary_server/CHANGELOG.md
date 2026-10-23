@@ -1,3 +1,18 @@
+# 3.19.1
+- feat: an atServer holds at most `connection.http_max_limit` HTTP connections
+  at once, 50 by default; a connection beyond that is closed without an
+  answer, and 0 or less holds none. Atsign Protocol connections are not
+  affected.
+
+- feat: an HTTP connection with no request in progress is closed within 10
+  seconds of its TLS handshake completing or its last answer.
+
+- fix: an HTTP request whose path or query does not decode is answered 400,
+  not 200, and one the atServer cannot otherwise answer is answered 500.
+
+- fix: an error the HTTP server raises is logged, and the atServer keeps
+  serving.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
