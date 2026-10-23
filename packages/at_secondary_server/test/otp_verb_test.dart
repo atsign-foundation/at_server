@@ -760,6 +760,9 @@ void main() {
     });
 
     test('otp:get refuses a ttl too large to parse', () async {
+      // NOTE a maximum above the 5-minute default, so a silent fallback to
+      // the default would be accepted and this test would fail.
+      AtSecondaryConfig.otpMaxTtlInMinutes = 10;
       await expectLater(issue('otp:get:ttl:99999999999999999999'),
           throwsA(isA<IllegalArgumentException>()));
     });
@@ -820,6 +823,19 @@ void main() {
     Future<int> liveCount() async =>
         (await OtpVerbHandler(keyValueStore).listPasscodes()).length;
 
+    Future<void> useEnrollment(
+        String id, Map<String, String> namespaces) async {
+      inboundConnection.metaData.enrollmentId = id;
+      inboundConnection.metaData.authType = AuthType.apkam;
+      await keyValueStore.put(
+          '$id.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(
+                EnrollDataStoreValue('sid', 'app', 'device', 'apkam-key')
+                  ..namespaces = namespaces
+                  ..approval = EnrollApproval(EnrollmentStatus.approved.name)));
+    }
+
     test('otp:get is refused once the maximum is live, and stores nothing',
         () async {
       await issue('otp:get');
@@ -870,6 +886,22 @@ void main() {
       expect(AtSecondaryConfig.maxLiveOtps, 10);
       AtSecondaryConfig.maxLiveOtps = -1;
       expect(AtSecondaryConfig.maxLiveOtps, 10);
+    });
+
+    test('the maximum is shared by every issuer, full privilege included',
+        () async {
+      await useEnrollment('first', {'app_1': 'rw', '__manage': 'rw'});
+      await issue('otp:get');
+      await useEnrollment('second', {'app_2': 'rw', '__manage': 'rw'});
+      await issue('otp:get');
+      // NOTE "second" has issued one OTP, but "first"'s counts against it too.
+      await expectLater(
+          issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
+      inboundConnection.metaData.enrollmentId = null;
+      inboundConnection.metaData.authType = AuthType.cram;
+      await expectLater(
+          issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
+      expect(await liveCount(), 2);
     });
   });
 
