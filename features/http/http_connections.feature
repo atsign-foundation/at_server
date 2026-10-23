@@ -5,8 +5,10 @@ Feature: The atServer bounds the HTTP connections it holds
   handler, which serves its public records to GET requests. An HTTP
   connection may carry several requests. Once its TLS handshake has
   completed, a connection with no request in progress is closed within 10
-  seconds, by a 5-second idle timeout that is checked every 5 seconds. At
-  most 50 HTTP connections are held at once by default, a bound that
+  seconds, by a 5-second idle timeout that is checked every 5 seconds, and
+  an answer not fully sent within 30 seconds of its request, as when the
+  client reads none of it, closes its connection. At most 50 HTTP
+  connections are held at once by default, a bound that
   connection.http_max_limit sets at startup, and 0 or less holds none; a
   connection beyond it is closed without an answer, and the Atsign Protocol
   connections, bounded by connection.inbound_max_limit, are not affected. A
@@ -20,10 +22,10 @@ Feature: The atServer bounds the HTTP connections it holds
   Replay: HTTP serves only public records and authenticates nothing, so a
   resent request gets the same answer.
   DoS: once its TLS handshake has completed, an idle or incomplete HTTP
-  connection is held for at most 10 seconds, and at most
-  connection.http_max_limit (50 by default) are held at once; a URI over
-  1000 characters, or one that does not decode, is answered 400. As today,
-  a TLS handshake that never starts is not timed out.
+  connection is held for at most 10 seconds, one whose answer is not sent
+  within 30 seconds is closed, and at most connection.http_max_limit (50 by
+  default) are held at once; a URI over 1000 characters, or one that does
+  not decode, is answered 400.
   Forgery and impersonation: unchanged. TLS authenticates the atServer, and
   HTTP authenticates no client and serves only public records.
 
@@ -57,9 +59,14 @@ Feature: The atServer bounds the HTTP connections it holds
     Then the atServer closes that connection without answering it
     And a client that negotiates atProtocol/1.0 is still served
 
-  Scenario: A WebSocket at /ws is not closed by the HTTP idle timeout
+  Scenario: An HTTP connection whose answer is not sent within 30 seconds is closed
+    Given a client that negotiated http/1.1 reads nothing the atServer sends
+    When it sends requests whose answers are more than the connection can hold
+    Then the atServer closes the connection within 30 seconds of the request whose answer it could not send
+
+  Scenario: A WebSocket at /ws is not closed by the HTTP idle timeout or answer deadline
     Given a client that negotiated http/1.1 has upgraded to a WebSocket at /ws
-    When it sends nothing for 15 seconds
+    When it sends nothing for 40 seconds
     Then its connection is still open
 
   Scenario: An HTTP request whose path does not decode is answered 400
