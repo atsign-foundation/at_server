@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -107,7 +108,82 @@ final class AtServerTelemetry {
     return telemetry.shutdown(timeout: timeout);
   }
 
+  void notificationDelivered(AtNotification notification) {
+    _emitNotificationEvent(
+      atServerNotificationDeliveredEventName,
+      notification,
+      <String, Object?>{
+        if (notification.toAtSign case final String toAtSign)
+          notificationToAttribute: toAtSign,
+      },
+    );
+  }
+
+  void notificationExpired(AtNotification notification) {
+    _emitNotificationEvent(
+      atServerNotificationExpiredEventName,
+      notification,
+      <String, Object?>{
+        if (notification.toAtSign case final String toAtSign)
+          notificationToAttribute: toAtSign,
+      },
+    );
+  }
+
+  void notificationError(AtNotification notification) {
+    _emitNotificationEvent(
+      atServerNotificationErrorEventName,
+      notification,
+      <String, Object?>{
+        if (notification.toAtSign case final String toAtSign)
+          notificationToAttribute: toAtSign,
+      },
+    );
+  }
+
+  void notificationReceived(AtNotification notification) {
+    _emitNotificationEvent(
+      atServerNotificationReceivedEventName,
+      notification,
+      <String, Object?>{
+        if (notification.fromAtSign case final String fromAtSign)
+          notificationFromAttribute: fromAtSign,
+      },
+    );
+  }
+
+  void notificationPushed(
+    AtNotification notification, {
+    String? enrollmentId,
+  }) {
+    _emitNotificationEvent(
+      atServerNotificationPushedEventName,
+      notification,
+      <String, Object?>{
+        if (notification.fromAtSign case final String fromAtSign)
+          notificationFromAttribute: fromAtSign,
+        if (enrollmentId != null)
+          AtTelemetryAttributes.enrollmentId: enrollmentId,
+      },
+    );
+  }
+
   void _onError(Object error, StackTrace stackTrace) {
     _logger.warning('Telemetry export failed: $error');
+  }
+
+  void _emitNotificationEvent(
+    String name,
+    AtNotification notification,
+    Map<String, Object?> attributes,
+  ) {
+    emitEvent(
+      name,
+      attributes: <String, Object?>{
+        ...attributes,
+        if (notification.id case final String id)
+          AtTelemetryAttributes.notificationIds: <String>[id],
+      },
+    );
   }
 }
