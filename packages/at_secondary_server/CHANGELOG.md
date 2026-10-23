@@ -1,3 +1,7 @@
+# 3.19.1
+- test: when `AT_UNIT_TEST_STORAGE_DIR` is set, the unit tests keep their
+  storage under it rather than under the package.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
