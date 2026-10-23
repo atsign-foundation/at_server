@@ -783,6 +783,19 @@ void main() {
       AtSecondaryConfig.otpMaxTtlInMinutes = -5;
       expect(AtSecondaryConfig.otpMaxTtlInMinutes, 60);
     });
+
+    test('a maximum above one year is cut to one year, so it cannot overflow',
+        () async {
+      // NOTE 2^63-1 minutes overflowed Duration(minutes:) to a negative ttl:
+      // an OTP issued without a ttl never expired, and every ttl was refused.
+      AtSecondaryConfig.otpMaxTtlInMinutes = 9223372036854775807;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 525600);
+      String otp = await issue('otp:get');
+      expect(
+          await storedTtl(otp), OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
+      otp = await issue('otp:get:ttl:300000');
+      expect(await storedTtl(otp), 300000);
+    });
   });
 
   group('A group of tests related to the live-OTP limit', () {

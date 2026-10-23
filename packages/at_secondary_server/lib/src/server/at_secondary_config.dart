@@ -778,14 +778,26 @@ class AtSecondaryConfig {
     _otpMaxTtlInMinutes = value;
   }
 
+  /// The most otpMaxTtlInMinutes can be: one year. A larger value is cut to
+  /// it, because Duration(minutes:) would overflow to a negative ttl, which
+  /// the keystore reads as "never expires", or reach a date DateTime can't
+  /// hold.
+  static const int otpMaxTtlCeilingInMinutes = 365 * 24 * 60;
+
   /// The longest ttl `otp:get` accepts, in minutes. A value of 0 or less
   /// falls back to the default: as the cap on an OTP issued without a ttl it
-  /// would be 0, which the keystore reads as "never expires".
+  /// would be 0, which the keystore reads as "never expires". A value above
+  /// [otpMaxTtlCeilingInMinutes] is cut to it.
   static int get otpMaxTtlInMinutes {
     final int? configured = _otpMaxTtlInMinutes ??
         _getIntEnvVar('otpMaxTtlInMinutes') ??
         getNullableIntFromYaml(['otp', 'maxTtlInMinutes']);
-    return (configured != null && configured > 0) ? configured : 60;
+    if (configured == null || configured <= 0) {
+      return 60;
+    }
+    return configured < otpMaxTtlCeilingInMinutes
+        ? configured
+        : otpMaxTtlCeilingInMinutes;
   }
 
   static int? _maxLiveOtps;
