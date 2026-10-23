@@ -74,7 +74,7 @@ void main() {
       'an unexpected error once the connection is pooled closes the connection',
       () async {
     final MockInboundConnection connection = MockInboundConnection();
-    when(() => connection.acceptRequests(any(), any()))
+    when(() => connection.acceptRequests(any()))
         .thenThrow(StateError('injected'));
     when(() => connection.close()).thenAnswer((_) async {});
     when(() => manager.createSocketConnection(any(),

@@ -705,6 +705,13 @@ class EnrollmentManager {
     await keyStore.remove(ek, skipCommit: true);
   }
 
+  /// The key of an enrollment record of this atSign: never a cached copy, nor
+  /// a record of another atSign.
+  late final RegExp _ownEnrollmentKey = RegExp('^[^.:@]+'
+      '\\.${RegExp.escape(EnrollmentConstants.enrollmentKeyPattern)}'
+      '\\.${EnrollmentConstants.enrollManageNamespace}'
+      '${RegExp.escape(canonicalAtKey(atSign))}\$');
+
   /// Every enrollment record key this atSign holds: the VISIBLE roster when
   /// [includeExpired] is false, the STORED roster when it is true.
   ///
@@ -715,14 +722,14 @@ class EnrollmentManager {
     if (!includeExpired) {
       return (await keyStore
               .getKeys(regex: EnrollmentConstants.enrollmentsRegex))
+          .where(_ownEnrollmentKey.hasMatch)
           .toList();
     }
     // NOTE `getKeys` has no include-expired form; `scanKeys` has.
-    final RegExp re = RegExp(EnrollmentConstants.enrollmentsRegex);
     final List<String> keys = [];
     await for (final String key in await keyStore.scanKeys(const KeyPattern(),
         includeExpired: true)) {
-      if (re.hasMatch(key)) keys.add(key);
+      if (_ownEnrollmentKey.hasMatch(key)) keys.add(key);
     }
     return keys;
   }

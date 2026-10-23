@@ -16,9 +16,6 @@ abstract class BaseResponseHandler implements ResponseHandler {
   Future<void> process(AtConnection connection, Response response) async {
     var result = response.data;
     try {
-      if (response.isStream) {
-        return;
-      }
       var atConnectionMetadata =
           connection.metaData as InboundConnectionMetadata;
       var isAuthenticated = atConnectionMetadata.isAuthenticated;

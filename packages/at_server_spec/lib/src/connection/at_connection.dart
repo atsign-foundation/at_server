@@ -56,8 +56,6 @@ abstract class AtConnectionMetaData {
     }
   }
 
-  bool isStream = false;
-  String? streamId;
   //// if [isAuthenticated] is true, then authType is set to cram/legacy_pkam/apkam
   AuthType? authType;
 
