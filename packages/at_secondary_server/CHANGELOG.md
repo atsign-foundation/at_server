@@ -19,15 +19,17 @@
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 
-- feat: an atServer whose telemetry is on tells its collector when a
-  connection authenticates as its atSign with `cram:` or `pkam:`
-  (`connection.authenticated`, naming how, the enrollment, its app and device,
-  and the client its `from:` described), when that connection starts a
-  `monitor` (`connection.monitoring`), and when it closes, why and after how
-  long (`connection.closed`). A random id, new for each connection, joins its
-  events. Connections from other atServers, connections that never
-  authenticate, and connections the atServer closes as it stops send none, so
-  only a client holding the atSign's keys causes these events.
+- feat: an atServer whose telemetry is on tells its collector what becomes of
+  notifications. For one it sends to another atSign: `notification.delivered`
+  when the recipient's atServer accepts it, `notification.expired` when it
+  expires before it is delivered, and `notification.error` when the recipient
+  atSign does not exist, each naming the recipient (`atsign.notification.to`).
+  `notification.received` when another atServer delivers one, and
+  `notification.pushed` each time it writes one to a `monitor` connection,
+  naming the sender (`atsign.notification.from`) and, for `pushed`, the
+  connection's enrollment. Every event carries the notification's id
+  (`atsign.notification.ids`), which is the same on the sending and the
+  receiving atServer.
 
 - build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
 

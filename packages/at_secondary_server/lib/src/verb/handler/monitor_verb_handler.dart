@@ -111,10 +111,6 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       }
     }
     atConnection.isMonitor = true;
-    AtSecondaryServerImpl.getInstance().telemetry.connectionMonitoring(
-        atConnection,
-        selfNotifications:
-            selfNotificationsParam == AtConstants.monitorSelfNotifications);
   }
 
   /// - Checks if connection is authorized for this notif's key's namespace
@@ -157,6 +153,10 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         }
         await atConnection.write('notification:'
             ' ${jsonEncode(notification.mapForClient)}\n');
+        AtSecondaryServerImpl.getInstance().telemetry.notificationPushed(
+            notification,
+            enrollmentId: (atConnection.metaData as InboundConnectionMetadata)
+                .enrollmentId);
       } else {
         if (logger.isLoggable('finest')) {
           logger.finest('${notification.notification} vs ${mc.regex} : false');

@@ -271,7 +271,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           secondaryAddressFinder,
           outboundConnectionFactory,
           poolSize: serverContext!.outboundConnectionLimit,
-        ));
+        ),
+        telemetry: telemetry);
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);

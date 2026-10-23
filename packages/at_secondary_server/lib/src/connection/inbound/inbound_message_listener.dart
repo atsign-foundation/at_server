@@ -5,8 +5,6 @@ import 'dart:typed_data';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -159,16 +157,12 @@ class InboundMessageListener {
   /// Logs the error and closes the [InboundConnection]
   Future<void> _errorHandler(error, StackTrace st) async {
     logger.severe(error.toString());
-    (connection.metaData as InboundConnectionMetadata)
-        .markCloseReason(InboundConnectionCloseReason.socketError);
     await _closeConnection();
   }
 
   /// Closes the [InboundConnection]
   Future<void> _finishedHandler() async {
     logger.info('_finishedHandler called - closing connection');
-    (connection.metaData as InboundConnectionMetadata)
-        .markCloseReason(InboundConnectionCloseReason.clientClosed);
     await _closeConnection();
   }
 
