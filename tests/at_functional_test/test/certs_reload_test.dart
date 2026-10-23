@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
@@ -21,6 +23,14 @@ int commitIdFromStats(String statsResponse) {
   final stats = jsonDecode(statsResponse.replaceAll('data:', '').trim());
   final value = jsonDecode(stats[0]['value'].toString());
   return value is int ? value : int.parse(value.toString());
+}
+
+/// A TLS connection to [host]:[port] that negotiates http/1.1, as
+/// `newHttpClient` in http_test.dart does.
+Future<SecureSocket> httpConnection(String host, int port) {
+  final SecurityContext context = SecurityContext(withTrustedRoots: true)
+    ..setAlpnProtocols(['http/1.1'], false);
+  return SecureSocket.connect(host, port, context: context);
 }
 
 void main() async {
@@ -222,6 +232,96 @@ void main() async {
         reason: 'the notification keystore is the third of three stores torn '
             'down and rebuilt by the restart, and it can be re-rooted '
             'independently of the other two');
+  });
+
+  /// Soft restarts the atServer and waits for it to answer again, leaving
+  /// [firstAtSignConnection] authenticated on the restarted atServer.
+  Future<void> softRestart() async {
+    for (final String command in [
+      'config:set:shouldReloadCertificates=true',
+      'config:set:checkCertificateReload=true'
+    ]) {
+      final String response =
+          await firstAtSignConnection.sendRequestToServer(command);
+      log('', command, response);
+      expect(response, 'data:ok');
+    }
+    await firstAtSignConnection.close();
+    final Stopwatch waited = Stopwatch()..start();
+    while (true) {
+      await Future.delayed(Duration(seconds: 1));
+      try {
+        await firstAtSignConnection.initiateConnectionWithListener(
+            atSign, host, port);
+        final String response = await firstAtSignConnection
+            .sendRequestToServer('info:brief', maxWaitMilliSeconds: 1000);
+        if (response.startsWith('data:{"version":')) {
+          break;
+        }
+      } catch (_) {}
+      if (waited.elapsed > Duration(seconds: 60)) {
+        fail('the atServer did not answer within 60 s of its restart');
+      }
+    }
+    expect(
+        await firstAtSignConnection.authenticateConnection(), 'data:success');
+  }
+
+  test('A soft restart closes the HTTP connections the atServer held',
+      () async {
+    final String keyName = 'http-restart-${Uuid().v4().hashCode}';
+    final String command = 'update:public:$keyName$atSign v';
+    final String response =
+        await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    expect(response, startsWith('data:'));
+
+    final SecureSocket held = await httpConnection(host, port);
+    expect(held.selectedProtocol, 'http/1.1');
+    final StringBuffer received = StringBuffer();
+    final Completer<void> closed = Completer();
+    void markClosed() => closed.isCompleted ? null : closed.complete();
+    held.listen((List<int> data) => received.write(utf8.decode(data)),
+        onDone: markClosed, onError: (_) => markClosed());
+    unawaited(held.done.then((_) {}, onError: (_) => markClosed()));
+    void get() {
+      try {
+        held.write('GET /$keyName HTTP/1.1\r\nHost: x\r\n\r\n');
+      } catch (_) {}
+    }
+
+    get();
+    final Stopwatch answered = Stopwatch()..start();
+    while (!received.toString().contains('HTTP/1.1 200')) {
+      if (answered.elapsed > Duration(seconds: 5)) {
+        fail('GET /$keyName is not answered 200; received: $received');
+      }
+      await Future.delayed(Duration(milliseconds: 50));
+    }
+    // NOTE a request every second keeps the idle timeout from closing it.
+    final Timer busy = Timer.periodic(Duration(seconds: 1), (_) => get());
+    try {
+      await softRestart();
+      await closed.future.timeout(Duration(seconds: 5),
+          onTimeout: () => fail('the HTTP connection from before the restart '
+              'is still open after it'));
+    } finally {
+      busy.cancel();
+      held.destroy();
+    }
+
+    final SecureSocket fresh = await httpConnection(host, port);
+    final StringBuffer answer = StringBuffer();
+    final Completer<void> freshDone = Completer();
+    fresh.listen((List<int> data) => answer.write(utf8.decode(data)),
+        onDone: () => freshDone.complete(), onError: (_) {});
+    unawaited(fresh.done.then((_) {}, onError: (_) {}));
+    fresh.write(
+        'GET /$keyName HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n');
+    await freshDone.future.timeout(Duration(seconds: 5),
+        onTimeout: () => fail('a new HTTP connection is not answered'));
+    expect(answer.toString(), startsWith('HTTP/1.1 200'),
+        reason: 'a new HTTP connection is answered after the restart');
   });
 
   tearDown(() async {
