@@ -262,19 +262,27 @@ void main() {
 
   test(
       'Given an atDirectory with an Atsign Protocol client connected, when '
-      'it stops, then its port refuses new connections', () async {
+      'it stops, then its port refuses new connections, and the client is '
+      'disconnected', () async {
     final int port = await _freePort();
     final RootServerImpl directory =
         _directory(records, port: port, httpsPort: 0, useSSL: false)..start();
     await _accepting(port);
     final Socket client =
         await Socket.connect(InternetAddress.loopbackIPv4, port);
+    final Completer<void> disconnected = Completer();
+    client.listen((_) {},
+        onDone: () => disconnected.isCompleted ? null : disconnected.complete(),
+        onError: (_) =>
+            disconnected.isCompleted ? null : disconnected.complete());
     await Future.delayed(Duration(milliseconds: 100));
 
     await directory.stop();
 
     await expectLater(Socket.connect(InternetAddress.loopbackIPv4, port),
         throwsA(isA<SocketException>()));
+    await disconnected.future.timeout(Duration(seconds: 3),
+        onTimeout: () => fail('the connected client is not disconnected'));
     client.destroy();
   });
 
@@ -354,8 +362,11 @@ void main() {
           }
 
           expect(uncaught, isEmpty, reason: 'the atDirectory keeps running');
-          final _Answer answer =
-              await _http(await _tls(httpsPort, null), 'GET /@alice');
+          // NOTE the port whose connection failed is the one probed; the TLS
+          // port answers HTTP once http/1.1 is negotiated.
+          final _Answer answer = await _http(
+              await _tls(target, target == tlsPort ? ['http/1.1'] : null),
+              'GET /@alice');
           expect(answer.status, 200, reason: answer.raw);
         });
       }
