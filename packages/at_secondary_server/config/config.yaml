@@ -226,5 +226,5 @@ otp:
   # 60-minute OTPs when issuing keys, so a lower value refuses them.
   maxTtlInMinutes: 60
   # The most OTPs that may be live at once; otp:get is refused beyond it.
-  # Default value is 10.
+  # Default value is 10. A value of 0 or less means the default.
   maxLive: 10

@@ -11,8 +11,9 @@
   cut to a year.
 
 - ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
-  OTPs are live (env `maxLiveOtps`, default 10). The count is for the atSign
-  as a whole, whichever enrollment issued them, and the SPP is not counted.
+  OTPs are live (env `maxLiveOtps`, default 10; 0 or less means the default).
+  The count is for the atSign as a whole, whichever enrollment issued them,
+  and the SPP is not counted.
   An OTP issued with `ttl:0` before this release never expires, so it counts
   until a full-privilege connection finds it with `otp:list` and deletes it
   with `otp:delete`.
