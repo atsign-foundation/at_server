@@ -26,7 +26,6 @@ void main() async {
 
   verbTestsSetUpLogging();
 
-  var storageDir = '${Directory.current.path}/test/hive';
   late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   setUp(() async {
     mockKeyStore = MockAtKeyValueStore();
@@ -477,8 +476,8 @@ Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
 
 Future<void> tearDownFunc() async {
   await _fromTestFactory.close();
-  var isExists = await Directory('test/hive').exists();
+  var isExists = await Directory(storageDir).exists();
   if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
+    Directory(storageDir).deleteSync(recursive: true);
   }
 }

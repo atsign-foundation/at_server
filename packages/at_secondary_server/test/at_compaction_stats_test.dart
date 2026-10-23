@@ -14,7 +14,9 @@ import 'package:test/test.dart';
 /// `at_persistence_secondary_server/test/at_compaction_test.dart`.
 
 const _atSign = '@alice';
-final _storageDir = '${Directory.current.path}/test/hive_compaction_stats';
+final _storageDir = Directory.systemTemp
+    .createTempSync('at_secondary_compaction_stats_test_')
+    .path;
 
 late HiveAtPersistenceFactory _factory;
 late HiveAtPersistenceBundle _bundle;

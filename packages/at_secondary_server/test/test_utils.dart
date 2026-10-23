@@ -215,7 +215,8 @@ Function() get socketOnDoneFn => _currentSocketListener.onDone;
 Function(Exception e, StackTrace st) get socketOnErrorFn =>
     _currentSocketListener.onError;
 
-String storageDir = '${Directory.current.path}/unit_test_storage';
+String storageDir =
+    Directory.systemTemp.createTempSync('at_secondary_unit_test_').path;
 AtCommitLog atCommitLog = MockAtCommitLog();
 AtAccessLog atAccessLog = MockAtAccessLog();
 
