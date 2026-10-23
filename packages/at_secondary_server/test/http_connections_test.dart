@@ -320,6 +320,20 @@ void main() {
     expect(answer.status, 500, reason: answer.raw);
   });
 
+  test(
+      'Given the keystore fails reading the record, when a client sends GET '
+      '/hello, then it is answered 500', () async {
+    final _Store store = _Store();
+    when(() => store.get(any())).thenThrow(DataStoreException('injected'));
+    AtSecondaryServerImpl.getInstance().keyValueStore = store;
+    await serve(httpMaxLimit: AtSecondaryConfig.http_max_limit);
+    final _Client client = await connect('http/1.1');
+
+    final _Answer answer = await client.get('/hello');
+
+    expect(answer.status, 500, reason: answer.raw);
+  });
+
   test('An error the HTTP server raises does not stop the atServer', () async {
     await serve(httpMaxLimit: AtSecondaryConfig.http_max_limit);
     final List<LogRecord> logged = [];

@@ -9,7 +9,8 @@
   answer is not fully sent within 30 seconds of its request is closed then.
 
 - fix: an HTTP `GET` whose path or query does not decode is answered 400, and
-  one that fails once its record has been read is answered 500.
+  one the atServer fails to answer, an unreadable record among them, is
+  answered 500.
 
 - fix: an error the HTTP server raises is logged.
 

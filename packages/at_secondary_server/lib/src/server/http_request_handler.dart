@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart' show KeyNotFoundException;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -70,7 +71,7 @@ class AtServerHttpRequestHandler {
         try {
           await enrollmentManager.refuseLapsedApprovedData(lookupKey);
           atData = (await keyValueStore.get(lookupKey))!;
-        } catch (error) {
+        } on KeyNotFoundException {
           request.response.statusCode = HttpStatus.notFound;
           request.response.write('404 Not Found');
           await request.response.close();
