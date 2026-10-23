@@ -48,39 +48,42 @@ class BatchVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var batchCommand = verbParams['json']!;
     var batchJson = jsonDecode(batchCommand);
-    //handle invalid json
+    if (batchJson is! List) {
+      throw InvalidSyntaxException('a batch is a list of entries');
+    }
     var batchResponses = <BatchResponse>[];
     for (var value in batchJson) {
-      var batchId = value['id'];
-      var command = value['command'];
-
-      var verbHandler = verbHandlerManager.getVerbHandler(command);
-
-      if (verbHandler is AbstractVerbHandler) {
-        try {
-          if (verbHandler is CramVerbHandler ||
-              verbHandler is PkamVerbHandler) {
-            logger.warning('Refusing entry $batchId of a batch on session '
-                '${atConnection.metaData.sessionID}: $authenticationRefusal');
-            throw UnAuthorizedException(authenticationRefusal);
-          }
-          var response =
-              await verbHandler.processInternal(command, atConnection);
+      final Object? id = value is Map ? value['id'] : null;
+      final int? batchId = id is int ? id : null;
+      try {
+        final Object? command = value is Map ? value['command'] : null;
+        if ((id != null && batchId == null) || command is! String) {
+          throw InvalidSyntaxException('invalid batch entry');
+        }
+        var verbHandler = verbHandlerManager.getVerbHandler(command);
+        if (verbHandler is! AbstractVerbHandler) {
+          throw InvalidSyntaxException('invalid command');
+        }
+        if (verbHandler is CramVerbHandler || verbHandler is PkamVerbHandler) {
+          logger.warning('Refusing entry $batchId of a batch on session '
+              '${atConnection.metaData.sessionID}: $authenticationRefusal');
+          throw UnAuthorizedException(authenticationRefusal);
+        }
+        var response = await verbHandler.processInternal(command, atConnection);
+        var batchResponse = BatchResponse(batchId, response);
+        batchResponses.add(batchResponse);
+      } on Exception catch (e) {
+        var response = Response();
+        response.errorCode =
+            GlobalExceptionHandler.getInstance().getErrorCode(e);
+        if (response.errorCode != null) {
+          response.errorMessage = GlobalExceptionHandler.getInstance()
+              .getErrorDescription(response.errorCode);
           var batchResponse = BatchResponse(batchId, response);
           batchResponses.add(batchResponse);
-        } on Exception catch (e) {
-          var response = Response();
-          response.errorCode =
-              GlobalExceptionHandler.getInstance().getErrorCode(e);
-          if (response.errorCode != null) {
-            response.errorMessage = GlobalExceptionHandler.getInstance()
-                .getErrorDescription(response.errorCode);
-            var batchResponse = BatchResponse(batchId, response);
-            batchResponses.add(batchResponse);
-          } else {
-            logger.severe(
-                'No error code found. Exception executing command in a batch. ${e.toString()}');
-          }
+        } else {
+          logger.severe(
+              'No error code found. Exception executing command in a batch. ${e.toString()}');
         }
       }
     }

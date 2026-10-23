@@ -1,13 +1,14 @@
 # The atServer HTTP interface
 
 An atServer answers HTTPS `GET` requests for its atSign's `public:` records.
-It serves them on the same host and port as the atProtocol, and decides which
-of the two a connection speaks during the TLS handshake.
+It serves them on the same host and port as the Atsign Protocol, and decides
+which of the two a connection speaks during the TLS handshake.
 
 ## Reaching it
 
-Find the atServer's host and port the same way an atProtocol client does: send
-the atSign, without its `@`, to the atDirectory on its atProtocol port. It
+Find the atServer's host and port the same way an Atsign Protocol client does:
+send the atSign, without its `@`, to the atDirectory on its Atsign Protocol
+port. It
 answers `@<host>:<port>`, and `@exit`, sent on its own, closes the connection.
 
 ```
@@ -19,9 +20,10 @@ answers `@<host>:<port>`, and `@exit`, sent on its own, closes the connection.
 
 The atServer offers two ALPN protocols, `atProtocol/1.0` and `http/1.1`. A
 connection that negotiates `http/1.1` is served HTTP. A connection that
-negotiates `atProtocol/1.0`, or no protocol at all, is served the atProtocol.
+negotiates `atProtocol/1.0`, or no protocol at all, is served the Atsign
+Protocol.
 
-An HTTP client that offers no ALPN therefore reaches the atProtocol. The
+An HTTP client that offers no ALPN therefore reaches the Atsign Protocol. The
 atServer sends its `@` prompt, answers the request line with
 
 ```
@@ -37,15 +39,26 @@ default security context, so give it one that does, as `newHttpClient()` in
 [`http_test.dart`](../tests/at_functional_test/test/http_test.dart) does:
 `SecurityContext(withTrustedRoots: true)..setAlpnProtocols(['http/1.1'], false)`.
 Only that client's connections use the context, so it does not change what
-other atProtocol connections in the same process negotiate.
+other Atsign Protocol connections in the same process negotiate.
 
 ### Through the atDirectory
 
-Where the atDirectory's HTTPS server is enabled (`httpsEnabled`, on
-`httpsPort`),
-`GET https://<atDirectory>/<atSign>/<path>?<query>` answers `302` with a
-`Location` on the atServer, keeping the path and query. Without a path it
-answers the atServer's `<host>:<port>`.
+The atDirectory answers HTTP the same way an atServer does: on its Atsign
+Protocol port to a connection that negotiates `http/1.1` by ALPN, and on its
+HTTPS port too where that server is enabled (`httpsEnabled`, on `httpsPort`).
+`GET https://<atDirectory>/@<atSign>/<path>?<query>` answers `302` with a
+`Location` on the atServer that keeps the atSign, path and query,
+`https://<host>:<port>/@<atSign>/<path>?<query>`, which an atServer from
+3.11.1 on reads as `/<path>`, since it removes a leading `@<atSign>/` (see
+[which key a path names](#which-key-a-path-names)). Without a path it answers
+the atServer's `<host>:<port>`. An atSign it does not hold answers `404`, and a
+method other than `GET` answers `401`.
+
+Each HTTP connection to the atDirectory carries one request: the answer ends
+with `Connection: close`. Every answer carries
+`Access-Control-Allow-Origin: *`, so a web page on any origin can read it, and
+once its TLS handshake has completed, a connection that sends no complete
+request is closed within 10 seconds.
 
 ## Which key a path names
 

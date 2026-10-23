@@ -1,3 +1,16 @@
+# 3.20.0
+- feat: an atServer whose telemetry is on tells its collector what becomes of
+  notifications. For one it sends to another atSign: `notification.delivered`
+  when the recipient's atServer accepts it, `notification.expired` when it
+  expires before it is delivered, and `notification.error` when the recipient
+  atSign does not exist, each naming the recipient (`atsign.notification.to`).
+  `notification.received` when another atServer delivers one, and
+  `notification.pushed` each time it writes one to a `monitor` connection,
+  naming the sender (`atsign.notification.from`) and, for `pushed`, the
+  connection's enrollment. Every event carries the notification's id
+  (`atsign.notification.ids`), which is the same on the sending and the
+  receiving atServer.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
@@ -19,17 +32,16 @@
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 
-- feat: an atServer whose telemetry is on tells its collector what becomes of
-  notifications. For one it sends to another atSign: `notification.delivered`
-  when the recipient's atServer accepts it, `notification.expired` when it
-  expires before it is delivered, and `notification.error` when the recipient
-  atSign does not exist, each naming the recipient (`atsign.notification.to`).
-  `notification.received` when another atServer delivers one, and
-  `notification.pushed` each time it writes one to a `monitor` connection,
-  naming the sender (`atsign.notification.from`) and, for `pushed`, the
-  connection's enrollment. Every event carries the notification's id
-  (`atsign.notification.ids`), which is the same on the sending and the
-  receiving atServer.
+- fix: consolidate management of reserved namespaces.
+
+- fix: `batch:` answers an entry it has no verb for, or that is not a command,
+  with AT0003, and runs the rest of the batch.
+
+- fix: `update:json` applies `update`'s owner rule to the atKey it carries.
+
+- fix: the stream verb is removed: `stream:` commands, batched ones included,
+  are refused with AT0003, and a `stream:init` notification from an older
+  atServer is dropped.
 
 - build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
 

@@ -15,7 +15,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.d
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
@@ -621,7 +620,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       try {
         connection = inboundConnectionManager.createWebSocketConnection(ws,
             sessionId: SecondaryUtil.makeSessionId());
-        connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+        connection.acceptRequests(_executeVerbCallBack);
         await connection.write('@');
       } on InboundConnectionLimitException catch (e) {
         await GlobalExceptionHandler.getInstance()
@@ -692,7 +691,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           connection = inboundConnectionManager.createSocketConnection(
               clientSocket,
               sessionId: SecondaryUtil.makeSessionId());
-          connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+          connection.acceptRequests(_executeVerbCallBack);
           await connection.write('@');
         } on InboundConnectionLimitException catch (e) {
           await GlobalExceptionHandler.getInstance()
@@ -794,22 +793,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           InternalServerError(e.toString()),
           stackTrace: st,
           atConnection: connection);
-    }
-  }
-
-  void _streamCallBack(List<int> data, InboundConnection sender) {
-    var streamId = sender.metaData.streamId;
-    logger.finer(logger.getAtConnectionLogMessage(
-        sender.metaData, 'stream id:$streamId'));
-    if (_isPaused) {
-      GlobalExceptionHandler.getInstance().handle(
-          ServerIsPausedException(
-              'Server is temporarily paused and should be available again shortly'),
-          atConnection: sender);
-      return;
-    }
-    if (streamId != null) {
-      StreamManager.receiverSocketMap[streamId]!.underlying.add(data);
     }
   }
 

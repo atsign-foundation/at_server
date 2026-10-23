@@ -5,8 +5,10 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -111,6 +113,23 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     _refuseForeignAtSigns(verbParams,
         currentAtSign: currentAtSign,
         fromAtSign: polConnectionMetadata.fromAtSign!);
+    final String atKey = verbParams[AtConstants.atKey]!;
+    if (!isWellFormedAtKey(atKey)) {
+      logger.warning('Dropping notification ${verbParams[AtConstants.id]}'
+          ' from ${polConnectionMetadata.fromAtSign!.toAtsign()}: its key is'
+          ' not a well-formed atKey');
+      response.data = 'data:success';
+      return;
+    }
+    // NOTE another atSign's notification never lands in a reserved namespace.
+    final String? reserved = reservedNamespaceOf(atKey);
+    if (reserved != null) {
+      logger.warning('Dropping notification ${verbParams[AtConstants.id]}'
+          ' from ${polConnectionMetadata.fromAtSign!.toAtsign()}: it uses'
+          ' reserved namespace ${sanitiseForLogging(reserved)}');
+      response.data = 'data:success';
+      return;
+    }
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
@@ -279,6 +298,18 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     // NOTE a key named without its owner is this atSign's.
     verbParams[AtConstants.atSign] ??= currentAtSign;
+    final String atKey = verbParams[AtConstants.atKey]!;
+    if (!isWellFormedAtKey(atKey)) {
+      throw InvalidSyntaxException(
+          'Notification key is not a well-formed atKey');
+    }
+    final String? reserved = reservedNamespaceOf(atKey);
+    if (reserved != null) {
+      final sharedWith = verbParams[AtConstants.forAtSign]?.toAtsign();
+      throw UnAuthorizedException('Notification'
+          '${sharedWith == null ? '' : ' to $sharedWith'} may not use'
+          ' reserved namespace ${sanitiseForLogging(reserved)}');
+    }
     var keyToNotify = _getFullFormedAtKey(verbParams);
     // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException

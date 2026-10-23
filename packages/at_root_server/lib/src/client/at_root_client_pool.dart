@@ -32,7 +32,7 @@ class RootClientPool {
   ///  Return type - bool
   ///  close all the client sockets and remove from _clients list.
   bool closeAll() {
-    for (final client in _clients) {
+    for (final client in List.of(_clients)) {
       client.removeClient(client);
     }
     return true;

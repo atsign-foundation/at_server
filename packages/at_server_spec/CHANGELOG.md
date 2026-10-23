@@ -1,4 +1,9 @@
-## 5.3.0
+## 6.0.0
+- ⚠️ BREAKING: the stream verb is removed, with `StreamVerb` and
+  `AtConnectionMetaData.isStream` and `streamId`; `acceptRequests` no longer
+  takes a stream callback.
+- fix: the `Batch` verb's `usage()` example spells each entry's `command` key
+  correctly.
 - fix: the `Otp` verb's `usage()` lists `otp:get`, `otp:put`, `otp:list` and
   `otp:delete`; it named `otp:validate`, which does not exist.
 - docs: every form of `info`, `info:brief` included, lists `features`. The
