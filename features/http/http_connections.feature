@@ -6,13 +6,13 @@ Feature: The atServer bounds the HTTP connections it holds
   connection may carry several requests. Once its TLS handshake has
   completed, a connection with no request in progress is closed within 10
   seconds, by a 5-second idle timeout that is checked every 5 seconds. At
-  most 50 HTTP connections are held at once, a bound set by
-  connection.http_max_limit; a connection beyond it is closed without an
-  answer, and the Atsign Protocol connections, bounded by
-  connection.inbound_max_limit, are not affected. A connection upgraded to
-  a WebSocket at /ws leaves those bounds and is held as an Atsign Protocol
-  connection. An error the HTTP server raises closes at most the connection
-  it concerns, and never stops the atServer.
+  most 50 HTTP connections are held at once by default, a bound that
+  connection.http_max_limit sets at startup, and 0 or less holds none; a
+  connection beyond it is closed without an answer, and the Atsign Protocol
+  connections, bounded by connection.inbound_max_limit, are not affected. A
+  connection upgraded to a WebSocket at /ws leaves those bounds and is held
+  as an Atsign Protocol connection. An error the HTTP server raises closes
+  at most the connection it concerns, and never stops the atServer.
 
   Races: each connection's protocol is fixed by its own TLS handshake, and
   the count of HTTP connections changes only on the atServer's event loop,
@@ -20,9 +20,10 @@ Feature: The atServer bounds the HTTP connections it holds
   Replay: HTTP serves only public records and authenticates nothing, so a
   resent request gets the same answer.
   DoS: once its TLS handshake has completed, an idle or incomplete HTTP
-  connection is held for at most 10 seconds, and at most 50 are held at
-  once; a URI over 1000 characters, or one that does not decode, is answered
-  400. As today, a TLS handshake that never starts is not timed out.
+  connection is held for at most 10 seconds, and at most
+  connection.http_max_limit (50 by default) are held at once; a URI over
+  1000 characters, or one that does not decode, is answered 400. As today,
+  a TLS handshake that never starts is not timed out.
   Forgery and impersonation: unchanged. TLS authenticates the atServer, and
   HTTP authenticates no client and serves only public records.
 
@@ -48,6 +49,12 @@ Feature: The atServer bounds the HTTP connections it holds
     When another client negotiates http/1.1
     Then the atServer closes that connection without answering it
     And the connections it already holds are still answered
+    And a client that negotiates atProtocol/1.0 is still served
+
+  Scenario: An atServer whose http_max_limit is 0 holds no HTTP connection
+    Given @alice's atServer is configured with connection.http_max_limit 0
+    When a client negotiates http/1.1
+    Then the atServer closes that connection without answering it
     And a client that negotiates atProtocol/1.0 is still served
 
   Scenario: A WebSocket at /ws is not closed by the HTTP idle timeout
