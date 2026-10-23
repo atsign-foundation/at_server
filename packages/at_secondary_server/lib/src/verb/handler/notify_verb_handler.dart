@@ -154,8 +154,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
 
     // Store and send the notification
-    await notifMgr.notify(n, ephemeral: isEphemeral(verbParams));
-    AtSecondaryServerImpl.getInstance().telemetry.notificationReceived(n);
+    await notifMgr.notify(n,
+        ephemeral: isEphemeral(verbParams), reportReceived: true);
 
     // Everything after here is to do with auto-caching based on notifications
     // First of all, caching is only relevant when ttr is set

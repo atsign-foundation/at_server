@@ -3,6 +3,7 @@ import 'dart:math' show min;
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
@@ -52,6 +53,12 @@ class NotificationManager {
   final Set<String> _explicitExpiry = {};
 
   Timer? _ephemeralSweep;
+
+  @visibleForTesting
+  static Duration livePushTimeout = const Duration(seconds: 10);
+
+  final Map<String, List<Future<InboundConnectionMetadata?>>> _livePushes =
+      <String, List<Future<InboundConnectionMetadata?>>>{};
 
   NotificationManager(
       this.atSign, this._notifStore, this._notifyConnectionsPool,
@@ -135,7 +142,9 @@ class NotificationManager {
   /// [ephemeral], and calls [enqueue]. [explicitExpiry] marks an expiry the
   /// client set, which is forwarded as given to atServers that take it.
   Future<void> notify(AtNotification n,
-      {bool ephemeral = false, bool explicitExpiry = false}) async {
+      {bool ephemeral = false,
+      bool explicitExpiry = false,
+      bool reportReceived = false}) async {
     if (closed) {
       throw StateError('Closed');
     }
@@ -160,8 +169,20 @@ class NotificationManager {
       _explicitExpiry.add(n.id!);
     }
 
+    if (reportReceived) {
+      _reportReceived(n);
+    }
+
     // Queue it for delivery
     enqueue(n);
+  }
+
+  void recordLivePush(
+    AtNotification n,
+    Future<InboundConnectionMetadata?> push,
+  ) {
+    _livePushes[n.id]
+        ?.add(push.timeout(livePushTimeout, onTimeout: () => null));
   }
 
   // NOTE no notification for another atSign, which is what a sent one is,
@@ -486,6 +507,20 @@ class NotificationManager {
     // prepending id to the notify command.
     commandBody = 'id:${atNotification.id!}:$commandBody';
     return commandBody;
+  }
+
+  void _reportReceived(AtNotification n) {
+    final AtServerTelemetry? telemetry = this.telemetry;
+    final String? id = n.id;
+    if (telemetry == null || !telemetry.isEnabled || id == null) {
+      return;
+    }
+    _livePushes[id] = <Future<InboundConnectionMetadata?>>[];
+    Timer.run(() async {
+      final List<InboundConnectionMetadata?> pushes = await Future.wait(
+          _livePushes.remove(id) ?? <Future<InboundConnectionMetadata?>>[]);
+      telemetry.notificationReceived(n, pushedTo: pushes.nonNulls.toList());
+    });
   }
 }
 

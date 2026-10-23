@@ -184,65 +184,75 @@ void main() {
       await verbTestsTearDown();
     });
 
+    Future<DummyInboundConnection> monitor({
+      AuthType authType = AuthType.cram,
+      String? enrollmentId,
+      String? regex,
+    }) async {
+      final DummyInboundConnection connection = DummyInboundConnection();
+      connection.metadata
+        ..isAuthenticated = true
+        ..authType = authType
+        ..enrollmentId = enrollmentId
+        ..clientId = 'client-${enrollmentId ?? 'cram'}'
+        ..appName = 'chat'
+        ..appVersion = '1.2.3'
+        ..platform = 'android';
+      await MonitorVerbHandler(keyValueStore, notificationManager).processVerb(
+          Response(),
+          HashMap<String, String?>.of(<String, String?>{
+            if (regex != null) AtConstants.regex: regex,
+          }),
+          connection);
+      return connection;
+    }
+
     test('says the notification was received, once', () async {
       await deliver('n-2');
       await deliver('n-2');
+      await pumpEventQueue();
 
       expect(names(), <String>[atServerNotificationReceivedEventName]);
       expect(notificationEvents().single.attributes, <String, Object?>{
         notificationFromAttribute: '@bob',
+        notificationPushCountAttribute: 0,
         AtTelemetryAttributes.notificationIds: <String>['n-2'],
       });
     });
 
-    test('says a monitor was pushed the notification', () async {
-      final DummyInboundConnection monitorConnection = DummyInboundConnection();
-      monitorConnection.metadata
-        ..isAuthenticated = true
-        ..authType = AuthType.cram;
-      await MonitorVerbHandler(keyValueStore, notificationManager).processVerb(
-          Response(), HashMap<String, String?>(), monitorConnection);
+    test('lists the monitor connections it was pushed to', () async {
+      final String phone = await createAndPersistAnEnrollment(
+          'chat', 'phone', <String, String>{'wavi': 'rw'});
+      final String other = await createAndPersistAnEnrollment(
+          'chat', 'tablet', <String, String>{'other': 'rw'});
+      final DummyInboundConnection pushed =
+          await monitor(authType: AuthType.apkam, enrollmentId: phone);
+      final DummyInboundConnection unauthorized =
+          await monitor(authType: AuthType.apkam, enrollmentId: other);
+      final DummyInboundConnection unmatched = await monitor(regex: 'nomatch');
 
       await deliver('n-3');
-      await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue();
 
-      expect(names(), <String>[
-        atServerNotificationReceivedEventName,
-        atServerNotificationPushedEventName,
-      ]);
-      expect(notificationEvents().last.attributes, <String, Object?>{
-        notificationFromAttribute: '@bob',
-        AtTelemetryAttributes.notificationIds: <String>['n-3'],
-      });
-      expect(monitorConnection.lastWrittenData, contains('n-3'));
-    });
-  });
-
-  group('notificationPushed', () {
-    test('names the enrollment of the monitor it was pushed to', () async {
-      final AtServerTelemetry telemetry =
-          AtServerTelemetry(heartbeatInterval: null)
-            ..enable(
-              exporter: _RecordingExporter(records),
-              serverId: '$alice',
-              bootId: 'boot-3',
-            );
-      addTearDown(telemetry.shutdown);
-      records.clear();
-
-      telemetry.notificationPushed(
-        (AtNotificationBuilder()
-              ..id = 'n-4'
-              ..fromAtSign = bob)
-            .build(),
-        enrollmentId: 'enrollment-1',
-      );
-
+      expect(names(), <String>[atServerNotificationReceivedEventName]);
       expect(notificationEvents().single.attributes, <String, Object?>{
         notificationFromAttribute: '@bob',
-        AtTelemetryAttributes.enrollmentId: 'enrollment-1',
-        AtTelemetryAttributes.notificationIds: <String>['n-4'],
+        notificationPushCountAttribute: 1,
+        notificationPushedToAttribute: <Map<String, Object?>>[
+          <String, Object?>{
+            AtTelemetryAttributes.enrollmentId: phone,
+            connectionAuthTypeAttribute: 'apkam',
+            AtTelemetryAttributes.clientId: 'client-$phone',
+            clientAppNameAttribute: 'chat',
+            clientAppVersionAttribute: '1.2.3',
+            clientPlatformAttribute: 'android',
+          },
+        ],
+        AtTelemetryAttributes.notificationIds: <String>['n-3'],
       });
+      expect(pushed.lastWrittenData, contains('n-3'));
+      expect(unauthorized.lastWrittenData ?? '', isNot(contains('n-3')));
+      expect(unmatched.lastWrittenData ?? '', isNot(contains('n-3')));
     });
   });
 

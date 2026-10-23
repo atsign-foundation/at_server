@@ -16,9 +16,13 @@ const String atServerNotificationErrorEventName =
     '$atServerTelemetryEventPrefix.notification.error';
 const String atServerNotificationReceivedEventName =
     '$atServerTelemetryEventPrefix.notification.received';
-const String atServerNotificationPushedEventName =
-    '$atServerTelemetryEventPrefix.notification.pushed';
 
 // attributes
 const String notificationFromAttribute = 'atsign.notification.from';
 const String notificationToAttribute = 'atsign.notification.to';
+const String notificationPushCountAttribute = 'atsign.notification.push_count';
+const String notificationPushedToAttribute = 'atsign.notification.pushed_to';
+const String connectionAuthTypeAttribute = 'atsign.connection.auth_type';
+const String clientAppNameAttribute = 'atsign.client.app_name';
+const String clientAppVersionAttribute = 'atsign.client.app_version';
+const String clientPlatformAttribute = 'atsign.client.platform';

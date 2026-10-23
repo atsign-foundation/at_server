@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -144,29 +146,23 @@ final class AtServerTelemetry {
     );
   }
 
-  void notificationReceived(AtNotification notification) {
+  void notificationReceived(
+    AtNotification notification, {
+    List<InboundConnectionMetadata> pushedTo =
+        const <InboundConnectionMetadata>[],
+  }) {
     _emitNotificationEvent(
       atServerNotificationReceivedEventName,
       notification,
       <String, Object?>{
         if (notification.fromAtSign case final String fromAtSign)
           notificationFromAttribute: fromAtSign,
-      },
-    );
-  }
-
-  void notificationPushed(
-    AtNotification notification, {
-    String? enrollmentId,
-  }) {
-    _emitNotificationEvent(
-      atServerNotificationPushedEventName,
-      notification,
-      <String, Object?>{
-        if (notification.fromAtSign case final String fromAtSign)
-          notificationFromAttribute: fromAtSign,
-        if (enrollmentId != null)
-          AtTelemetryAttributes.enrollmentId: enrollmentId,
+        notificationPushCountAttribute: pushedTo.length,
+        if (pushedTo.isNotEmpty)
+          notificationPushedToAttribute: <Map<String, Object?>>[
+            for (final InboundConnectionMetadata connection in pushedTo)
+              _pushTargetOf(connection),
+          ],
       },
     );
   }
@@ -212,5 +208,22 @@ final class AtServerTelemetry {
           AtTelemetryAttributes.notificationIds: <String>[id],
       },
     );
+  }
+
+  Map<String, Object?> _pushTargetOf(InboundConnectionMetadata connection) {
+    return <String, Object?>{
+      if (connection.enrollmentId case final String enrollmentId)
+        AtTelemetryAttributes.enrollmentId: enrollmentId,
+      if (connection.authType case final AuthType authType)
+        connectionAuthTypeAttribute: authType.name,
+      if (connection.clientId case final String clientId)
+        AtTelemetryAttributes.clientId: clientId,
+      if (connection.appName case final String appName)
+        clientAppNameAttribute: appName,
+      if (connection.appVersion case final String appVersion)
+        clientAppVersionAttribute: appVersion,
+      if (connection.platform case final String platform)
+        clientPlatformAttribute: platform,
+    };
   }
 }

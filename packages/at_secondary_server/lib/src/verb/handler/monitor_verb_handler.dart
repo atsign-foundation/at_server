@@ -6,7 +6,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -61,8 +60,12 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
     final selfNotificationsParam =
         verbParams[AtConstants.monitorSelfNotifications];
-    mc.received = notifMgr.received.stream
-        .listen((n) => processAtNotification(atConnection, n));
+    mc.received = notifMgr.received.stream.listen((n) =>
+        notifMgr.recordLivePush(
+            n,
+            processAtNotification(atConnection, n).then((bool pushed) => pushed
+                ? atConnection.metaData as InboundConnectionMetadata
+                : null)));
     if (selfNotificationsParam == AtConstants.monitorSelfNotifications) {
       mc.self = notifMgr.self.stream
           .listen((n) => processAtNotification(atConnection, n));
@@ -116,13 +119,13 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   /// - Checks if connection is authorized for this notif's key's namespace
   /// - Checks if the notif's key matches the regex
   /// - Writes the notification to the connection
-  Future<void> _sendNotification(
+  Future<bool> _sendNotification(
       AtConnection atConnection, AtNotification notification) async {
     if (notification.isExpired()) {
       logger.warning('Not delivering notification ${notification.id}'
           ' (${notification.notification}) to session'
           ' ${atConnection.metaData.sessionID} — it has expired');
-      return;
+      return false;
     }
     if (!(await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
         atKey: notification.notification))) {
@@ -134,13 +137,13 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           ' ${notification.notification} to enrollment'
           ' ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
           ' — not authorized for that key');
-      return;
+      return false;
     }
 
     if (!configMap.containsKey(atConnection)) {
       logger.severe('_sendNotification: no connection config for connection'
           ' ${atConnection.metaData.toString()}');
-      return;
+      return false;
     }
 
     MonitorConfig mc = configMap[atConnection]!;
@@ -153,10 +156,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         }
         await atConnection.write('notification:'
             ' ${jsonEncode(notification.mapForClient)}\n');
-        AtSecondaryServerImpl.getInstance().telemetry.notificationPushed(
-            notification,
-            enrollmentId: (atConnection.metaData as InboundConnectionMetadata)
-                .enrollmentId);
+        return true;
       } else {
         if (logger.isLoggable('finest')) {
           logger.finest('${notification.notification} vs ${mc.regex} : false');
@@ -166,6 +166,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       logger.severe('$e while delivering ${notification.notification}'
           ' to client ${atConnection.metaData.sessionID}');
     }
+    return false;
   }
 
   /// [processVerb] above registers this callback method with the notification
@@ -173,7 +174,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   /// manager when a notification needs to be handled. Here in the Monitor, we
   /// transform the data into format which AtClients should understand, then
   /// call [_checkAndSend]
-  Future<void> processAtNotification(
+  Future<bool> processAtNotification(
       AtConnection atConnection, AtNotification atNotification) async {
     try {
       // If connection is invalid, cancel subscriptions and remove the config
@@ -193,16 +194,17 @@ class MonitorVerbHandler extends AbstractVerbHandler {
             mc.self = null;
           }
           configMap.remove(atConnection);
-          return;
+          return false;
         } else {
           logger.info(
               'Connection sessionID ${atConnection.metaData.sessionID} invalid, and no MonitorConfig available');
         }
       }
 
-      await _sendNotification(atConnection, atNotification);
+      return await _sendNotification(atConnection, atNotification);
     } catch (e, st) {
       logger.severe('Unexpected exception $e in processAtNotification\n$st');
+      return false;
     }
   }
 }

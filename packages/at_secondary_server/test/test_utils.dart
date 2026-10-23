@@ -375,7 +375,8 @@ verbTestsSetUp(
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
       notifStore,
-      NotifyConnectionsPool(addressFinder, outboundConnectionFactory));
+      NotifyConnectionsPool(addressFinder, outboundConnectionFactory),
+      telemetry: atServer.telemetry);
   registerFallbackValue(AtNotificationBuilder().build());
 
   cacheManager = atServer.cacheManager = AtCacheManager(
