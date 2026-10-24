@@ -96,7 +96,10 @@ class _MonitorFeed implements MonitorSink {
   /// by pushes queued during the replay.
   final Set<(String?, String?)> _replayed = <(String?, String?)>{};
 
-  late Future<void> _tail = _opened.future;
+  final Queue<_Queued> _queued = Queue<_Queued>();
+  int _queuedDuringReplay = 0;
+  bool _draining = false;
+  Completer<void>? _idle;
   int _droppedOnClose = 0;
   bool _closed = false;
 
@@ -104,18 +107,29 @@ class _MonitorFeed implements MonitorSink {
   final InboundConnection connection;
 
   @override
-  Future<void> get idle => _tail;
+  Future<void> get idle {
+    if (_isIdle) {
+      return Future<void>.value();
+    }
+    return (_idle ??= Completer<void>()).future;
+  }
 
   @override
-  Future<LivePush?> push(AtNotification n) {
-    if (_closed) {
-      return Future<LivePush?>.value(null);
+  void push(AtNotification n, {LivePushReport? report}) {
+    if (_closed || !_takesType(n)) {
+      return;
     }
     final bool duringReplay = !_opened.isCompleted;
-    final Future<LivePush?> written =
-        _tail.then((_) => _deliver(n, duringReplay));
-    _tail = written;
-    return written;
+    if (duringReplay) {
+      _queuedDuringReplay++;
+    }
+    _queued.add((
+      n: n,
+      duringReplay: duringReplay,
+      report: report,
+      slot: report?.expect() ?? -1,
+    ));
+    _drainSoon();
   }
 
   /// Whether `monitor:<sinceMillis>` replays [n] to this feed. Replay
@@ -145,11 +159,7 @@ class _MonitorFeed implements MonitorSink {
         }
       }
     } finally {
-      final Future<void> queuedDuringReplay = _tail;
-      if (!_opened.isCompleted) {
-        _opened.complete();
-      }
-      unawaited(queuedDuringReplay.then((_) => _replayed.clear()));
+      _release();
     }
   }
 
@@ -159,17 +169,86 @@ class _MonitorFeed implements MonitorSink {
       return;
     }
     _closed = true;
-    final Future<void> queuedBeforeClose = _tail;
-    if (!_opened.isCompleted) {
-      _opened.complete();
+    _release();
+  }
+
+  /// Releases the live pushes queued behind the replay, once.
+  void _release() {
+    if (_opened.isCompleted) {
+      return;
     }
-    unawaited(queuedBeforeClose.then((_) {
-      if (_droppedOnClose > 0) {
+    _opened.complete();
+    if (_queuedDuringReplay == 0) {
+      _replayed.clear();
+    }
+    _drainSoon();
+    _settleIdle();
+  }
+
+  bool get _isIdle => _opened.isCompleted && !_draining && _queued.isEmpty;
+
+  void _settleIdle() {
+    if (!_isIdle) {
+      return;
+    }
+    final Completer<void>? idle = _idle;
+    _idle = null;
+    idle?.complete();
+  }
+
+  // NOTE drained from a microtask, so the regex runs in this feed's own turn
+  // rather than inside the call that queued the notification.
+  void _drainSoon() {
+    if (_draining || !_opened.isCompleted || _queued.isEmpty) {
+      return;
+    }
+    _draining = true;
+    scheduleMicrotask(() => unawaited(_drain()));
+  }
+
+  /// Settles the queued notifications one at a time, in order.
+  Future<void> _drain() async {
+    try {
+      while (_queued.isNotEmpty) {
+        final _Queued q = _queued.removeFirst();
+        LivePush? written;
+        try {
+          if (_wanted(q)) {
+            written = await _write(q.n);
+          }
+        } catch (e, st) {
+          _handler.logger.severe('Unexpected exception $e while pushing'
+              ' notification ${q.n.id} to ${_describeConnection()}\n$st');
+        }
+        if (q.duringReplay && --_queuedDuringReplay == 0) {
+          _replayed.clear();
+        }
+        q.report?.settle(q.slot, written);
+      }
+    } finally {
+      _draining = false;
+      if (_closed && _droppedOnClose > 0) {
         _handler.logger.warning('Dropped $_droppedOnClose queued'
             ' notification${_droppedOnClose == 1 ? '' : 's'} for'
             ' ${_describeConnection()}: its monitor feed has ended');
+        _droppedOnClose = 0;
       }
-    }));
+      _settleIdle();
+    }
+  }
+
+  /// Whether [q] is one this feed writes, counting it as dropped instead
+  /// once the feed has ended.
+  bool _wanted(_Queued q) {
+    if (!_takes(q.n) ||
+        (q.duringReplay && _replayed.contains((q.n.fromAtSign, q.n.id)))) {
+      return false;
+    }
+    if (_closed) {
+      _droppedOnClose++;
+      return false;
+    }
+    return true;
   }
 
   bool _takesType(AtNotification n) =>
@@ -180,24 +259,6 @@ class _MonitorFeed implements MonitorSink {
       _takesType(n) &&
       ((n.notification?.contains(_regex) ?? false) ||
           (n.fromAtSign?.replaceAll('@', '').contains(_regex) ?? false));
-
-  Future<LivePush?> _deliver(AtNotification n, bool duringReplay) async {
-    try {
-      if (!_takes(n) ||
-          (duringReplay && _replayed.contains((n.fromAtSign, n.id)))) {
-        return null;
-      }
-      if (_closed) {
-        _droppedOnClose++;
-        return null;
-      }
-      return await _write(n);
-    } catch (e, st) {
-      _handler.logger.severe('Unexpected exception $e while pushing'
-          ' notification ${n.id} to ${_describeConnection()}\n$st');
-      return null;
-    }
-  }
 
   /// Writes [n] if the connection may have it, returning the push, or null
   /// after logging why it was not written.
@@ -249,6 +310,14 @@ class _MonitorFeed implements MonitorSink {
   String _describeConnection() => describeInboundConnection(
       connection.metaData as InboundConnectionMetadata);
 }
+
+/// A notification queued on a feed, with the report slot it settles.
+typedef _Queued = ({
+  AtNotification n,
+  bool duringReplay,
+  LivePushReport? report,
+  int slot,
+});
 
 extension MapForClient on AtNotification {
   Map<String, dynamic> get mapForClient => {

@@ -326,6 +326,31 @@ void main() {
     expect(connection.writes.single, contains('statsNotification.$alice'));
   });
 
+  group('Given fifty monitor feeds with telemetry on', () {
+    test('when one received notification is reported, then it starts one timer',
+        () async {
+      enableRecording(serverTelemetry, RecordingExporter());
+      for (int i = 0; i < 50; i++) {
+        await runMonitor(cramConnection()..metadata.sessionID = 'session-$i');
+      }
+      int timers = 0;
+
+      await runZoned(() async {
+        notificationManager.enqueue(received('n1'), report: true);
+        await notificationManager.monitorsIdle;
+      }, zoneSpecification: ZoneSpecification(createTimer: (Zone self,
+          ZoneDelegate parent,
+          Zone zone,
+          Duration duration,
+          void Function() f) {
+        timers++;
+        return parent.createTimer(zone, duration, f);
+      }));
+
+      expect(timers, 1, reason: "the report's timeout, and none per feed");
+    });
+  });
+
   group('Given a monitor feed with pushes queued when its connection closes',
       () {
     test(

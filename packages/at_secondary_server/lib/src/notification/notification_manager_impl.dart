@@ -66,7 +66,7 @@ class NotificationManager {
   final Map<InboundConnection, MonitorSink> _monitors = {};
 
   /// notification.received reports still waiting for their pushes.
-  final Set<Future<void>> _pendingReports = {};
+  final Set<LivePushReport> _pendingReports = {};
 
   /// Telemetry is off unless [telemetry] is given.
   NotificationManager(
@@ -83,7 +83,8 @@ class NotificationManager {
       sink.close();
     }
     _monitors.clear();
-    await Future.wait(_pendingReports.toList());
+    await Future.wait(
+        [for (final LivePushReport report in _pendingReports) report.done]);
     _ephemeralSweep?.cancel();
     _ephemeral.clear();
     _explicitExpiry.clear();
@@ -169,10 +170,7 @@ class NotificationManager {
       case NotificationType.received:
         // We have received from another atSign
         received.add(n);
-        final List<Future<LivePush?>> pushes = _pushToMonitors(n);
-        if (report) {
-          _reportReceived(n, pushes);
-        }
+        _pushToMonitors(n, report: report ? _startReport(n) : null);
         break;
       case NotificationType.self:
         if ((n.toAtSign ?? atSign) != atSign) {
@@ -227,9 +225,12 @@ class NotificationManager {
 
   // NOTE the list of feeds is taken synchronously, so each notification goes
   // to each connection's one feed exactly once.
-  List<Future<LivePush?>> _pushToMonitors(AtNotification n) => [
-        for (final MonitorSink sink in _monitors.values.toList()) sink.push(n),
-      ];
+  void _pushToMonitors(AtNotification n, {LivePushReport? report}) {
+    for (final MonitorSink sink in _monitors.values.toList()) {
+      sink.push(n, report: report);
+    }
+    report?.seal();
+  }
 
   // NOTE no notification for another atSign, which is what a sent one is,
   // uses a reserved namespace.
@@ -555,21 +556,19 @@ class NotificationManager {
     return commandBody;
   }
 
-  /// Reports [n] once [pushes] have settled, counting only those written
-  /// within [livePushTimeout].
-  void _reportReceived(AtNotification n, List<Future<LivePush?>> pushes) {
+  /// A report on [n]'s live pushes, sent once the feeds have settled them
+  /// or [livePushTimeout] has passed; null while telemetry is off.
+  LivePushReport? _startReport(AtNotification n) {
     if (!telemetry.isEnabled) {
-      return;
+      return null;
     }
-    late final Future<void> report;
-    report = Future.wait([
-      for (final Future<LivePush?> push in pushes)
-        push.timeout(livePushTimeout, onTimeout: () => null),
-    ])
-        .then((List<LivePush?> written) =>
-            telemetry.received(n, pushedTo: written.nonNulls.toList()))
-        .whenComplete(() => _pendingReports.remove(report));
+    late final LivePushReport report;
+    report = LivePushReport((List<LivePush> written) {
+      _pendingReports.remove(report);
+      telemetry.received(n, pushedTo: written);
+    }, timeout: livePushTimeout);
     _pendingReports.add(report);
+    return report;
   }
 }
 
