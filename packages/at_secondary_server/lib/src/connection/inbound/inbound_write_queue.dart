@@ -13,6 +13,16 @@ abstract interface class DrainableConnection {
   /// Completes once nothing is waiting to be sent, or the connection has
   /// closed.
   Future<void> get drained;
+
+  /// Counts [length] bytes held for this connection before they are written,
+  /// against the same limit as the bytes waiting to be sent. Returns false,
+  /// counting nothing, once the connection has closed, or when bytes are
+  /// already waiting or held and [length] would take them above the limit,
+  /// which closes the connection with the over-limit warning.
+  bool hold(int length);
+
+  /// Stops counting [length] bytes that [hold] counted.
+  void release(int length);
 }
 
 /// What an inbound connection has written that its transport has not yet
@@ -36,6 +46,7 @@ class InboundWriteQueue<T> {
   late final StreamController<T> _out;
   final Queue<(T, int)> _waiting = Queue<(T, int)>();
   int _unsentBytes = 0;
+  int _heldBytes = 0;
   bool _closed = false;
   Completer<void>? _drained;
   Future<void>? _transport;
@@ -45,6 +56,9 @@ class InboundWriteQueue<T> {
 
   /// How many bytes are waiting for the transport.
   int get unsentBytes => _unsentBytes;
+
+  /// How many bytes are held for the connection outside the queue.
+  int get heldBytes => _heldBytes;
 
   /// What the transport's binding becomes once it ends, or null before the
   /// first [bindOnce].
@@ -72,10 +86,11 @@ class InboundWriteQueue<T> {
   }
 
   /// Queues [data], [length] bytes long, for [connection]. When bytes are
-  /// already waiting and [data] would take them above [maxUnsentBytes], logs
-  /// one warning through [logger] naming [connection], closes it through
-  /// [closeAtLimit] and throws [ConnectionInvalidException]; it throws that
-  /// too once the queue has closed.
+  /// already waiting or held and [data] would take them above
+  /// [maxUnsentBytes], logs one warning through [logger] naming
+  /// [connection], closes it through [closeAtLimit] and throws
+  /// [ConnectionInvalidException]; it throws that too once the queue has
+  /// closed.
   Future<void> write(T data, int length,
       {required InboundConnection connection,
       required AtSignLogger logger,
@@ -86,15 +101,53 @@ class InboundWriteQueue<T> {
     if (add(data, length)) {
       return;
     }
+    _warnOverLimit(length, connection, logger);
+    await closeAtLimit();
+    throw ConnectionInvalidException(
+        'Connection closed: too many bytes waiting for the client to read');
+  }
+
+  /// Counts [length] bytes held for [connection] outside the queue, against
+  /// the same limit as those waiting in it. When bytes are already waiting
+  /// or held and [length] would take them above [maxUnsentBytes], logs the
+  /// one warning through [logger], closes [connection] through
+  /// [closeAtLimit] and returns false; returns false without a warning once
+  /// the queue has closed.
+  bool hold(int length,
+      {required InboundConnection connection,
+      required AtSignLogger logger,
+      required Future<void> Function() closeAtLimit}) {
+    if (_closed) {
+      return false;
+    }
+    if (_fits(length)) {
+      _heldBytes += length;
+      return true;
+    }
+    _warnOverLimit(length, connection, logger);
+    unawaited(closeAtLimit());
+    return false;
+  }
+
+  /// Stops counting [length] bytes that [hold] counted.
+  void release(int length) {
+    _heldBytes -= length;
+  }
+
+  bool _fits(int length) {
+    final int waiting = _unsentBytes + _heldBytes;
+    return waiting == 0 || waiting + length <= maxUnsentBytes;
+  }
+
+  void _warnOverLimit(
+      int length, InboundConnection connection, AtSignLogger logger) {
     final AtConnectionMetaData metaData = connection.metaData;
     final String who = metaData is InboundConnectionMetadata
         ? describeInboundConnection(metaData)
         : 'session ${metaData.sessionID}';
-    logger.warning('Closing $who: ${_unsentBytes + length} bytes would be'
+    logger.warning('Closing $who:'
+        ' ${_unsentBytes + _heldBytes + length} bytes would be'
         ' waiting for it to read, over the limit of $maxUnsentBytes');
-    await closeAtLimit();
-    throw ConnectionInvalidException(
-        'Connection closed: too many bytes waiting for the client to read');
   }
 
   /// Completes once nothing is waiting, or the queue has closed.
@@ -104,11 +157,11 @@ class InboundWriteQueue<T> {
 
   /// Hands [data], [length] bytes long, to the transport, or holds it while
   /// the transport is paused. Returns false, taking nothing, when bytes are
-  /// already waiting and [data] would take them above [maxUnsentBytes], or
-  /// when the queue is closed. A write onto an empty queue is always taken.
+  /// already waiting or held and [data] would take them above
+  /// [maxUnsentBytes], or when the queue is closed. A write onto an empty
+  /// queue with nothing held is always taken.
   bool add(T data, int length) {
-    if (_closed ||
-        (_unsentBytes > 0 && _unsentBytes + length > maxUnsentBytes)) {
+    if (_closed || !_fits(length)) {
       return false;
     }
     _waiting.add((data, length));

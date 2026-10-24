@@ -29,13 +29,17 @@ Feature: A connection has at most one monitor feed
   keyed by notification id alone: replay's de-duplication keys on the
   sender and the id together.
   DoS: one feed per connection, so a client that runs monitor K times
-  costs one feed, not K subscriptions that outlive the connection. The
-  regex is matched in the feed's own turn, after the call that queued the
-  notification has returned, so queueing never waits on a regex; a costly
-  regex still holds the atServer's isolate while it runs. The
-  replay de-duplication set holds at most the backlog and is dropped once
-  the pushes queued during replay have been written. A connection's
-  bytes waiting to be sent are capped by the unsent bytes bound.
+  costs one feed, not K subscriptions that outlive the connection.
+  Outside a replay the regex is matched in the feed's own turn, after the
+  call that queued the notification has returned, so queueing never waits
+  on a regex. During a replay it is matched when the notification is
+  queued, so a push the feed would not write is not held. A costly regex
+  holds the atServer's isolate while it runs, either way. The replay
+  de-duplication set holds at most the backlog and is dropped once the
+  pushes queued during replay have been written. The pushes held during
+  a replay count toward the unsent bytes bound with the bytes waiting to
+  be sent, so a client that stops reading mid-replay is closed at the
+  limit.
   Forgery: a warning names the key through the existing log sanitiser,
   so a peer-chosen key cannot start a new log record.
   Impersonation: a feed exists only on an authenticated connection, and

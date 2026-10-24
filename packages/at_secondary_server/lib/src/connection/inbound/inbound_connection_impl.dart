@@ -135,6 +135,13 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   @override
   Future<void> get drained => _writes.drained;
 
+  @override
+  bool hold(int length) => _writes.hold(length,
+      connection: this, logger: logger, closeAtLimit: close);
+
+  @override
+  void release(int length) => _writes.release(length);
+
   /// Marks the connection stale once its socket has stopped taking writes.
   void _failed(Object error) {
     logger.info('Socket stopped taking writes: $error');
@@ -144,6 +151,10 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   /// How many bytes are waiting for the client to read.
   @visibleForTesting
   int get unsentBytes => _writes.unsentBytes;
+
+  /// How many bytes are held for the client before they are written.
+  @visibleForTesting
+  int get heldBytes => _writes.heldBytes;
 
   @override
   Future<void> write(String data) async {

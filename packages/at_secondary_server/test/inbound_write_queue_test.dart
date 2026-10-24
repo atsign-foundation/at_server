@@ -120,6 +120,68 @@ void main() {
       expect(queue.add('c', 1), isFalse);
     });
 
+    test(
+        'when bytes are held, then they count toward the limit with those waiting',
+        () {
+      final AtSignLogger logger = AtSignLogger('queue test');
+      int closes = 0;
+      Future<void> close() async => closes++;
+      queue.add('a' * 30, 30);
+
+      expect(
+          queue.hold(50,
+              connection: DummyInboundConnection(),
+              logger: logger,
+              closeAtLimit: close),
+          isTrue);
+      expect(queue.heldBytes, 50);
+      expect(queue.add('b' * 21, 21), isFalse);
+      expect(queue.add('b' * 20, 20), isTrue);
+      expect(closes, 0);
+      queue.release(50);
+      expect(queue.heldBytes, 0);
+      expect(queue.add('c' * 50, 50), isTrue);
+    });
+
+    test(
+        'when a hold would take the bytes above the limit, then it is refused with one warning and the connection closed',
+        () {
+      final AtSignLogger logger = AtSignLogger('queue test');
+      final Level prior = logger.logger.level;
+      logger.level = 'warning';
+      final List<String> warnings = <String>[];
+      final StreamSubscription<LogRecord> logs = logger.logger.onRecord
+          .where((LogRecord r) => r.level == Level.WARNING)
+          .listen((LogRecord r) => warnings.add(r.message));
+      addTearDown(() async {
+        await logs.cancel();
+        logger.logger.level = prior;
+      });
+      int closes = 0;
+      Future<void> close() async {
+        closes++;
+        queue.close();
+      }
+
+      queue.add('a' * 60, 60);
+      final DummyInboundConnection connection = DummyInboundConnection();
+      expect(
+          queue.hold(41,
+              connection: connection, logger: logger, closeAtLimit: close),
+          isFalse);
+      expect(queue.heldBytes, 0);
+      expect(closes, 1);
+      expect(warnings.single,
+          allOf(contains('101 bytes would be waiting'), contains('of 100')));
+      expect(
+          queue.hold(1,
+              connection: connection, logger: logger, closeAtLimit: close),
+          isFalse,
+          reason: 'the queue has closed');
+      expect(warnings, hasLength(1));
+      expect(closes, 1);
+    });
+
     test('when the queue closes, then a wait for it to drain is released',
         () async {
       queue.add('a' * 10, 10);

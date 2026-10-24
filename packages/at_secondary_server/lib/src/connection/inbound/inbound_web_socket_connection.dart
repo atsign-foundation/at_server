@@ -102,6 +102,13 @@ class InboundWebSocketConnection
   @override
   Future<void> get drained => _writes.drained;
 
+  @override
+  bool hold(int length) => _writes.hold(length,
+      connection: this, logger: logger, closeAtLimit: _closeUnread);
+
+  @override
+  void release(int length) => _writes.release(length);
+
   /// Marks the connection stale once its WebSocket has stopped taking
   /// writes.
   void _failed(Object error) {

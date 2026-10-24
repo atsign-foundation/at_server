@@ -80,6 +80,10 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 /// A connection's feed of live notifications, written one at a time in the
 /// order they were queued, each authorized for the enrollment the
 /// connection stands on when it is written.
+///
+/// While the replay runs, a live push is held only when the feed's regex
+/// matches it, and is counted against the connection's unsent-bytes limit
+/// as the UTF-8 length of the exact line it would write.
 class _MonitorFeed implements MonitorSink {
   _MonitorFeed(this._handler, this.connection, this._regex,
       {required bool withSelf})
@@ -123,7 +127,20 @@ class _MonitorFeed implements MonitorSink {
       return;
     }
     final bool duringReplay = !_opened.isCompleted;
+    String? line;
+    int held = 0;
     if (duringReplay) {
+      if (!_takes(n)) {
+        return;
+      }
+      line = _line(n);
+      if (connection case final DrainableConnection drainable) {
+        held = utf8Length(line);
+        if (!drainable.hold(held)) {
+          _dropped(n, _invalidReason);
+          return;
+        }
+      }
       _queuedDuringReplay++;
     }
     _queued.add((
@@ -131,6 +148,8 @@ class _MonitorFeed implements MonitorSink {
       duringReplay: duringReplay,
       report: report,
       slot: report?.expect() ?? -1,
+      line: line,
+      held: held,
     ));
     _drainSoon();
   }
@@ -199,8 +218,9 @@ class _MonitorFeed implements MonitorSink {
     idle?.complete();
   }
 
-  // NOTE drained from a microtask, so the regex runs in this feed's own turn
-  // rather than inside the call that queued the notification.
+  // NOTE drained from a microtask, so outside a replay the regex runs in
+  // this feed's own turn rather than inside the call that queued the
+  // notification.
   void _drainSoon() {
     if (_draining || !_opened.isCompleted || _queued.isEmpty) {
       return;
@@ -214,10 +234,14 @@ class _MonitorFeed implements MonitorSink {
     try {
       while (_queued.isNotEmpty) {
         final _Queued q = _queued.removeFirst();
+        if (connection case final DrainableConnection drainable
+            when q.held > 0) {
+          drainable.release(q.held);
+        }
         LivePush? written;
         try {
           if (_wanted(q)) {
-            written = await _write(q.n);
+            written = await _write(q.n, line: q.line);
           }
         } catch (e, st) {
           _handler.logger.severe('Unexpected exception $e while pushing'
@@ -262,9 +286,9 @@ class _MonitorFeed implements MonitorSink {
       ((n.notification?.contains(_regex) ?? false) ||
           (n.fromAtSign?.replaceAll('@', '').contains(_regex) ?? false));
 
-  /// Writes [n] if the connection may have it, returning the push, or null
-  /// after logging why it was not written.
-  Future<LivePush?> _write(AtNotification n) async {
+  /// Writes [n], as [line] when given, if the connection may have it,
+  /// returning the push, or null after logging why it was not written.
+  Future<LivePush?> _write(AtNotification n, {String? line}) async {
     final InboundConnectionMetadata metaData =
         connection.metaData as InboundConnectionMetadata;
     if (_closed || connection.isInValid()) {
@@ -310,7 +334,7 @@ class _MonitorFeed implements MonitorSink {
         metaData.enrollmentId != push.enrollmentId ||
         metaData.authType != push.authType);
     try {
-      await connection.write('notification: ${jsonEncode(n.mapForClient)}\n');
+      await connection.write(line ?? _line(n));
       return push;
     } catch (e) {
       _handler.logger.severe('$e while delivering notification ${n.id}'
@@ -319,6 +343,9 @@ class _MonitorFeed implements MonitorSink {
       return null;
     }
   }
+
+  String _line(AtNotification n) =>
+      'notification: ${jsonEncode(n.mapForClient)}\n';
 
   String get _invalidReason => _closed || connection.metaData.isClosed
       ? 'the connection is closed'
@@ -336,12 +363,15 @@ class _MonitorFeed implements MonitorSink {
       connection.metaData as InboundConnectionMetadata);
 }
 
-/// A notification queued on a feed, with the report slot it settles.
+/// A notification queued on a feed, with the report slot it settles, and the
+/// line and byte count held for it during a replay.
 typedef _Queued = ({
   AtNotification n,
   bool duringReplay,
   LivePushReport? report,
   int slot,
+  String? line,
+  int held,
 });
 
 extension MapForClient on AtNotification {

@@ -32,7 +32,9 @@
   is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`
   in config.yaml sets the limit. One large notification or response is
   always sent whole, and a `monitor` replay waits for the client to read
-  rather than queuing its whole backlog.
+  rather than queuing its whole backlog. A client that stops reading
+  during that replay is closed at the limit too, counting the live
+  notifications held back for it.
 
 - fix: a WebSocket connection closed at the unsent-bytes limit releases its
   socket at once, rather than once its client reads again. The atServer no

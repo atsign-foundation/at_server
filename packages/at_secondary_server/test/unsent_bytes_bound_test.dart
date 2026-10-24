@@ -276,6 +276,88 @@ void main() {
     ]);
   });
 
+  test(
+      'A replay to a client that is not reading closes the connection once the live pushes it holds pass the limit',
+      () async {
+    final int t = at;
+    for (int i = 0; i < 300; i++) {
+      await notificationManager.notify(notification('stored-$i'));
+    }
+    final _Pair pair = await connect();
+    pair.server.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.cram;
+
+    final Future<void> monitoring = monitor(pair.server, 'monitor:$t');
+    await _until(() => pair.server.unsentBytes > 0);
+    for (int i = 0; !pair.server.metaData.isClosed && i < 200; i++) {
+      notificationManager.enqueue(notification('live-$i'));
+      await pumpEventQueue();
+    }
+
+    expect(pair.server.metaData.isClosed, isTrue,
+        reason: 'the live pushes held behind the stalled replay count '
+            'toward the limit');
+    expect(
+        warnings.single,
+        allOf([
+          contains(pair.server.metaData.sessionID),
+          contains('bytes would be waiting'),
+          contains('the limit of $limit'),
+        ]));
+    await monitoring;
+  });
+
+  test(
+      'A live push its regex does not match is not held behind a stalled replay',
+      () async {
+    final int t = at;
+    for (int i = 0; i < 300; i++) {
+      await notificationManager.notify(notification('stored-$i'));
+    }
+    final _Pair pair = await connect();
+    pair.server.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.cram;
+    final Future<void> monitoring = monitor(pair.server, 'monitor:$t wavi');
+    await _until(() => pair.server.unsentBytes > 0);
+
+    for (int i = 0; i < 4; i++) {
+      notificationManager.enqueue((AtNotificationBuilder()
+            ..id = 'other-$i'
+            ..fromAtSign = '@carol'
+            ..toAtSign = alice
+            ..notification = '@alice:phone.buzz@carol'
+            ..atValue = 'v' * (8 * 1024)
+            ..notificationDateTime =
+                DateTime.fromMillisecondsSinceEpoch(++at, isUtc: true)
+            ..type = NotificationType.received)
+          .build());
+    }
+    await pumpEventQueue();
+    expect(pair.server.metaData.isClosed, isFalse,
+        reason: 'precondition: four of them stay under the limit');
+    expect(pair.server.heldBytes, 0);
+    expect(notificationManager.queuedPushes, 0);
+    final AtNotification wanted = notification('live-0');
+    notificationManager.enqueue(wanted);
+    await pumpEventQueue();
+    expect(pair.server.heldBytes, lineLength(wanted),
+        reason: 'control: a push the regex matches is held');
+
+    expect(pair.server.metaData.isClosed, isFalse);
+    expect(warnings, isEmpty);
+    pair.read();
+    await monitoring;
+    await notificationManager.monitorsIdle;
+    await pair.untilLines(301);
+    expect(pair.ids, [
+      for (int i = 0; i < 300; i++) 'stored-$i',
+      'live-0',
+    ]);
+    expect(pair.server.heldBytes, 0);
+  });
+
   test('Stats notifications count toward the limit', () async {
     final _Pair pair = await connect();
     pair.server.metaData
