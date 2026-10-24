@@ -38,5 +38,33 @@ void main() {
         [e1, e2],
       ]);
     });
+
+    test(
+        'when a feed fails after it was counted, then abandoning its slot sends the report once every feed is counted',
+        () {
+      final int first = report.counted;
+      report.expect();
+
+      report.abandon(first);
+      expect(sent, isEmpty);
+      report.seal();
+
+      expect(sent, [<LivePush>[]]);
+    });
+
+    test(
+        'when a slot counted in the failed push was already settled, then abandoning leaves it as it was',
+        () {
+      final int first = report.counted;
+      report.settle(report.expect(), e1);
+      report.expect();
+
+      report.abandon(first);
+      report.seal();
+
+      expect(sent, [
+        [e1],
+      ]);
+    });
   });
 }

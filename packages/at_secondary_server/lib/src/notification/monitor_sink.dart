@@ -39,6 +39,7 @@ final class LivePushReport {
 
   final void Function(List<LivePush> written) _onSettled;
   final List<LivePush?> _slots = <LivePush?>[];
+  final List<bool> _settled = <bool>[];
   final Completer<void> _done = Completer<void>();
   late final Timer _timer;
   int _waiting = 0;
@@ -52,16 +53,31 @@ final class LivePushReport {
   int expect() {
     _waiting++;
     _slots.add(null);
+    _settled.add(false);
     return _slots.length - 1;
   }
+
+  /// How many feeds have been counted.
+  int get counted => _slots.length;
 
   /// Records how the feed holding [slot] settled the notification: [push]
   /// when written, null when not.
   void settle(int slot, LivePush? push) {
     _slots[slot] = push;
+    _settled[slot] = true;
     _waiting--;
     if (_sealed && _waiting == 0) {
       _finish();
+    }
+  }
+
+  /// Settles as not written every slot from [first] on that its feed has
+  /// not settled, for a feed that failed after it was counted.
+  void abandon(int first) {
+    for (int slot = first; slot < _slots.length; slot++) {
+      if (!_settled[slot]) {
+        settle(slot, null);
+      }
     }
   }
 

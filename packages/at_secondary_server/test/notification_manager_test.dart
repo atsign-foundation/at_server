@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundClient;
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_server_spec/at_server_spec.dart' show InboundConnection;
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -146,6 +151,44 @@ void main() async {
           .build();
       nm.enqueue(received);
       expect(monitor.pushed, [received]);
+    });
+
+    test(
+        'Given a feed that throws, when a received notification is queued, then the feeds after it still get it and one severe line names it and its connection',
+        () async {
+      final NotificationManager nm = makeMgr();
+      final RecordingMonitorSink before = RecordingMonitorSink();
+      final RecordingMonitorSink after = RecordingMonitorSink();
+      nm.addMonitor(before);
+      nm.addMonitor(_ThrowingSink(
+          DummyInboundConnection()..metadata.sessionID = 'broken-session'));
+      nm.addMonitor(after);
+      final Level prior = nm.logger.logger.level;
+      nm.logger.level = 'warning';
+      final List<String> severe = <String>[];
+      final StreamSubscription<LogRecord> logs = nm.logger.logger.onRecord
+          .where((LogRecord r) => r.level == Level.SEVERE)
+          .listen((LogRecord r) => severe.add(r.message));
+      addTearDown(() async {
+        await logs.cancel();
+        nm.logger.logger.level = prior;
+      });
+      final AtNotification received = (AtNotificationBuilder()
+            ..id = 'n1'
+            ..type = NotificationType.received
+            ..toAtSign = alice
+            ..fromAtSign = '@bob'
+            ..notification = '$alice:phone.wavi@bob')
+          .build();
+
+      nm.enqueue(received);
+
+      expect(before.pushed, [received]);
+      expect(after.pushed, [received]);
+      expect(
+          severe.single,
+          allOf(contains('feed broke'), contains('notification n1'),
+              contains('$alice:phone.wavi@bob'), contains('broken-session')));
     });
   });
 
@@ -362,4 +405,25 @@ void main() async {
       testNotificationMetaData(immutable: true);
     });
   });
+}
+
+/// A monitor feed whose push throws.
+class _ThrowingSink implements MonitorSink {
+  _ThrowingSink(this.connection);
+
+  @override
+  final InboundConnection connection;
+
+  @override
+  void push(AtNotification n, {LivePushReport? report}) =>
+      throw StateError('feed broke');
+
+  @override
+  Future<void> get idle => Future<void>.value();
+
+  @override
+  int get queued => 0;
+
+  @override
+  void close() {}
 }

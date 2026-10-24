@@ -3,12 +3,14 @@ import 'dart:math' show min;
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
-import 'package:at_server_spec/at_server_spec.dart' show InboundConnection;
+import 'package:at_server_spec/at_server_spec.dart'
+    show AtConnectionMetaData, InboundConnection;
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
 
@@ -227,7 +229,21 @@ class NotificationManager {
   // to each connection's one feed exactly once.
   void _pushToMonitors(AtNotification n, {LivePushReport? report}) {
     for (final MonitorSink sink in _monitors.values.toList()) {
-      sink.push(n, report: report);
+      final int counted = report?.counted ?? 0;
+      try {
+        sink.push(n, report: report);
+      } catch (e, st) {
+        // NOTE one feed's failure neither stops the rest nor reaches the
+        // sender, since the notification is already held.
+        final AtConnectionMetaData metaData = sink.connection.metaData;
+        final String who = metaData is InboundConnectionMetadata
+            ? describeInboundConnection(metaData)
+            : 'session ${metaData.sessionID}';
+        logger.severe('$e while handing notification ${n.id}'
+            ' (${sanitiseForLogging(n.notification ?? '')}) to the monitor'
+            ' feed of $who\n$st');
+        report?.abandon(counted);
+      }
     }
     report?.seal();
   }
