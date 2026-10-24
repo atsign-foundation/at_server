@@ -27,6 +27,8 @@ import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -193,6 +195,10 @@ late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
 late AtNotificationKeystore notifStore;
 late NotificationManager notificationManager;
+
+/// The telemetry [notificationManager] reports through, off until a test
+/// enables it.
+late AtServerTelemetry serverTelemetry;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
 
@@ -376,7 +382,8 @@ verbTestsSetUp(
       alice,
       notifStore,
       NotifyConnectionsPool(addressFinder, outboundConnectionFactory),
-      telemetry: atServer.telemetry);
+      telemetry: NotificationTelemetry(
+          serverTelemetry = AtServerTelemetry(heartbeatInterval: null)));
   registerFallbackValue(AtNotificationBuilder().build());
 
   cacheManager = atServer.cacheManager = AtCacheManager(
@@ -443,6 +450,7 @@ Future<void> verbTestsTearDown() async {
   // NOTE the manager must be closed, as the server's own stop() does, or an
   // undelivered notification is retried for the rest of the file.
   await notificationManager.close();
+  await serverTelemetry.shutdown();
   await atServer.persistenceFactory.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {

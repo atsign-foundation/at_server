@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -17,7 +16,6 @@ void main() {
   const String id36 = '6f1f6e2c-3d0b-4a8e-9b51-2b7e0c4d9a13';
   const String id37 = '${id36}0';
 
-  late AtServerTelemetry telemetry;
   late RecordingExporter exporter;
 
   String clientNotify(String id) =>
@@ -42,15 +40,11 @@ void main() {
 
   setUp(() async {
     await setUpAtSignBound();
-    telemetry = notificationManager.telemetry!;
     exporter = RecordingExporter();
-    enableRecording(telemetry, exporter);
+    enableRecording(serverTelemetry, exporter);
   });
 
-  tearDown(() async {
-    await telemetry.shutdown();
-    await verbTestsTearDown();
-  });
+  tearDown(() async => await verbTestsTearDown());
 
   test("A client's notify whose id has more than 36 characters is refused",
       () async {

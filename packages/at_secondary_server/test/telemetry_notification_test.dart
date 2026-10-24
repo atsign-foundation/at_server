@@ -7,9 +7,9 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundClient;
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -18,30 +18,28 @@ import 'package:logging/logging.dart' show Level, LogRecord;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
+import 'telemetry_test_support.dart';
 import 'test_utils.dart';
 
 void main() {
-  late List<AtTelemetryLogRecord> records;
+  late RecordingExporter exporter;
 
   List<AtTelemetryLogRecord> notificationEvents() {
-    return records
+    return exporter.records
         .where((AtTelemetryLogRecord record) => record.eventName!
             .startsWith('$atServerTelemetryEventPrefix.notification.'))
         .toList();
   }
 
-  List<String?> names() {
-    return notificationEvents()
-        .map((AtTelemetryLogRecord record) => record.eventName)
-        .toList();
-  }
+  List<String?> names() => eventNames(exporter.records,
+      prefix: '$atServerTelemetryEventPrefix.notification.');
 
   setUpAll(() {
     registerFallbackValue(AtNotificationBuilder().build());
   });
 
   setUp(() {
-    records = <AtTelemetryLogRecord>[];
+    exporter = RecordingExporter();
   });
 
   group('NotificationManager', () {
@@ -74,18 +72,13 @@ void main() {
     }
 
     setUp(() {
-      telemetry = AtServerTelemetry(heartbeatInterval: null)
-        ..enable(
-          exporter: _RecordingExporter(records),
-          serverId: '$alice',
-          bootId: 'boot-1',
-        );
-      records.clear();
+      telemetry = AtServerTelemetry(heartbeatInterval: null);
+      enableRecording(telemetry, exporter);
       notificationManager = NotificationManager(
         alice,
         MockAtNotificationKeystore(),
         MockNotifyConnectionsPool(),
-        telemetry: telemetry,
+        telemetry: NotificationTelemetry(telemetry),
       );
       when(() => notificationManager.notifStore.put(any(), any(),
           skipCommit: any(named: 'skipCommit'))).thenAnswer((_) async => null);
@@ -143,17 +136,16 @@ void main() {
 
     test('sends nothing while telemetry is off', () async {
       await telemetry.shutdown();
-      records.clear();
+      exporter.records.clear();
       bobAccepts();
 
       await send(notificationForBob());
 
-      expect(records, isEmpty);
+      expect(exporter.records, isEmpty);
     });
   });
 
   group('another atServer delivering a notification', () {
-    late AtServerTelemetry telemetry;
     late NotifyVerbHandler notify;
 
     Future<void> deliver(String id) async {
@@ -169,18 +161,11 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      telemetry = AtSecondaryServerImpl.getInstance().telemetry
-        ..enable(
-          exporter: _RecordingExporter(records),
-          serverId: '$alice',
-          bootId: 'boot-2',
-        );
-      records.clear();
+      enableRecording(serverTelemetry, exporter);
       notify = NotifyVerbHandler(keyValueStore, notificationManager);
     });
 
     tearDown(() async {
-      await telemetry.shutdown();
       await verbTestsTearDown();
     });
 
@@ -253,28 +238,31 @@ void main() {
 
   group('undelivered events', () {
     late AtServerTelemetry telemetry;
+    late NotificationTelemetry notifications;
     late List<String> warnings;
-    final AtNotification notification = (AtNotificationBuilder()
-          ..id = 'n-5'
-          ..toAtSign = bob)
-        .build();
+    AtNotification settledAs(NotificationStatus status) =>
+        (AtNotificationBuilder()
+              ..id = 'n-5'
+              ..toAtSign = bob
+              ..notificationStatus = status)
+            .build();
 
     setUp(() async {
       telemetry = AtServerTelemetry(heartbeatInterval: null);
+      notifications = NotificationTelemetry(telemetry);
+      final Level priorLevel = telemetry.logger.logger.level;
       telemetry.logger.level = 'warning';
+      addTearDown(() => telemetry.logger.logger.level = priorLevel);
       warnings = <String>[];
       final StreamSubscription<LogRecord> subscription = telemetry
           .logger.logger.onRecord
           .where((LogRecord record) => record.level == Level.WARNING)
           .listen((LogRecord record) => warnings.add(record.message));
       addTearDown(subscription.cancel);
-      telemetry.enable(
-        exporter: _RecordingExporter(records, delivers: false),
-        serverId: '$alice',
-        bootId: 'boot-4',
-      );
+      exporter = RecordingExporter(delivers: false);
+      enableRecording(telemetry, exporter);
       await pumpEventQueue();
-      records.clear();
+      exporter.records.clear();
       warnings.clear();
     });
 
@@ -284,13 +272,13 @@ void main() {
 
     test('make one warning for each failure, not one for each event', () async {
       for (int i = 0; i < 500; i++) {
-        telemetry.notificationDelivered(notification);
+        notifications.settled(settledAs(NotificationStatus.delivered));
       }
       await pumpEventQueue();
-      telemetry.notificationExpired(notification);
+      notifications.settled(settledAs(NotificationStatus.expired));
       await pumpEventQueue();
 
-      expect(records, hasLength(501));
+      expect(exporter.records, hasLength(501));
       expect(warnings, <String>[
         'Telemetry events not delivered: 500 '
             '($atServerNotificationDeliveredEventName x500)',
@@ -301,7 +289,7 @@ void main() {
 
     test('are reported before shutdown returns', () async {
       for (int i = 0; i < 3; i++) {
-        telemetry.notificationDelivered(notification);
+        notifications.settled(settledAs(NotificationStatus.delivered));
       }
 
       await telemetry.shutdown();
@@ -316,27 +304,4 @@ void main() {
       expect(warnings, atShutdown);
     });
   });
-}
-
-final class _RecordingExporter implements AtTelemetryLogRecordExporter {
-  final List<AtTelemetryLogRecord> _records;
-  final bool _delivers;
-
-  _RecordingExporter(this._records, {bool delivers = true})
-      : _delivers = delivers;
-
-  @override
-  Future<bool> export(
-    AtTelemetryLogRecord logRecord,
-    AtTelemetryResource resource,
-  ) async {
-    _records.add(logRecord);
-    return _delivers;
-  }
-
-  @override
-  Future<void> flush() async {}
-
-  @override
-  Future<void> shutdown() async {}
 }

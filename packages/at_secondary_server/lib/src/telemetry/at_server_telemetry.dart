@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -61,8 +59,13 @@ final class AtServerTelemetry {
   }
 
   /// Sends the event [name], which must be in the atServer's namespace, or
-  /// logs why it was dropped.
-  void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
+  /// logs why it was dropped. [notificationIds] names the notifications the
+  /// event is about.
+  void emitEvent(
+    String name, {
+    Map<String, Object?> attributes = const {},
+    List<String> notificationIds = const <String>[],
+  }) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
       return;
@@ -77,7 +80,8 @@ final class AtServerTelemetry {
     // AtTelemetry throws on invalid attribute values. Telemetry must never
     // take the server down, so log and drop the event instead.
     try {
-      telemetry.event(name, attributes: attributes);
+      telemetry.event(name,
+          attributes: attributes, notificationIds: notificationIds);
     } on ArgumentError catch (error) {
       logger.warning('Ignoring invalid telemetry event $name: '
           '${error.name} ${error.message}');
@@ -112,60 +116,6 @@ final class AtServerTelemetry {
         .whenComplete(_reportUndelivered);
   }
 
-  void notificationDelivered(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationDeliveredEventName,
-      notification,
-      <String, Object?>{
-        if (notification.toAtSign case final String toAtSign)
-          notificationToAttribute: toAtSign,
-      },
-    );
-  }
-
-  void notificationExpired(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationExpiredEventName,
-      notification,
-      <String, Object?>{
-        if (notification.toAtSign case final String toAtSign)
-          notificationToAttribute: toAtSign,
-      },
-    );
-  }
-
-  void notificationError(AtNotification notification) {
-    _emitNotificationEvent(
-      atServerNotificationErrorEventName,
-      notification,
-      <String, Object?>{
-        if (notification.toAtSign case final String toAtSign)
-          notificationToAttribute: toAtSign,
-      },
-    );
-  }
-
-  void notificationReceived(
-    AtNotification notification, {
-    List<InboundConnectionMetadata> pushedTo =
-        const <InboundConnectionMetadata>[],
-  }) {
-    _emitNotificationEvent(
-      atServerNotificationReceivedEventName,
-      notification,
-      <String, Object?>{
-        if (notification.fromAtSign case final String fromAtSign)
-          notificationFromAttribute: fromAtSign,
-        notificationPushCountAttribute: pushedTo.length,
-        if (pushedTo.isNotEmpty)
-          notificationPushedToAttribute: <Map<String, Object?>>[
-            for (final InboundConnectionMetadata connection in pushedTo)
-              _pushTargetOf(connection),
-          ],
-      },
-    );
-  }
-
   void _onError(Object error, StackTrace stackTrace) {
     if (error is AtTelemetryDroppedException) {
       _undelivered.update(
@@ -192,33 +142,5 @@ final class AtServerTelemetry {
         .join(', ');
     _undelivered.clear();
     logger.warning('Telemetry events not delivered: $total ($counts)');
-  }
-
-  void _emitNotificationEvent(
-    String name,
-    AtNotification notification,
-    Map<String, Object?> attributes,
-  ) {
-    emitEvent(
-      name,
-      attributes: <String, Object?>{
-        ...attributes,
-        if (notification.id case final String id)
-          AtTelemetryAttributes.notificationIds: <String>[id],
-      },
-    );
-  }
-
-  Map<String, Object?> _pushTargetOf(InboundConnectionMetadata connection) {
-    return <String, Object?>{
-      if (connection.enrollmentId case final String enrollmentId)
-        AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
-    };
-  }
-
-  String _bounded(String value) {
-    return value.length <= atServerTelemetryMaxValueLength
-        ? value
-        : value.substring(0, atServerTelemetryMaxValueLength);
   }
 }

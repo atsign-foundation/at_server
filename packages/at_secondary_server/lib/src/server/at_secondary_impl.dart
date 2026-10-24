@@ -27,6 +27,7 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetrySequence;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -271,7 +272,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           outboundConnectionFactory,
           poolSize: serverContext!.outboundConnectionLimit,
         ),
-        telemetry: telemetry);
+        telemetry: NotificationTelemetry(telemetry));
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
