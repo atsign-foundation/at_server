@@ -130,6 +130,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
+  // NOTE before this, NotificationManager.close() may wait up to
+  // NotificationManager.livePushTimeout for notification.received reports.
   static const Duration _telemetryFlushTimeout = Duration(seconds: 15);
 
   /// Floor for the expiry-sweep sleep.

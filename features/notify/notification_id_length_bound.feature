@@ -21,7 +21,9 @@ Feature: A notification id has at most 36 characters
   [A-Za-z0-9_-] in an id). The answer does not repeat the id.
   Forgery: the id is the only notification attribute the sender alone
   chooses that reaches telemetry; with it bounded, every attribute of
-  every notification event is bounded.
+  every notification event is bounded, for notifications accepted since
+  the bound. One stored before it, and sent once the atServer restarts,
+  keeps the id it was given.
   Impersonation: unchanged; the check runs after authentication is
   established and acts for no atSign.
 

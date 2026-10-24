@@ -26,8 +26,9 @@ Feature: A connection that leaves too many bytes unsent is closed
   plus one write plus what the transport itself buffers (about 0.55 MB
   plain or WebSocket, 5.1 MB TLS, measured on loopback). The bound holds
   before authentication too, so a client that pipelines lookups of a
-  large public value and never reads is closed. One warning per
-  connection.
+  large public value and never reads is closed. The connection logs one
+  warning when it closes; whatever made the refused write (a command's
+  response, a push or a stats notification) also logs its failure.
   Forgery: the warning carries only values this atServer assigned (the
   session id and enrollment id) or proved (the pol atSign).
   Impersonation: unchanged; the queue acts for no atSign.

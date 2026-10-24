@@ -30,8 +30,9 @@ Feature: A connection has at most one monitor feed
   sender and the id together.
   DoS: one feed per connection, so a client that runs monitor K times
   costs one feed, not K subscriptions that outlive the connection. The
-  regex is matched inside the feed's own queue, not inside the queueing
-  call, so a costly regex delays only its own connection's pushes. The
+  regex is matched in the feed's own turn, after the call that queued the
+  notification has returned, so queueing never waits on a regex; a costly
+  regex still holds the atServer's isolate while it runs. The
   replay de-duplication set holds at most the backlog and is dropped once
   the pushes queued during replay have been written. A connection's
   bytes waiting to be sent are capped by the unsent bytes bound.

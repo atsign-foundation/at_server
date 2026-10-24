@@ -27,7 +27,8 @@ Feature: An atServer with telemetry on reports what becomes of notifications
   one it was authorized for, read in the same step as the authorization.
   Replay: a peer re-sending an id it has already delivered is dropped
   before it is stored (unchanged), so it is not reported twice.
-  DoS: every attribute is bounded: ids at 36 characters, atSigns at 55,
+  DoS: every attribute is bounded: ids at 36 characters for notifications
+  accepted since that bound (one stored earlier keeps its id), atSigns at 55,
   enrollment ids are UUIDs or primary that this atServer generated, and
   pushed_to has at most one entry per enrollment holding a live monitor
   connection, itself at most inbound_max_limit.
