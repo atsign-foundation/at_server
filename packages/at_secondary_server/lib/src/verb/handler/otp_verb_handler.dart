@@ -335,23 +335,36 @@ class OtpVerbHandler extends AbstractVerbHandler {
       namespaces != null && namespaces.isNotEmpty && covers(scope, namespaces);
 
   /// Whether [held] is a superset of [wanted]: each namespace held with at
-  /// least the same letters ("rw" covers "r"). `*` covers any other
-  /// namespace, while `*` and `__manage` must be held literally, as in
+  /// least the same letters ("rw" covers "r"). A held namespace covers itself
+  /// and every namespace ending in "." followed by it, as access resolves
+  /// (`wavi` covers `x.wavi`), and `*` covers any namespace. A namespace is
+  /// covered when `*` or any held namespace it ends with grants its letters.
+  /// `*` and `__manage` themselves must be held literally, as in
   /// EnrollVerbHandler.verifyNoEscalation. Namespaces are folded with
   /// [canonicalAtKey], as the keystore folds key names.
   static bool covers(Map<String, String> held, Map<String, String> wanted) {
     final Map<String, String> heldFolded = held.map(
         (namespace, access) => MapEntry(canonicalAtKey(namespace), access));
+    bool grants(String? access, String letters) =>
+        access != null && letters.split('').every(access.split('').contains);
     for (final entry in wanted.entries) {
       final String namespace = canonicalAtKey(entry.key);
-      String? access = heldFolded[namespace];
       final bool isSpecial = namespace == EnrollmentConstants.allNamespaces ||
           namespace == EnrollmentConstants.enrollManageNamespace;
-      if (access == null && !isSpecial) {
-        access = heldFolded[EnrollmentConstants.allNamespaces];
+      if (isSpecial) {
+        if (!grants(heldFolded[namespace], entry.value)) {
+          return false;
+        }
+        continue;
       }
-      if (access == null ||
-          !entry.value.split('').every(access.split('').contains)) {
+      // NOTE any match grants, * included even beside a narrower explicit
+      // grant, so the answer does not depend on the order of [held].
+      final bool covered =
+          grants(heldFolded[EnrollmentConstants.allNamespaces], entry.value) ||
+              heldFolded.entries.any((h) =>
+                  '.$namespace'.endsWith('.${h.key}') &&
+                  grants(h.value, entry.value));
+      if (!covered) {
         return false;
       }
     }
