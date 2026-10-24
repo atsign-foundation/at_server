@@ -15,6 +15,12 @@
 - fix: a `notify` whose id is longer than 36 characters is refused with
   AT0003, whether the atSign's own client or another atServer sends it.
 
+- fix: running `monitor` again on a connection replaces its feed, with the
+  latest regex and `selfNotifications` flag, instead of sending each later
+  notification once more. Notifications reach a monitor connection in the
+  order they arrive, and only while it is authenticated. A notification not
+  written to a monitor logs one warning naming it and the connection.
+
 - fix: telemetry events the collector never gets, because it rejects a batch
   or the buffer overflows, are logged as one warning per failure counting
   them by event name, not one warning per event.

@@ -1,5 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 
 import 'at_server_telemetry.dart';
@@ -36,12 +36,11 @@ final class NotificationTelemetry {
     });
   }
 
-  /// Reports a notification another atServer delivered, with the monitor
-  /// connections it was pushed to.
+  /// Reports a notification another atServer delivered, with the live
+  /// pushes written for it.
   void received(
     AtNotification n, {
-    List<InboundConnectionMetadata> pushedTo =
-        const <InboundConnectionMetadata>[],
+    List<LivePush> pushedTo = const <LivePush>[],
   }) {
     _emit(atServerNotificationReceivedEventName, n, <String, Object?>{
       if (n.fromAtSign case final String fromAtSign)
@@ -49,9 +48,9 @@ final class NotificationTelemetry {
       notificationPushCountAttribute: pushedTo.length,
       if (pushedTo.isNotEmpty)
         notificationPushedToAttribute: <Map<String, Object?>>[
-          for (final InboundConnectionMetadata connection in pushedTo)
+          for (final LivePush push in pushedTo)
             <String, Object?>{
-              if (connection.enrollmentId case final String enrollmentId)
+              if (push.enrollmentId case final String enrollmentId)
                 AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
             },
         ],

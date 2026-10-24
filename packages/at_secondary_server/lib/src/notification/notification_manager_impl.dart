@@ -3,11 +3,12 @@ import 'dart:math' show min;
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
+import 'package:at_server_spec/at_server_spec.dart' show InboundConnection;
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
 
@@ -36,8 +37,10 @@ class NotificationManager {
   @visibleForTesting
   Map<Atsign, PerAtSignNotifSender> senders = {};
 
+  @visibleForTesting
   final StreamController<AtNotification> received =
       StreamController.broadcast();
+  @visibleForTesting
   final StreamController<AtNotification> self = StreamController.broadcast();
   @visibleForTesting
   final StreamController<AtNotification> sent = StreamController.broadcast();
@@ -55,11 +58,12 @@ class NotificationManager {
 
   Timer? _ephemeralSweep;
 
+  /// How long a notification.received report waits for its live pushes.
   @visibleForTesting
   static Duration livePushTimeout = const Duration(seconds: 10);
 
-  final Map<String, List<Future<InboundConnectionMetadata?>>> _livePushes =
-      <String, List<Future<InboundConnectionMetadata?>>>{};
+  /// Each monitor connection's one feed.
+  final Map<InboundConnection, MonitorSink> _monitors = {};
 
   /// Telemetry is off unless [telemetry] is given.
   NotificationManager(
@@ -72,6 +76,10 @@ class NotificationManager {
       return;
     }
     _closed = true;
+    for (final MonitorSink sink in _monitors.values.toList()) {
+      sink.close();
+    }
+    _monitors.clear();
     _ephemeralSweep?.cancel();
     _ephemeral.clear();
     _explicitExpiry.clear();
@@ -85,10 +93,42 @@ class NotificationManager {
     await sent.close();
   }
 
+  /// Makes [sink] its connection's only monitor feed and returns the feed it
+  /// replaces, which still writes what it had already queued.
+  MonitorSink? addMonitor(MonitorSink sink) {
+    if (closed) {
+      throw StateError('Closed');
+    }
+    final MonitorSink? previous = _monitors[sink.connection];
+    _monitors[sink.connection] = sink;
+    return previous;
+  }
+
+  /// Ends [connection]'s monitor feed, if it has one and, when [only] is
+  /// given, that feed is [only].
+  void removeMonitor(InboundConnection connection, {MonitorSink? only}) {
+    final MonitorSink? current = _monitors[connection];
+    if (current == null || (only != null && !identical(current, only))) {
+      return;
+    }
+    _monitors.remove(connection);
+    current.close();
+  }
+
+  /// How many connections have a monitor feed.
+  @visibleForTesting
+  int get monitorCount => _monitors.length;
+
+  /// Completes once every monitor feed has settled what it was handed.
+  @visibleForTesting
+  Future<void> get monitorsIdle =>
+      Future.wait([for (final MonitorSink sink in _monitors.values) sink.idle]);
+
   /// Enqueue notification to send to either another atSign, or ourselves
   ///
-  /// Note that this does not persist the notification
-  void enqueue(AtNotification n) {
+  /// Note that this does not persist the notification. A received
+  /// notification is reported when [report] is true.
+  void enqueue(AtNotification n, {bool report = false}) {
     if (closed) {
       throw StateError('Closed');
     }
@@ -125,6 +165,10 @@ class NotificationManager {
       case NotificationType.received:
         // We have received from another atSign
         received.add(n);
+        final List<Future<LivePush?>> pushes = _pushToMonitors(n);
+        if (report) {
+          _reportReceived(n, pushes);
+        }
         break;
       case NotificationType.self:
         if ((n.toAtSign ?? atSign) != atSign) {
@@ -135,6 +179,7 @@ class NotificationManager {
         }
         // We are sending this notification to ourselves (other clients)
         self.add(n);
+        _pushToMonitors(n);
         break;
       case null:
         throw InvalidSyntaxException('Notification type is required');
@@ -172,21 +217,15 @@ class NotificationManager {
       _explicitExpiry.add(n.id!);
     }
 
-    if (reportReceived) {
-      _reportReceived(n);
-    }
-
     // Queue it for delivery
-    enqueue(n);
+    enqueue(n, report: reportReceived);
   }
 
-  void recordLivePush(
-    AtNotification n,
-    Future<InboundConnectionMetadata?> push,
-  ) {
-    _livePushes[n.id]
-        ?.add(push.timeout(livePushTimeout, onTimeout: () => null));
-  }
+  // NOTE the list of feeds is taken synchronously, so each notification goes
+  // to each connection's one feed exactly once.
+  List<Future<LivePush?>> _pushToMonitors(AtNotification n) => [
+        for (final MonitorSink sink in _monitors.values.toList()) sink.push(n),
+      ];
 
   // NOTE no notification for another atSign, which is what a sent one is,
   // uses a reserved namespace.
@@ -512,17 +551,17 @@ class NotificationManager {
     return commandBody;
   }
 
-  void _reportReceived(AtNotification n) {
-    final String? id = n.id;
-    if (!telemetry.isEnabled || id == null) {
+  /// Reports [n] once [pushes] have settled, counting only those written
+  /// within [livePushTimeout].
+  void _reportReceived(AtNotification n, List<Future<LivePush?>> pushes) {
+    if (!telemetry.isEnabled) {
       return;
     }
-    _livePushes[id] = <Future<InboundConnectionMetadata?>>[];
-    Timer.run(() async {
-      final List<InboundConnectionMetadata?> pushes = await Future.wait(
-          _livePushes.remove(id) ?? <Future<InboundConnectionMetadata?>>[]);
-      telemetry.received(n, pushedTo: pushes.nonNulls.toList());
-    });
+    unawaited(Future.wait([
+      for (final Future<LivePush?> push in pushes)
+        push.timeout(livePushTimeout, onTimeout: () => null),
+    ]).then((List<LivePush?> written) =>
+        telemetry.received(n, pushedTo: written.nonNulls.toList())));
   }
 }
 

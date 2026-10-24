@@ -19,6 +19,12 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
+  /// Hands [n] to the monitor feeds and waits until they have settled it.
+  Future<void> pushLive(AtNotification n) async {
+    notificationManager.enqueue(n);
+    await notificationManager.monitorsIdle;
+  }
+
   setUp(() async {
     await verbTestsSetUp();
     atServer.inboundConnectionManager =
@@ -47,8 +53,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -84,8 +89,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -98,8 +102,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -138,8 +141,7 @@ void main() {
               ..pubKeyHash =
                   PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)))
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -173,8 +175,7 @@ void main() {
               ..encKeyName = 'encKeyName'
               ..sharedKeyEnc = 'shared_key_encrypted'))
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -220,8 +221,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -234,8 +234,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -272,8 +271,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -295,8 +293,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -334,8 +331,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -348,8 +344,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -398,8 +393,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -420,8 +414,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -592,8 +585,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -631,8 +623,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       expect(inboundConnection.lastWrittenData, isEmpty);
     });
     tearDown(() async {
@@ -730,8 +721,7 @@ void main() {
             ..atMetaData = randomMetadata)
           .build();
 
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       await Future.delayed(Duration(milliseconds: 10));
 
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
@@ -779,8 +769,7 @@ void main() {
             ..atMetaData = randomMetadata)
           .build();
 
-      await monitorVerbHandler.processAtNotification(
-          inboundConnection, atNotification);
+      await pushLive(atNotification);
       await Future.delayed(Duration(milliseconds: 10));
 
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
@@ -974,15 +963,13 @@ void main() {
                 ..expiresAt = expiresAt)
               .build();
 
-      await monitor.processAtNotification(inboundConnection,
+      await pushLive(
           received('live', DateTime.now().add(const Duration(minutes: 1))));
       expect(inboundConnection.lastWrittenData, contains('"id":"live"'),
           reason: 'control: an unexpired notification is written');
 
       inboundConnection.lastWrittenData = null;
-      await monitor.processAtNotification(
-          inboundConnection,
-          received(
+      await pushLive(received(
               'stale', DateTime.now().subtract(const Duration(seconds: 1))));
       expect(inboundConnection.lastWrittenData, isNull);
     });
