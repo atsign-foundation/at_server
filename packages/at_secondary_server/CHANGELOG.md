@@ -17,6 +17,11 @@
   issued before this, or over a CRAM connection, carries none, and only a
   full-privilege connection can list or delete it.
 
+- fix: an `enroll:request` presenting an OTP may ask only for namespaces the
+  OTP's own namespaces cover, by the same rules as `otp:list`. One asking for
+  more is refused with AT0009, and the OTP is spent. The SPP, and an OTP
+  issued over CRAM or before this release, do not limit the request.
+
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 
 - fix: consolidate management of reserved namespaces.
