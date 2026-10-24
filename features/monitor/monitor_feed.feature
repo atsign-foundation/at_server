@@ -8,7 +8,9 @@ Feature: A connection has at most one monitor feed
   in the order the atServer queued them. With an epoch, monitor first
   writes the stored notifications after that epoch whose key matches the
   regex (sender is not matched, as today), then the live pushes queued
-  meanwhile, each notification once. Live pushes still match the key or
+  meanwhile, each notification once. If reading the stored notifications
+  fails, monitor is refused with that error and the connection is closed,
+  ending the earlier feed with it. Live pushes still match the key or
   the sender, as today. Every push is checked against the enrollment the
   connection stands on at the moment it is written. A push the feed
   decides not to write logs a warning naming the notification's id and key
@@ -92,11 +94,11 @@ Feature: A connection has at most one monitor feed
     Then the stored notification is not replayed
     And a live notification from @bob for key phone.buzz is written
 
-  Scenario: A replay that fails leaves no feed behind
+  Scenario: A replay that fails closes the connection
     Given reading the notification store fails
     When a client runs monitor:<t>
     Then monitor is refused with the store's error
-    And later notifications are not written to that connection
+    And the atServer closes the connection
 
   Scenario: A notification the client did not ask for causes no enrollment lookup
     Given a connection running monitor with regex wavi as an enrollment holding only buzz

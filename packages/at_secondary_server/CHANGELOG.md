@@ -26,7 +26,10 @@
   notification once more. Notifications reach a monitor connection in the
   order they arrive, and only while it is authenticated. A notification not
   written to a monitor is logged with the connection: one warning each, or
-  one warning counting them when the feed ends with them still queued.
+  one warning counting them when the feed ends with them still queued. A
+  `monitor:<epoch>` whose stored notifications cannot be read is refused
+  with that error and the connection is closed, so the client can
+  reconnect and run it again.
 
 - fix: a connection whose client leaves more than 16 MiB waiting to be read
   is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`

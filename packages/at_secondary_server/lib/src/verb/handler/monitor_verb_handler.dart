@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -30,6 +31,22 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() {
     return monitor;
+  }
+
+  /// Runs `monitor`. When its replay fails, refuses it with that error and
+  /// then closes the connection.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    try {
+      await super.process(command, atConnection);
+    } on _ReplayFailed catch (failed) {
+      final Object error = failed.error;
+      await GlobalExceptionHandler.getInstance().handle(
+          error is Exception ? error : InternalServerError(error.toString()),
+          stackTrace: failed.stackTrace,
+          atConnection: atConnection);
+      await atConnection.close();
+    }
   }
 
   @override
@@ -57,6 +74,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         withSelf: verbParams[AtConstants.monitorSelfNotifications] ==
             AtConstants.monitorSelfNotifications);
     final MonitorSink? previous = notifMgr.addMonitor(feed);
+    feed._replaced = previous;
     final AtConnectionMetaData metaData = atConnection.metaData;
     if (previous == null && metaData is InboundConnectionMetadata) {
       unawaited(
@@ -68,10 +86,9 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           : await notifMgr.getFilteredSorted(
               retain: (AtNotification n) => feed.replays(n, sinceMillis),
               comparator: notifMgr.compareDateTime);
-      await feed.open(backlog, after: previous?.idle);
-    } catch (_) {
-      notifMgr.removeMonitor(atConnection, only: feed);
-      rethrow;
+      await feed.open(backlog);
+    } catch (e, st) {
+      throw _ReplayFailed(e, st);
     }
     atConnection.isMonitor = true;
   }
@@ -99,6 +116,10 @@ class _MonitorFeed implements MonitorSink {
   /// The sender and id of each notification the replay wrote, consulted only
   /// by pushes queued during the replay.
   final Set<(String?, String?)> _replayed = <(String?, String?)>{};
+
+  /// The feed this one replaced, until its pushes have settled; closed with
+  /// this one.
+  MonitorSink? _replaced;
 
   final Queue<_Queued> _queued = Queue<_Queued>();
   int _queuedDuringReplay = 0;
@@ -162,13 +183,14 @@ class _MonitorFeed implements MonitorSink {
       _takesType(n) &&
       (n.notification?.contains(_regex) ?? false);
 
-  /// Writes [backlog] once [after] has settled, then releases the live
-  /// pushes queued behind it. Each stored notification waits until the
-  /// connection has nothing waiting to be sent.
-  Future<void> open(List<AtNotification> backlog, {Future<void>? after}) async {
+  /// Writes [backlog] once the feed this one replaced has settled, then
+  /// releases the live pushes queued behind it. Each stored notification
+  /// waits until the connection has nothing waiting to be sent.
+  Future<void> open(List<AtNotification> backlog) async {
     final InboundConnection connection = this.connection;
     try {
-      await after;
+      await _replaced?.idle;
+      _replaced = null;
       for (final AtNotification n in backlog) {
         if (connection case final DrainableConnection drainable) {
           await drainable.drained;
@@ -187,6 +209,8 @@ class _MonitorFeed implements MonitorSink {
 
   @override
   void close() {
+    _replaced?.close();
+    _replaced = null;
     if (_closed) {
       return;
     }
@@ -361,6 +385,14 @@ class _MonitorFeed implements MonitorSink {
 
   String _describeConnection() => describeInboundConnection(
       connection.metaData as InboundConnectionMetadata);
+}
+
+/// A `monitor` whose replay failed with [error].
+final class _ReplayFailed implements Exception {
+  _ReplayFailed(this.error, this.stackTrace);
+
+  final Object error;
+  final StackTrace stackTrace;
 }
 
 /// A notification queued on a feed, with the report slot it settles, and the

@@ -290,20 +290,100 @@ void main() {
       expect(connection.ids, ['live']);
     });
 
-    test('A replay that fails leaves no feed behind', () async {
+    test('A replay that fails closes the connection', () async {
       final int t = DateTime.now().millisecondsSinceEpoch - 1000;
-      final DataStoreException unavailable =
-          DataStoreException('notification store unavailable');
-      gated.failNextRead(unavailable);
+      gated.failNextRead(DataStoreException('notification store unavailable'));
       final _RecordingConnection connection = cramConnection();
 
-      await expectLater(
-          runMonitor(connection, 'monitor:$t'), throwsA(same(unavailable)));
-      gated.enqueue(received('n1'));
-      await gated.monitorsIdle;
+      await monitor.process('monitor:$t', connection);
+      await pumpEventQueue();
 
+      expect(
+          connection.writes.single,
+          allOf(
+              startsWith('error:'), contains('notification store unavailable')),
+          reason: 'refused with the store error, written before the close');
+      expect(connection.metadata.isClosed, isTrue);
       expect(gated.monitorCount, 0);
-      expect(connection.ids, isEmpty);
+    });
+
+    test(
+        'Given a connection with a feed, when its monitor:<t> replay fails, then the connection is closed and leaves the pool',
+        () async {
+      final ServerSocket listener =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final Future<Socket> accepted = listener.first;
+      final Socket client =
+          await Socket.connect(InternetAddress.loopbackIPv4, listener.port);
+      addTearDown(client.destroy);
+      final Socket serverSide = await accepted;
+      await listener.close();
+      client.listen((_) {}, onError: (Object _) {});
+      atServer.inboundConnectionManager =
+          InboundConnectionManager(serverAtSign: alice, poolSize: 3);
+      final InboundConnection connection = atServer.inboundConnectionManager
+          .createSocketConnection(serverSide, sessionId: 'failing-replay');
+      addTearDown(connection.close);
+      (connection.metaData as InboundConnectionMetadata)
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+      connection.acceptRequests((String command, InboundConnection c) async {});
+      await monitor.process('monitor', connection);
+      expect(gated.monitorCount, 1, reason: 'precondition: it has a feed');
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      gated.failNextRead(StateError('notification store closed'));
+
+      Object? thrown;
+      try {
+        await monitor.process('monitor:$t', connection);
+      } catch (e) {
+        thrown = e;
+      }
+      for (int i = 0;
+          i < 100 &&
+              atServer.inboundConnectionManager.pool.getCurrentSize() > 0;
+          i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      expect(connection.metaData.isClosed, isTrue,
+          reason: 'a monitor whose replay fails closes its connection');
+      expect(atServer.inboundConnectionManager.pool.getCurrentSize(), 0);
+      expect(gated.monitorCount, 0);
+      expect(thrown, isNull);
+    });
+
+    test(
+        'Given a feed with a push queued, when a monitor:<t> that replaces it fails, then the earlier feed ends with the connection',
+        () async {
+      final Level priorLevel = monitor.logger.logger.level;
+      monitor.logger.level = 'warning';
+      final List<String> dropped = <String>[];
+      final StreamSubscription<LogRecord> logs = monitor.logger.logger.onRecord
+          .where((LogRecord record) => record.level == Level.WARNING)
+          .listen((LogRecord record) => dropped.add(record.message));
+      addTearDown(() async {
+        await logs.cancel();
+        monitor.logger.logger.level = priorLevel;
+      });
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+      final Completer<void> writing = connection.holdNextWrite();
+      gated.enqueue(received('n1'));
+      await pumpEventQueue();
+      gated.enqueue(received('n2'));
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      gated.failNextRead(DataStoreException('notification store unavailable'));
+
+      await monitor.process('monitor:$t', connection);
+      writing.complete();
+      await pumpEventQueue();
+
+      expect(connection.ids, ['n1'], reason: 'n1 was already being written');
+      expect(
+          dropped.single,
+          allOf(contains('Dropped 1 queued notification'),
+              contains('its monitor feed has ended')));
     });
   });
 
@@ -713,6 +793,11 @@ class _RecordingConnection extends DummyInboundConnection {
   bool isInValid() => idle || super.isInValid();
 
   @override
+  Future<void> close() async {
+    metadata.isClosed = true;
+  }
+
+  @override
   Future<void> write(String data) async {
     final Exception? failure = failNextWrite;
     failNextWrite = null;
@@ -820,20 +905,20 @@ class _GatedNotificationManager extends NotificationManager {
       {super.telemetry});
 
   Completer<void>? _hold;
-  Exception? _failure;
+  Object? _failure;
 
   /// Holds the next read until the returned completer completes.
   Completer<void> holdNextRead() => _hold = Completer<void>();
 
   /// Makes the next read throw [failure].
-  void failNextRead(Exception failure) => _failure = failure;
+  void failNextRead(Object failure) => _failure = failure;
 
   @override
   Future<List<AtNotification>> getFilteredSorted({
     required bool Function(AtNotification) retain,
     required int Function(AtNotification, AtNotification)? comparator,
   }) async {
-    final Exception? failure = _failure;
+    final Object? failure = _failure;
     _failure = null;
     if (failure != null) {
       throw failure;
