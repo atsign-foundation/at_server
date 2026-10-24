@@ -145,7 +145,7 @@ class InboundWebSocketConnection
     if (isInValid()) {
       throw ConnectionInvalidException('Connection is invalid');
     }
-    _writes.bindOnce(ws.addStream, _failed);
+    _writes.bindOnce(ws.addStream, onFailed: _failed, onEnded: close);
     await _writes.write(data, utf8Length(data),
         connection: this, logger: logger);
     metaData.lastAccessed = DateTime.timestamp();

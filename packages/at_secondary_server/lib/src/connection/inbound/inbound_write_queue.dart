@@ -54,13 +54,20 @@ class InboundWriteQueue<T> {
 
   /// Binds the transport on the first call, through [addStream], which may
   /// throw. When the transport stops taking writes, the queue closes and
-  /// then [onFailed] runs.
+  /// then [onFailed] runs, or [onEnded] when it ended without an error
+  /// before the queue was closed.
   void bindOnce(Future<void> Function(Stream<T> stream) addStream,
-      void Function(Object error) onFailed) {
+      {required void Function(Object error) onFailed,
+      required void Function() onEnded}) {
     if (_transport != null) {
       return;
     }
-    _transport = addStream(stream).then((_) {}, onError: (Object error) {
+    _transport = addStream(stream).then((_) {
+      if (!_closed) {
+        close();
+        onEnded();
+      }
+    }, onError: (Object error) {
       close();
       onFailed(error);
     });

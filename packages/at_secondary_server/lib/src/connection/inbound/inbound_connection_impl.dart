@@ -151,7 +151,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      _writes.bindOnce(underlying.addStream, _failed);
+      _writes.bindOnce(underlying.addStream, onFailed: _failed, onEnded: close);
     } catch (e) {
       metaData.isStale = true;
       logger.severe('write caught ${e.toString()}');

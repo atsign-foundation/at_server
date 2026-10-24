@@ -139,4 +139,40 @@ void main() {
               contains('12 bytes would be waiting'), contains('limit of 10')));
     });
   });
+
+  group('Given a real WebSocket connection that has been written to', () {
+    test(
+        'when its client sends a close frame, then the connection closes without waiting on the listener',
+        () async {
+      final HttpServer http =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => http.close(force: true));
+      final Future<WebSocket> upgraded =
+          http.first.then((HttpRequest r) => WebSocketTransformer.upgrade(r));
+      final Socket client =
+          await Socket.connect(InternetAddress.loopbackIPv4, http.port);
+      addTearDown(client.destroy);
+      client.listen((_) {}, onError: (_) {});
+      client.write('GET / HTTP/1.1\r\n'
+          'Host: 127.0.0.1:${http.port}\r\n'
+          'Upgrade: websocket\r\n'
+          'Connection: Upgrade\r\n'
+          'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+          'Sec-WebSocket-Version: 13\r\n\r\n');
+      final WebSocket ws = await upgraded;
+      final connection = InboundWebSocketConnection(ws, 'closing', null);
+      ws.listen((_) {}, onError: (_) {});
+      await connection.write('@');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      client.add(<int>[0x88, 0x82, 1, 2, 3, 4, 0x03 ^ 1, 0xe8 ^ 2]);
+      await client.flush();
+      final Stopwatch waited = Stopwatch()..start();
+      while (!connection.metaData.isClosed && waited.elapsed.inSeconds < 3) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+
+      expect(connection.metaData.isClosed, isTrue);
+    });
+  });
 }
