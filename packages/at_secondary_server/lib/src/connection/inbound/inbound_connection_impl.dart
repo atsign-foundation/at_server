@@ -136,6 +136,13 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   @override
   Future<void> get drained => _writes.drained;
 
+  /// Marks the connection stale once its socket has stopped taking writes.
+  void _failed(Object error) {
+    logger.info('Socket stopped taking writes: $error');
+    metaData.isStale = true;
+    _writes.close();
+  }
+
   /// How many bytes are waiting for the client to read.
   @visibleForTesting
   int get unsentBytes => _writes.unsentBytes;
@@ -146,9 +153,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      _transport ??= underlying.addStream(_writes.stream).then((_) {},
-          onError: (Object e) =>
-              logger.info('Socket stopped taking writes: $e'));
+      _transport ??=
+          underlying.addStream(_writes.stream).then((_) {}, onError: _failed);
     } catch (e) {
       metaData.isStale = true;
       logger.severe('write caught ${e.toString()}');

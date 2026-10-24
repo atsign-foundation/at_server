@@ -10,9 +10,11 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryLogRecord;
 import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
+import 'telemetry_test_support.dart';
 import 'test_utils.dart';
 
 /// Catalogue: features/monitor/monitor_feed.feature
@@ -322,6 +324,31 @@ void main() {
         .writeStatsToMonitor(latestCommitID: '7', operationType: 'update');
 
     expect(connection.writes.single, contains('statsNotification.$alice'));
+  });
+
+  group('Given a monitor connection that closes during an enrollment lookup',
+      () {
+    test('when the lookup returns, then the push is not written or reported',
+        () async {
+      final RecordingExporter exporter = RecordingExporter();
+      enableRecording(serverTelemetry, exporter);
+      final String enrollment =
+          await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
+      final _RecordingConnection connection = apkamConnection(enrollment);
+      await runMonitor(connection);
+      final Completer<void> lookup = monitor.holdNextLookup();
+      notificationManager.enqueue(received('n1'), report: true);
+      await pumpEventQueue();
+
+      connection.metadata.isClosed = true;
+      lookup.complete();
+      final AtTelemetryLogRecord report =
+          await exporter.firstNamed('atsign.atserver.notification.received');
+
+      expect(report.attributes['atsign.notification.push_count'], 0);
+      expect(connection.ids, isEmpty);
+      expect(warnings, contains(contains('the connection is closed')));
+    });
   });
 }
 

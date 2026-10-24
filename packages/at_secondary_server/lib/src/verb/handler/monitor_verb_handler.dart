@@ -220,6 +220,10 @@ class _MonitorFeed implements MonitorSink {
       _dropped(n, 'not authorized for that key');
       return null;
     }
+    if (_closed || connection.isInValid()) {
+      _dropped(n, 'the connection is closed');
+      return null;
+    }
     try {
       await connection.write('notification: ${jsonEncode(n.mapForClient)}\n');
       return push;

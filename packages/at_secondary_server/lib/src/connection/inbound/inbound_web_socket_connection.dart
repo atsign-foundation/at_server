@@ -100,6 +100,14 @@ class InboundWebSocketConnection
   @override
   Future<void> get drained => _writes.drained;
 
+  /// Marks the connection stale once its WebSocket has stopped taking
+  /// writes.
+  void _failed(Object error) {
+    logger.info('WebSocket stopped taking writes: $error');
+    metaData.isStale = true;
+    _writes.close();
+  }
+
   /// How many bytes are waiting for the client to read.
   @visibleForTesting
   int get unsentBytes => _writes.unsentBytes;
@@ -137,12 +145,10 @@ class InboundWebSocketConnection
 
   @override
   Future<void> write(String data) async {
-    if (_writes.isClosed) {
-      return;
+    if (isInValid()) {
+      throw ConnectionInvalidException('Connection is invalid');
     }
-    _transport ??= ws.addStream(_writes.stream).then((_) {},
-        onError: (Object e) =>
-            logger.info('WebSocket stopped taking writes: $e'));
+    _transport ??= ws.addStream(_writes.stream).then((_) {}, onError: _failed);
     final int length = utf8.encode(data).length;
     if (!_writes.add(data, length)) {
       final int waiting = _writes.unsentBytes + length;
