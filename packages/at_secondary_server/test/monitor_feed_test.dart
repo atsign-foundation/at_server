@@ -327,6 +327,22 @@ void main() {
     expect(connection.writes.single, contains('statsNotification.$alice'));
   });
 
+  group('Given a monitor connection that is idle but still open', () {
+    test('when a push is dropped, then the warning says it is idle or stale',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+      connection.idle = true;
+
+      await pushLive(received('n1'));
+
+      expect(connection.ids, isEmpty);
+      expect(notificationManager.monitorCount, 1,
+          reason: 'the feed stays, for when the client is active again');
+      expect(warnings.single, contains('the connection is idle or stale'));
+    });
+  });
+
   group('Given a replay in which one enrollment read fails', () {
     test('when the replay runs, then it writes the others and the feed stays',
         () async {
@@ -508,6 +524,13 @@ class _RecordingConnection extends DummyInboundConnection {
 
   /// Holds the next write until the returned completer completes.
   Completer<void> holdNextWrite() => _hold = Completer<void>();
+
+  /// Whether the connection reports itself invalid while still open, as an
+  /// idle or stale one does.
+  bool idle = false;
+
+  @override
+  bool isInValid() => idle || super.isInValid();
 
   @override
   Future<void> write(String data) async {

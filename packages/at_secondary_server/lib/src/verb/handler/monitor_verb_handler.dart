@@ -266,7 +266,7 @@ class _MonitorFeed implements MonitorSink {
     final InboundConnectionMetadata metaData =
         connection.metaData as InboundConnectionMetadata;
     if (_closed || connection.isInValid()) {
-      _dropped(n, 'the connection is closed');
+      _dropped(n, _invalidReason);
       return null;
     }
     if (n.isExpired()) {
@@ -298,7 +298,7 @@ class _MonitorFeed implements MonitorSink {
         return null;
       }
       if (_closed || connection.isInValid()) {
-        _dropped(n, 'the connection is closed');
+        _dropped(n, _invalidReason);
         return null;
       }
       // NOTE authorized again whenever the connection re-authenticated
@@ -316,6 +316,10 @@ class _MonitorFeed implements MonitorSink {
       return null;
     }
   }
+
+  String get _invalidReason => _closed || connection.metaData.isClosed
+      ? 'the connection is closed'
+      : 'the connection is idle or stale';
 
   void _dropped(AtNotification n, String why) {
     // NOTE at warning: a dropped push is otherwise indistinguishable from one
