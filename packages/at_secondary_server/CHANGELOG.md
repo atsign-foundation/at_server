@@ -1,17 +1,19 @@
 # 3.20.0
 - feat: an atServer whose telemetry is on tells its collector what becomes of
   notifications. For one it sends to another atSign: `notification.delivered`
-  when the recipient's atServer accepts it, `notification.expired` when it
-  expires before it is delivered, and `notification.error` when the recipient
-  atSign does not exist, each naming the recipient (`atsign.notification.to`).
+  when the recipient's atServer answers `data:success`, which it also does
+  for one it drops, `notification.expired` when it expires before it is
+  delivered, and `notification.error` when the recipient atSign does not
+  exist, each naming the recipient (`atsign.notification.to`).
   `notification.received` when another atServer delivers one, naming the
   sender (`atsign.notification.from`) and the devices it was pushed to live:
   the enrollment id of each (`atsign.notification.pushed_to`), once per
-  enrollment, and how many (`atsign.notification.push_count`). It is sent
-  once the pushes have been written, or after 10 seconds. A connection
-  authenticated with `cram:` is not counted.
-  Every event carries the notification's id (`atsign.notification.ids`),
-  which is the same on the sending and the receiving atServer.
+  enrollment, and how many (`atsign.notification.push_count`), once those
+  pushes are written or after 10 seconds. A connection authenticated with
+  `cram:` is not counted.
+  Every event carries the notification's id (`atsign.notification.ids`). The
+  sender chooses the id, so a collector matches events on sender, recipient
+  and id together.
 
 - fix: a `notify` whose id is longer than 36 characters is refused with
   AT0003, whether the atSign's own client or another atServer sends it.

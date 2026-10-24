@@ -26,6 +26,11 @@ final class NotificationTelemetry {
   /// Reports how a notification this atServer sends to another atSign
   /// settled, by its status: delivered, expired or errored. Any other status
   /// sends nothing.
+  ///
+  /// Delivered means the recipient's atServer answered `data:success`, which
+  /// it also answers for a notification it drops. The sender chooses the id,
+  /// so a collector matches this to the recipient's report on sender,
+  /// recipient and id together.
   void settled(AtNotification n) {
     final String? name = _settledEvents[n.notificationStatus];
     if (name == null) {
@@ -39,7 +44,8 @@ final class NotificationTelemetry {
 
   /// Reports a notification another atServer delivered, listing once each
   /// enrollment proved by pkam that one of [pushedTo] was written for. A
-  /// push to a CRAM connection is neither listed nor counted.
+  /// push to a CRAM connection is neither listed nor counted, and
+  /// [pushedTo] holds only pushes written before the report went out.
   void received(
     AtNotification n, {
     List<LivePush> pushedTo = const <LivePush>[],
