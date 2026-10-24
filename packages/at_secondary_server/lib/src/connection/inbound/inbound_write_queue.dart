@@ -46,8 +46,6 @@ class InboundWriteQueue<T> {
   /// How many bytes are waiting for the transport.
   int get unsentBytes => _unsentBytes;
 
-  bool get isClosed => _closed;
-
   /// What the transport's binding becomes once it ends, or null before the
   /// first [bindOnce].
   Future<void>? get transport => _transport;
@@ -99,7 +97,7 @@ class InboundWriteQueue<T> {
   }
 
   /// Completes once nothing is waiting, or the queue has closed.
-  Future<void> get drained => _waiting.isEmpty || _closed
+  Future<void> get drained => _waiting.isEmpty
       ? Future<void>.value()
       : (_drained ??= Completer<void>()).future;
 
@@ -132,7 +130,7 @@ class InboundWriteQueue<T> {
   }
 
   void _pump() {
-    while (_waiting.isNotEmpty && _out.hasListener && !_out.isPaused) {
+    while (_waiting.isNotEmpty && !_out.isPaused) {
       final (T data, int length) = _waiting.removeFirst();
       _unsentBytes -= length;
       _out.add(data);

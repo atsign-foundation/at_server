@@ -116,7 +116,7 @@ class _MonitorFeed implements MonitorSink {
 
   @override
   void push(AtNotification n, {LivePushReport? report}) {
-    if (_closed || !_takesType(n)) {
+    if (!_takesType(n)) {
       return;
     }
     final bool duringReplay = !_opened.isCompleted;
@@ -240,8 +240,7 @@ class _MonitorFeed implements MonitorSink {
   /// Whether [q] is one this feed writes, counting it as dropped instead
   /// once the feed has ended.
   bool _wanted(_Queued q) {
-    if (!_takes(q.n) ||
-        (q.duringReplay && _replayed.contains((q.n.fromAtSign, q.n.id)))) {
+    if (!_takes(q.n) || _replayed.contains((q.n.fromAtSign, q.n.id))) {
       return false;
     }
     if (_closed) {

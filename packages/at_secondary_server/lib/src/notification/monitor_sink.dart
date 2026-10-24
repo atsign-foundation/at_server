@@ -55,9 +55,6 @@ final class LivePushReport {
   /// Records how the feed holding [slot] settled the notification: [push]
   /// when written, null when not.
   void settle(int slot, LivePush? push) {
-    if (_done.isCompleted) {
-      return;
-    }
     _slots[slot] = push;
     _waiting--;
     if (_sealed && _waiting == 0) {
