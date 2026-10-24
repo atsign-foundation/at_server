@@ -138,6 +138,13 @@
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
 
+- fix: an atServer closes the connection, writing nothing, when a client sends
+  `@exit`, rather than answering it with AT0003. Replies to commands sent
+  before it are sent in full first, waiting at most five seconds.
+
+- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
+  `@` is now refused; a `notify` to one, for example, is answered with an
+  error.
 - fix: an atSign of more than 55 characters after its `@` is refused with
   AT0003 wherever a command names one, a `batch:` entry included; exactly 55
   is accepted. Characters are code points, counted once the atSign is
