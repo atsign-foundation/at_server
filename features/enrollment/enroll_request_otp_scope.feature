@@ -44,6 +44,16 @@ Feature: An enroll:request presenting an OTP asks only for namespaces the OTP co
     When an unauthenticated connection sends enroll:request with passcode P for {"__manage":"r"}
     Then the request is refused with AT0009
 
+  Scenario: An OTP refuses more access on __manage than it holds
+    Given @alice's atServer holds OTP P, issued with {"wavi":"rw","__manage":"r"}
+    When an unauthenticated connection sends enroll:request with passcode P for {"__manage":"rw"}
+    Then the request is refused with AT0009
+
+  Scenario: An OTP refuses more access on * than it holds
+    Given @alice's atServer holds OTP P, issued with {"*":"r","__manage":"rw"}
+    When an unauthenticated connection sends enroll:request with passcode P for {"*":"rw"}
+    Then the request is refused with AT0009
+
   Scenario: An OTP's namespaces are compared as the keystore folds them
     Given @alice's atServer holds OTP P, issued with {"Wavi":"rw","__manage":"rw"}
     When an unauthenticated connection sends enroll:request with passcode P for {"wavi":"rw"}

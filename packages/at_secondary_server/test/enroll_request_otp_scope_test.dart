@@ -94,6 +94,17 @@ void main() {
         request('ABC123', {'__manage': 'r'}), refusedAsBeyondOtp);
   });
 
+  test('An OTP refuses more access on __manage than it holds', () async {
+    await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'r'});
+    await expectLater(
+        request('ABC123', {'__manage': 'rw'}), refusedAsBeyondOtp);
+  });
+
+  test('An OTP refuses more access on * than it holds', () async {
+    await otpIssuedWith('ABC123', {'*': 'r', '__manage': 'rw'});
+    await expectLater(request('ABC123', {'*': 'rw'}), refusedAsBeyondOtp);
+  });
+
   test("An OTP's namespaces are compared as the keystore folds them",
       () async {
     await otpIssuedWith('ABC123', {'Wavi': 'rw', '__manage': 'rw'});
