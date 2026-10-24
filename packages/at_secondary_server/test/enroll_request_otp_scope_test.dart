@@ -100,6 +100,23 @@ void main() {
     expect(await request('ABC123', {'wavi': 'rw'}), 'pending');
   });
 
+  test('An OTP covers a namespace ending in one it holds', () async {
+    await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'rw'});
+    expect(await request('ABC123', {'x.wavi': 'rw'}), 'pending');
+  });
+
+  test('An OTP does not cover a namespace ending in its letters without a dot',
+      () async {
+    await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'rw'});
+    await expectLater(request('ABC123', {'xwavi': 'rw'}), refusedAsBeyondOtp);
+  });
+
+  test('An OTP holding * covers a namespace it also holds more narrowly',
+      () async {
+    await otpIssuedWith('ABC123', {'*': 'rw', 'wavi': 'r', '__manage': 'rw'});
+    expect(await request('ABC123', {'x.wavi': 'rw'}), 'pending');
+  });
+
   group('A passcode carrying no namespaces does not limit the request', () {
     test('the SPP, set with otp:put', () async {
       await otp('otp:put:SPP111');
