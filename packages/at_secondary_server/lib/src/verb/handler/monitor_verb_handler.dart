@@ -97,7 +97,7 @@ class _MonitorFeed implements MonitorSink {
   final Set<(String?, String?)> _replayed = <(String?, String?)>{};
 
   late Future<void> _tail = _opened.future;
-  int _queued = 0;
+  int _droppedOnClose = 0;
   bool _closed = false;
 
   @override
@@ -112,10 +112,8 @@ class _MonitorFeed implements MonitorSink {
       return Future<LivePush?>.value(null);
     }
     final bool duringReplay = !_opened.isCompleted;
-    _queued++;
-    final Future<LivePush?> written = _tail
-        .then((_) => _deliver(n, duringReplay))
-        .whenComplete(() => _queued--);
+    final Future<LivePush?> written =
+        _tail.then((_) => _deliver(n, duringReplay));
     _tail = written;
     return written;
   }
@@ -161,13 +159,17 @@ class _MonitorFeed implements MonitorSink {
       return;
     }
     _closed = true;
-    if (_queued > 0) {
-      _handler.logger.warning('Dropping $_queued notifications queued for'
-          ' ${_describeConnection()}: its monitor feed has ended');
-    }
+    final Future<void> queuedBeforeClose = _tail;
     if (!_opened.isCompleted) {
       _opened.complete();
     }
+    unawaited(queuedBeforeClose.then((_) {
+      if (_droppedOnClose > 0) {
+        _handler.logger.warning('Dropped $_droppedOnClose queued'
+            ' notification${_droppedOnClose == 1 ? '' : 's'} for'
+            ' ${_describeConnection()}: its monitor feed has ended');
+      }
+    }));
   }
 
   bool _takesType(AtNotification n) =>
@@ -181,10 +183,12 @@ class _MonitorFeed implements MonitorSink {
 
   Future<LivePush?> _deliver(AtNotification n, bool duringReplay) async {
     try {
-      if (_closed || !_takes(n)) {
+      if (!_takes(n) ||
+          (duringReplay && _replayed.contains((n.fromAtSign, n.id)))) {
         return null;
       }
-      if (duringReplay && _replayed.contains((n.fromAtSign, n.id))) {
+      if (_closed) {
+        _droppedOnClose++;
         return null;
       }
       return await _write(n);

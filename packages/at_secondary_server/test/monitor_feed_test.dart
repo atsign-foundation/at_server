@@ -326,6 +326,35 @@ void main() {
     expect(connection.writes.single, contains('statsNotification.$alice'));
   });
 
+  group('Given a monitor feed with pushes queued when its connection closes',
+      () {
+    test(
+        'when the queue drains, then one warning counts only the notifications it would have written',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection, 'monitor wavi');
+      final Completer<void> writing = connection.holdNextWrite();
+      notificationManager.enqueue(received('n0'));
+      await pumpEventQueue();
+      notificationManager.enqueue(received('n1'));
+      notificationManager.enqueue(
+          received('other-1', key: '@alice:phone.other@carol', from: '@carol'));
+      notificationManager.enqueue(
+          received('other-2', key: '@alice:phone.other@carol', from: '@carol'));
+
+      connection.metadata.isClosed = true;
+      await pumpEventQueue();
+      writing.complete();
+      await pumpEventQueue();
+
+      expect(connection.ids, ['n0']);
+      expect(warnings, [
+        'Dropped 1 queued notification for session cram-session (CRAM):'
+            ' its monitor feed has ended',
+      ]);
+    });
+  });
+
   group('Given a monitor connection that closes during an enrollment lookup',
       () {
     test('when the lookup returns, then the push is not written or reported',
