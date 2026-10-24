@@ -33,8 +33,11 @@ void main() async {
   }
 
   group('Test delivery to correct streams', () {
-    test('Test delivery to self stream with toAtSign', () async {
+    test('Test delivery of a self notification to monitors with toAtSign',
+        () async {
       var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
       var sent = (AtNotificationBuilder()
             ..id = 'abcde'
             ..type = NotificationType.self
@@ -42,23 +45,22 @@ void main() async {
             ..fromAtSign = alice
             ..notification = 'verify_delivery_to_self$alice')
           .build();
-      var rcvdFuture = nm.self.stream.first;
       nm.enqueue(sent);
-      var rcvd = await rcvdFuture;
-      expect(rcvd, sent);
+      expect(monitor.pushed, [sent]);
     });
-    test('Test delivery to self stream without toAtSign', () async {
+    test('Test delivery of a self notification to monitors without toAtSign',
+        () async {
       var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
       var sent = (AtNotificationBuilder()
             ..id = 'abcde'
             ..type = NotificationType.self
             ..fromAtSign = alice
             ..notification = 'verify_delivery_to_self_without_to$alice')
           .build();
-      var rcvdFuture = nm.self.stream.first;
       nm.enqueue(sent);
-      var rcvd = await rcvdFuture;
-      expect(rcvd, sent);
+      expect(monitor.pushed, [sent]);
     });
     test('Test delivery to self stream with mismatched toAtSign', () async {
       var nm = makeMgr();
@@ -130,7 +132,20 @@ void main() async {
           .build();
       expect(() => nm.enqueue(sent), throwsA(isA<StateError>()));
     });
-    test('Test delivery to received stream', () async {});
+    test('Test delivery of a received notification to monitors', () async {
+      var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
+      var received = (AtNotificationBuilder()
+            ..id = 'abcde'
+            ..type = NotificationType.received
+            ..toAtSign = alice
+            ..fromAtSign = '@bob'
+            ..notification = '$alice:verify_delivery_to_monitors@bob')
+          .build();
+      nm.enqueue(received);
+      expect(monitor.pushed, [received]);
+    });
   });
 
   group('Test states and guards', () {
@@ -138,10 +153,7 @@ void main() async {
       var nm = makeMgr();
       expect(nm.closed, false);
       expect(nm.senders, isEmpty);
-      expect(nm.self.isClosed, false);
-      expect(nm.self.isPaused, false);
-      expect(nm.received.isClosed, false);
-      expect(nm.received.isPaused, false);
+      expect(nm.monitorCount, 0);
       expect(nm.sent.isClosed, false);
       expect(nm.sent.isPaused, false);
     });
@@ -199,6 +211,8 @@ void main() async {
 
     test('Verify close', () async {
       var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
       await nm.notify((AtNotificationBuilder()
             ..id = 'abcde'
             ..type = NotificationType.sent
@@ -208,8 +222,10 @@ void main() async {
           .build());
       await nm.close();
       expect(nm.closed, true);
-      expect(nm.self.isClosed, true);
-      expect(nm.received.isClosed, true);
+      expect(monitor.closed, true);
+      expect(nm.monitorCount, 0);
+      expect(() => nm.addMonitor(RecordingMonitorSink()),
+          throwsA(isA<StateError>()));
       expect(nm.sent.isClosed, true);
     });
   });

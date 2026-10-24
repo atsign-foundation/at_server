@@ -131,9 +131,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         return;
       }
       response.data = 'success';
-      AtSecondaryServerImpl.getInstance()
-          .telemetry
-          .connectionAuthenticated(atConnection);
       enrollId = atConnectionMetadata.enrollmentId;
 
       // NOTE a retrofit predecessor is settled here, on the first
@@ -162,7 +159,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
       Response response,
       {required String verifiedKey,
       String? wireSigningAlgo}) async {
-    final ApkamVerificationResult admitted;
     if (pkamAuthType == AuthType.pkamLegacy) {
       final EnrollmentManager enMgr =
           AtSecondaryServerImpl.getInstance().enrollmentManager;
@@ -188,7 +184,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         throw UnAuthenticatedException('pkam authentication failed');
       }
       enrollId = EnrollmentManager.primaryEnrollmentId;
-      admitted = primary;
     } else {
       // NOTE asked again inside the section, as the first ask read the state
       // from before the signature check.
@@ -203,14 +198,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.errorMessage = recheck.response.errorMessage;
         return false;
       }
-      admitted = recheck;
     }
 
     atConnectionMetadata.isAuthenticated = true;
     atConnectionMetadata.authType = pkamAuthType;
     atConnectionMetadata.enrollmentId = enrollId;
-    atConnectionMetadata.enrollmentAppName = admitted.appName;
-    atConnectionMetadata.enrollmentDeviceName = admitted.deviceName;
     return true;
   }
 
@@ -240,8 +232,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
     }
     apkamResult.publicKey = enVal.apkamPublicKey;
     apkamResult.signingAlgo = enVal.signingAlgo;
-    apkamResult.appName = enVal.appName;
-    apkamResult.deviceName = enVal.deviceName;
     return apkamResult;
   }
 
@@ -315,8 +305,4 @@ class ApkamVerificationResult {
   /// The signing algorithm recorded on the enrollment, which is what
   /// [publicKey] actually is.
   String? signingAlgo;
-
-  String? appName;
-
-  String? deviceName;
 }

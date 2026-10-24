@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:at_commons/at_commons.dart' show ConnectionInvalidException;
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -44,4 +48,33 @@ void main() async {
       expect(connection2.isRequestAllowed(), true);
     });
   });
+
+  group('Given a connection whose socket stops taking writes', () {
+    test('when it is written to again, then the write is refused', () async {
+      final _FailingSocket socket = _FailingSocket();
+      final InboundConnectionImpl connection =
+          InboundConnectionImpl(socket, 'failing');
+      await connection.write('data:first\n@');
+
+      socket.fail();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(connection.isInValid(), isTrue);
+      await expectLater(connection.write('data:second\n@'),
+          throwsA(isA<ConnectionInvalidException>()));
+    });
+  });
+}
+
+/// A socket that takes writes until [fail] is called.
+class _FailingSocket extends FakeSocket {
+  final Completer<void> _transport = Completer<void>();
+
+  void fail() => _transport.completeError(const SocketException('reset'));
+
+  @override
+  Future addStream(Stream<List<int>> stream) {
+    stream.listen((_) {});
+    return _transport.future;
+  }
 }

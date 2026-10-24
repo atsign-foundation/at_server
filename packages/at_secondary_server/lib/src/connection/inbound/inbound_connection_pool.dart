@@ -1,6 +1,5 @@
 import 'dart:collection';
 
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -97,7 +96,6 @@ class InboundConnectionPool {
       // clearInvalidConnections needs to never throw an exception, so we're going to do all of the connection close() calls separately here
       for (var connection in invalidConnections) {
         try {
-          (connection.metaData as InboundConnectionMetadata).markInvalid();
           connection.close();
         } catch (e) {
           logger.severe(
@@ -121,8 +119,6 @@ class InboundConnectionPool {
 
   bool clearAllConnections() {
     for (var connection in _connections.toList()) {
-      (connection.metaData as InboundConnectionMetadata)
-          .markCloseReason(InboundConnectionCloseReason.serverShutdown);
       connection.close();
     }
     _connections.clear();

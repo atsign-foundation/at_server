@@ -25,6 +25,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   /// Why a client's `messageType:text` notification is refused.
   static const textNotSupported = 'messageType:text is no longer supported';
+
+  /// The longest notification id a notify may carry.
+  static const int maxIdLength = 36;
+
+  /// Why a notify whose id is longer than [maxIdLength] is refused.
+  static const idTooLong =
+      'notification id must have at most $maxIdLength characters';
   final int _maxKeyLength = 255;
 
   final NotificationManager notifMgr;
@@ -73,6 +80,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         verbParams[AtConstants.atSign] =
             verbParams[AtConstants.atSign]!.toAtsign();
       }
+      if (!atConnectionMetadata.isAuthenticated &&
+          !atConnectionMetadata.isPolAuthenticated) {
+        throw UnAuthenticatedException(
+            'Notify command cannot be executed without authentication');
+      }
+      _refuseOverlongId(verbParams);
       // When connection is authenticated, it indicates the sender side of the
       // the notification
       // If the currentAtSign and forAtSign are same, store the notification and return
@@ -83,12 +96,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       // When connection is polAuthenticated, it indicates the receiver side of the
       // the notification. Store the notification to the keystore.
-      else if (atConnectionMetadata.isPolAuthenticated) {
+      else {
         await _handlePolAuthenticatedConnection(
             currentAtSign, verbParams, atConnectionMetadata, response);
-      } else {
-        throw UnAuthenticatedException(
-            'Notify command cannot be executed without authentication');
       }
     } finally {
       processNotificationMutex.release();
@@ -398,6 +408,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           .writeStatsToMonitor(
               latestCommitID: '$cachedKeyCommitId',
               operationType: operationType);
+    }
+  }
+
+  /// Refuses, with [InvalidSyntaxException], a notify whose id is longer
+  /// than [maxIdLength].
+  static void _refuseOverlongId(HashMap<String, String?> verbParams) {
+    if ((verbParams[AtConstants.id]?.length ?? 0) > maxIdLength) {
+      throw InvalidSyntaxException(idTooLong);
     }
   }
 
