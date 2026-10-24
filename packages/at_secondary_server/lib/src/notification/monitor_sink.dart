@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// A live push written to a monitor connection, with the enrollment and the
 /// auth type the connection stood on when the push was authorized.
@@ -31,12 +32,24 @@ abstract interface class MonitorSink {
 /// The live pushes written for one received notification, sent to
 /// [onSettled] once every feed handed the notification has settled it, or
 /// once [timeout] passes, whichever is first.
+///
+/// The report is sent, and its timer runs, in the zone it was created in,
+/// never inside the call that settled or sealed it; a failure in
+/// [onSettled] is logged and goes no further.
 final class LivePushReport {
-  /// A report that gives up waiting after [timeout].
-  LivePushReport(this._onSettled, {required Duration timeout}) {
+  /// A report on [about] that gives up waiting after [timeout].
+  LivePushReport(this._onSettled,
+      {required Duration timeout, this.about = 'a notification'})
+      : _zone = Zone.current {
     _timer = Timer(timeout, _finish);
   }
 
+  static final AtSignLogger _logger = AtSignLogger('LivePushReport');
+
+  /// What the report is on, for its log lines.
+  final String about;
+
+  final Zone _zone;
   final void Function(List<LivePush> written) _onSettled;
   final List<LivePush?> _slots = <LivePush?>[];
   final List<bool> _settled = <bool>[];
@@ -67,7 +80,7 @@ final class LivePushReport {
     _settled[slot] = true;
     _waiting--;
     if (_sealed && _waiting == 0) {
-      _finish();
+      _finishSoon();
     }
   }
 
@@ -81,14 +94,16 @@ final class LivePushReport {
     }
   }
 
-  /// Marks every feed counted, and sends the report at once if none is still
-  /// to settle.
+  /// Marks every feed counted, and sends the report as soon as none is
+  /// still to settle.
   void seal() {
     _sealed = true;
     if (_waiting == 0) {
-      _finish();
+      _finishSoon();
     }
   }
+
+  void _finishSoon() => _zone.scheduleMicrotask(_finish);
 
   void _finish() {
     if (_done.isCompleted) {
@@ -96,6 +111,10 @@ final class LivePushReport {
     }
     _timer.cancel();
     _done.complete();
-    _onSettled(_slots.nonNulls.toList());
+    try {
+      _onSettled(_slots.nonNulls.toList());
+    } catch (e, st) {
+      _logger.severe('$e while sending the report on $about\n$st');
+    }
   }
 }

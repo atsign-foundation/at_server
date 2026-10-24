@@ -27,7 +27,11 @@ Feature: An atServer with telemetry on reports what becomes of notifications
   delivers, whichever atSign sent it, is answered data:success and
   dropped with a warning, so it is neither pushed nor in a
   notification.received. The enrollment reported for a push is the one
-  it was authorized for, read in the same step as the authorization.
+  it was authorized for, read in the same step as the authorization. The
+  report waits and is sent from the zone the notification manager was
+  created in, never inside the notify that delivered the notification,
+  and a failure while sending it is logged at severe, so it can change
+  neither the peer's answer nor its connection.
   Replay: a peer re-sending an id it has already delivered is dropped
   before it is stored (unchanged), so it is not reported twice.
   DoS: every attribute is bounded: ids at 36 characters for notifications

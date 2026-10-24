@@ -24,7 +24,11 @@ Feature: A connection has at most one monitor feed
   pushes before it writes. A close removes the feed one microtask after
   the connection is marked closed; a push in that window finds the
   connection invalid and is dropped with a warning. Commands on one
-  connection run one at a time.
+  connection run one at a time. A feed drains in the zone of the monitor
+  connection it was created on, whichever connection queued the
+  notification, so nothing its delivery does lands on the connection that
+  delivered the notification. A failure delivering one notification is
+  logged at severe, and the drain goes on to the next.
   Replay: replay is from the store, filtered and authorized per
   notification for the enrollment the connection stands on when written;
   a re-sent monitor:<epoch> replays from that epoch, as today. Nothing is

@@ -7,7 +7,7 @@ import 'at_server_telemetry.dart';
 import 'at_server_telemetry_constants.dart';
 
 /// Reports what becomes of notifications, through an [AtServerTelemetry].
-final class NotificationTelemetry {
+base class NotificationTelemetry {
   /// Reports through [telemetry], or nowhere when it is omitted.
   NotificationTelemetry([AtServerTelemetry? telemetry])
       : _telemetry = telemetry ?? AtServerTelemetry(heartbeatInterval: null);

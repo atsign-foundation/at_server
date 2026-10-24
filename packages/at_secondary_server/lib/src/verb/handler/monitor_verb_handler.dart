@@ -110,6 +110,10 @@ class _MonitorFeed implements MonitorSink {
   final RegExp _regex;
   final bool _withSelf;
 
+  /// The zone of the monitor connection the feed was created on, where it
+  /// drains, whichever connection queued the notification.
+  final Zone _zone = Zone.current;
+
   /// Completes when the replay is done, releasing the live pushes.
   final Completer<void> _opened = Completer<void>();
 
@@ -242,28 +246,29 @@ class _MonitorFeed implements MonitorSink {
     idle?.complete();
   }
 
-  // NOTE drained from a microtask, so outside a replay the regex runs in
-  // this feed's own turn rather than inside the call that queued the
-  // notification.
+  // NOTE drained from a microtask in the feed's own zone, so outside a replay
+  // the regex runs in this feed's own turn, and nothing the drain does lands
+  // on the connection that queued the notification.
   void _drainSoon() {
     if (_draining || !_opened.isCompleted || _queued.isEmpty) {
       return;
     }
     _draining = true;
-    scheduleMicrotask(() => unawaited(_drain()));
+    _zone.scheduleMicrotask(() => unawaited(_drain()));
   }
 
-  /// Settles the queued notifications one at a time, in order.
+  /// Settles the queued notifications one at a time, in order. A failure
+  /// delivering one is logged at severe, and the drain goes on to the next.
   Future<void> _drain() async {
     try {
       while (_queued.isNotEmpty) {
         final _Queued q = _queued.removeFirst();
-        if (connection case final DrainableConnection drainable
-            when q.held > 0) {
-          drainable.release(q.held);
-        }
         LivePush? written;
         try {
+          if (connection case final DrainableConnection drainable
+              when q.held > 0) {
+            drainable.release(q.held);
+          }
           if (_wanted(q)) {
             written = await _write(q.n, line: q.line);
           }
@@ -383,8 +388,12 @@ class _MonitorFeed implements MonitorSink {
         ' ${_describeConnection()}: $why');
   }
 
-  String _describeConnection() => describeInboundConnection(
-      connection.metaData as InboundConnectionMetadata);
+  String _describeConnection() {
+    final AtConnectionMetaData metaData = connection.metaData;
+    return metaData is InboundConnectionMetadata
+        ? describeInboundConnection(metaData)
+        : 'session ${metaData.sessionID}';
+  }
 }
 
 /// A `monitor` whose replay failed with [error].

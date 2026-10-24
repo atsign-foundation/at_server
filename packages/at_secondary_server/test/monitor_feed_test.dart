@@ -691,20 +691,30 @@ void main() {
     test('when one received notification is reported, then it starts one timer',
         () async {
       enableRecording(serverTelemetry, RecordingExporter());
-      for (int i = 0; i < 50; i++) {
-        await runMonitor(cramConnection()..metadata.sessionID = 'session-$i');
-      }
+      bool counting = false;
       int timers = 0;
 
       await runZoned(() async {
-        notificationManager.enqueue(received('n1'), report: true);
-        await notificationManager.monitorsIdle;
+        final NotificationManager manager = NotificationManager(
+            alice, notifStore, notificationManager.notifyConnectionsPool,
+            telemetry: NotificationTelemetry(serverTelemetry));
+        monitor = _InstrumentedMonitor(keyValueStore, manager);
+        for (int i = 0; i < 50; i++) {
+          await runMonitor(cramConnection()..metadata.sessionID = 'session-$i');
+        }
+        counting = true;
+        manager.enqueue(received('n1'), report: true);
+        await manager.monitorsIdle;
+        counting = false;
+        await manager.close();
       }, zoneSpecification: ZoneSpecification(createTimer: (Zone self,
           ZoneDelegate parent,
           Zone zone,
           Duration duration,
           void Function() f) {
-        timers++;
+        if (counting) {
+          timers++;
+        }
         return parent.createTimer(zone, duration, f);
       }));
 

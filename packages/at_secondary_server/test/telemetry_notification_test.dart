@@ -457,28 +457,30 @@ void main() {
     await verbTestsSetUp();
     addTearDown(verbTestsTearDown);
     int timers = 0;
+    late NotificationManager manager;
 
-    runZoned(
-        () => notificationManager.enqueue(
-            (AtNotificationBuilder()
-                  ..id = 'n-off'
-                  ..fromAtSign = bob
-                  ..toAtSign = alice
-                  ..notification = '@alice:phone.wavi@bob'
-                  ..notificationDateTime = DateTime.now()
-                  ..type = NotificationType.received)
-                .build(),
-            report: true),
-        zoneSpecification: ZoneSpecification(createTimer: (Zone self,
-            ZoneDelegate parent,
-            Zone zone,
-            Duration duration,
-            void Function() f) {
+    runZoned(() {
+      manager = NotificationManager(
+          alice, notifStore, notificationManager.notifyConnectionsPool,
+          telemetry: NotificationTelemetry(serverTelemetry));
+      manager.enqueue(
+          (AtNotificationBuilder()
+                ..id = 'n-off'
+                ..fromAtSign = bob
+                ..toAtSign = alice
+                ..notification = '@alice:phone.wavi@bob'
+                ..notificationDateTime = DateTime.now()
+                ..type = NotificationType.received)
+              .build(),
+          report: true);
+    }, zoneSpecification: ZoneSpecification(createTimer: (Zone self,
+        ZoneDelegate parent, Zone zone, Duration duration, void Function() f) {
       timers++;
       return parent.createTimer(zone, duration, f);
     }));
+    addTearDown(manager.close);
 
-    expect(notificationManager.pendingReportCount, 0);
+    expect(manager.pendingReportCount, 0);
     expect(timers, 0);
   });
 

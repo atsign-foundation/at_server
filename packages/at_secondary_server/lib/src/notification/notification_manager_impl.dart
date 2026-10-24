@@ -65,6 +65,11 @@ class NotificationManager {
   /// notification.received reports still waiting for their pushes.
   final Set<LivePushReport> _pendingReports = {};
 
+  /// The zone the manager was created in, where its reports wait and are
+  /// sent, rather than in the zone of the connection that delivered the
+  /// notification.
+  final Zone _zone = Zone.current;
+
   /// Telemetry is off unless [telemetry] is given.
   NotificationManager(
       this.atSign, this._notifStore, this._notifyConnectionsPool,
@@ -579,10 +584,10 @@ class NotificationManager {
       return null;
     }
     late final LivePushReport report;
-    report = LivePushReport((List<LivePush> written) {
-      _pendingReports.remove(report);
-      telemetry.received(n, pushedTo: written);
-    }, timeout: livePushTimeout);
+    report = _zone.run(() => LivePushReport((List<LivePush> written) {
+          _pendingReports.remove(report);
+          telemetry.received(n, pushedTo: written);
+        }, timeout: livePushTimeout, about: 'notification ${n.id}'));
     _pendingReports.add(report);
     return report;
   }
