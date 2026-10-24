@@ -199,6 +199,30 @@ void main() {
   });
 
   test(
+      'Given a peer delivering a notification with ttr whose cached key would be longer than 255 characters, then it is refused with AT0016 before anything is stored or pushed, keeps its connection, nothing reaches a zone, and its next notification is stored and pushed',
+      () async {
+    final _Monitor monitor = _Monitor('monitor-a');
+    await monitorOn(monitor);
+    final _Peer peer = _Peer.listen('bob', bob, notify);
+
+    await peer.send('notify:id:long:update:messageType:key:ttr:100000'
+        ':ccd:true:@alice:${'k' * 234}.wavi@bob:v');
+    await peer.send(peerNotify('n2'));
+    await manager.monitorsIdle;
+    await pumpEventQueue();
+
+    expect(peer.connection.writes, [
+      'error:AT0016-Exception: notification key length 257 is greater than'
+          ' 255 chars\n@',
+      'data:success\n@bob@',
+    ]);
+    expect(await notifStore.exists('long'), isFalse,
+        reason: 'refused before it is stored');
+    expect(monitor.ids, ['n2'], reason: 'refused before it is pushed');
+    expectNothingEscaped([peer]);
+  });
+
+  test(
       "Given a monitor connection whose metadata is not an inbound connection's, when a peer's notification is pushed to it, then the peer keeps its connection, nothing reaches a zone, and the other monitor is still written it",
       () async {
     final MonitorVerbHandler handler =

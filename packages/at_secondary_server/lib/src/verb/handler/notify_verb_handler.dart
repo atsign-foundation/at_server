@@ -164,32 +164,29 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
+    // When Operation is update, cache key only when TTR is set.
+    // Also, If operation is delete removed the cached key - irrespective of TTR value.
+    final OperationType operationType =
+        getOperationType(verbParams[AtConstants.operation]);
+    final bool caches = operationType == OperationType.delete ||
+        _getTimeToRefresh(verbParams[AtConstants.ttr]) != null;
+    final String cachedNotificationKey =
+        '${AtConstants.cached}:${atNotificationBuilder.notification}';
+    // NOTE checked before the notification is stored, so one whose key
+    // cannot be cached is refused with nothing stored or pushed.
+    if (caches && cachedNotificationKey.length > _maxKeyLength) {
+      throw InvalidAtKeyException(
+          'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
+    }
+
     // Store and send the notification
     await notifMgr.notify(n,
         ephemeral: isEphemeral(verbParams), reportReceived: true);
 
     // Everything after here is to do with auto-caching based on notifications
-    // First of all, caching is only relevant when ttr is set
-    // So - no ttr? we're done.
-    OperationType operationType =
-        getOperationType(verbParams[AtConstants.operation]);
-    // When Operation is update, cache key only when TTR is set.
-    // So if TTR is null,  do nothing.
-    // Also, If operation is delete removed the cached key - irrespective of TTR value.
-    // So, If operation is not delete and TTR is null, return.
-    if (operationType != OperationType.delete &&
-        (_getTimeToRefresh(verbParams[AtConstants.ttr]) == null)) {
+    if (!caches) {
       response.data = 'data:success';
       return;
-    }
-
-    // OK we have a ttr
-    // First of all, form a cached key
-    String cachedNotificationKey =
-        '${AtConstants.cached}:${atNotificationBuilder.notification}';
-    if (cachedNotificationKey.length > _maxKeyLength) {
-      throw InvalidAtKeyException(
-          'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
     }
     // Sender-asserted timestamps travel to the keystore explicitly, so the
     // cached key is stored with the origin's values. Passed on EVERY write

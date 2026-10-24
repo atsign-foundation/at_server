@@ -58,6 +58,13 @@
   it, and another atServer's notification that changes a cached key no
   longer closes that atServer's connection.
 
+- fix: another atServer's notification with `ttr` whose cached key would be
+  longer than 255 characters is refused with AT0016 before it is stored or
+  pushed to monitors, rather than after. A sending atServer retries a
+  refused notification until it expires, 15 minutes by default and at most
+  8 days when its client set `ttln`, and holds back its later notifications
+  to the same atSign until then.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
