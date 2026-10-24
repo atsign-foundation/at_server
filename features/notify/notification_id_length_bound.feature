@@ -14,9 +14,11 @@ Feature: A notification id has at most 36 characters
   critical work stores anything.
   Replay: nothing is stored or queued for a refused notification, so
   nothing about it is retried after a restart. A sending atServer that
-  gets AT0003 retries until the notification expires, as it does for
-  every other refusal, and its later notifications to this atSign wait
-  behind it meanwhile.
+  gets AT0003 retries the notification until it expires, as it does for
+  every other refusal, and holds back its later notifications to this
+  atSign until then. A notification expires 15 minutes after the sending
+  atServer accepted it by default, or once the ttln its client set has
+  passed, at most 8 days.
   DoS: the check measures one ASCII string (the notify syntax allows only
   [A-Za-z0-9_-] in an id). The answer does not repeat the id.
   Forgery: the id is the only notification attribute the sender alone

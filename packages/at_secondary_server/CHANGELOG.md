@@ -17,6 +17,9 @@
 
 - fix: a `notify` whose id is longer than 36 characters is refused with
   AT0003, whether the atSign's own client or another atServer sends it.
+  A sending atServer retries a refused notification until it expires, 15
+  minutes by default and at most 8 days when its client set `ttln`, and
+  holds back its later notifications to the same atSign until then.
 
 - fix: running `monitor` again on a connection replaces its feed, with the
   latest regex and `selfNotifications` flag, instead of sending each later
