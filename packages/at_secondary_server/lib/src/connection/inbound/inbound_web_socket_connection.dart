@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart' show ConnectionInvalidException;
@@ -39,7 +38,6 @@ class InboundWebSocketConnection
   late InboundIdleChecker idleChecker;
 
   late final InboundWriteQueue<String> _writes;
-  Future<void>? _transport;
 
   InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
     metaData = InboundConnectionMetadata()
@@ -105,7 +103,6 @@ class InboundWebSocketConnection
   void _failed(Object error) {
     logger.info('WebSocket stopped taking writes: $error');
     metaData.isStale = true;
-    _writes.close();
   }
 
   /// How many bytes are waiting for the client to read.
@@ -128,7 +125,7 @@ class InboundWebSocketConnection
             metaData, 'closing WebSocket (readyState ${ws.readyState})'));
       }
       _writes.close();
-      final Future<void>? transport = _transport;
+      final Future<void>? transport = _writes.transport;
       if (transport == null) {
         await ws.close();
       } else {
@@ -148,17 +145,9 @@ class InboundWebSocketConnection
     if (isInValid()) {
       throw ConnectionInvalidException('Connection is invalid');
     }
-    _transport ??= ws.addStream(_writes.stream).then((_) {}, onError: _failed);
-    final int length = utf8.encode(data).length;
-    if (!_writes.add(data, length)) {
-      final int waiting = _writes.unsentBytes + length;
-      logger.warning('Closing ${describeInboundConnection(metaData)}: $waiting'
-          ' bytes would be waiting for it to read, over the limit of'
-          ' ${_writes.maxUnsentBytes}');
-      await close();
-      throw ConnectionInvalidException(
-          'Connection closed: too many bytes waiting for the client to read');
-    }
+    _writes.bindOnce(ws.addStream, _failed);
+    await _writes.write(data, utf8Length(data),
+        connection: this, logger: logger);
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${sanitiseForLogging(data)}'));

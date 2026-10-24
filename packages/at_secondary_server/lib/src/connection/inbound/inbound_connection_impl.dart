@@ -32,7 +32,6 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   late InboundIdleChecker idleChecker;
 
   late final InboundWriteQueue<List<int>> _writes;
-  Future<void>? _transport;
 
   InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
       : super(socket) {
@@ -140,7 +139,6 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   void _failed(Object error) {
     logger.info('Socket stopped taking writes: $error');
     metaData.isStale = true;
-    _writes.close();
   }
 
   /// How many bytes are waiting for the client to read.
@@ -153,24 +151,14 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      _transport ??=
-          underlying.addStream(_writes.stream).then((_) {}, onError: _failed);
+      _writes.bindOnce(underlying.addStream, _failed);
     } catch (e) {
       metaData.isStale = true;
       logger.severe('write caught ${e.toString()}');
       throw AtIOException(e.toString());
     }
     final List<int> bytes = utf8.encode(data);
-    if (!_writes.add(bytes, bytes.length)) {
-      final int waiting = _writes.unsentBytes + bytes.length;
-      logger.warning('Closing'
-          ' ${describeInboundConnection(metaData as InboundConnectionMetadata)}:'
-          ' $waiting bytes would be waiting for it to read, over the limit of'
-          ' ${_writes.maxUnsentBytes}');
-      await close();
-      throw ConnectionInvalidException(
-          'Connection closed: too many bytes waiting for the client to read');
-    }
+    await _writes.write(bytes, bytes.length, connection: this, logger: logger);
     metaData.lastAccessed = DateTime.timestamp();
     if (metaData is InboundConnectionMetadata) {
       if (logger.isLoggable('info')) {

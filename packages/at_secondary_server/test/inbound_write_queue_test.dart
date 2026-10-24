@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 
 import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
 import 'package:test/test.dart';
@@ -53,6 +55,31 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(taken, ['a' * 10, 'b' * 20, 'c' * 40]);
       expect(drained, isTrue);
+    });
+  });
+
+  group('Given a string', () {
+    test('when it is measured, then the count is its UTF-8 length', () {
+      final Random random = Random(2874);
+      final List<String> strings = [
+        '',
+        'notification: {"id":"n1"}\n',
+        'é',
+        '€',
+        '😀',
+        '\uD83D',
+        '\uDE00',
+        'a\uD83D',
+        '\uDE00\uD83D',
+        'mixed é€😀 text',
+        for (int i = 0; i < 1000; i++)
+          String.fromCharCodes(
+              [for (int j = 0; j < 20; j++) random.nextInt(0x10000)]),
+      ];
+      for (final String text in strings) {
+        expect(utf8Length(text), utf8.encode(text).length,
+            reason: 'for ${text.codeUnits}');
+      }
     });
   });
 }
