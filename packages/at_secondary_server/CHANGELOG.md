@@ -5,10 +5,11 @@
   expires before it is delivered, and `notification.error` when the recipient
   atSign does not exist, each naming the recipient (`atsign.notification.to`).
   `notification.received` when another atServer delivers one, naming the
-  sender (`atsign.notification.from`) and, once the pushes to the `monitor`
-  connections open at that moment have finished, how many it was pushed to
-  (`atsign.notification.push_count`) and, for each, its enrollment
-  (`atsign.notification.pushed_to`).
+  sender (`atsign.notification.from`) and the devices it was pushed to live:
+  the enrollment id of each (`atsign.notification.pushed_to`), once per
+  enrollment, and how many (`atsign.notification.push_count`). It is sent
+  once the pushes have been written, or after 10 seconds. A connection
+  authenticated with `cram:` is not counted.
   Every event carries the notification's id (`atsign.notification.ids`),
   which is the same on the sending and the receiving atServer.
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 
@@ -11,12 +13,35 @@ final class RecordingExporter implements AtTelemetryLogRecordExporter {
   /// Every record handed to this exporter, in order.
   final List<AtTelemetryLogRecord> records = <AtTelemetryLogRecord>[];
 
+  final List<(String, Completer<AtTelemetryLogRecord>)> _waiting =
+      <(String, Completer<AtTelemetryLogRecord>)>[];
+
+  /// Completes with the first record named [name], once one is exported.
+  Future<AtTelemetryLogRecord> firstNamed(String name) {
+    for (final AtTelemetryLogRecord record in records) {
+      if (record.eventName == name) {
+        return Future<AtTelemetryLogRecord>.value(record);
+      }
+    }
+    final Completer<AtTelemetryLogRecord> found =
+        Completer<AtTelemetryLogRecord>();
+    _waiting.add((name, found));
+    return found.future;
+  }
+
   @override
   Future<bool> export(
     AtTelemetryLogRecord logRecord,
     AtTelemetryResource resource,
   ) async {
     records.add(logRecord);
+    _waiting.removeWhere(((String, Completer<AtTelemetryLogRecord>) w) {
+      if (w.$1 != logRecord.eventName) {
+        return false;
+      }
+      w.$2.complete(logRecord);
+      return true;
+    });
     return delivers;
   }
 

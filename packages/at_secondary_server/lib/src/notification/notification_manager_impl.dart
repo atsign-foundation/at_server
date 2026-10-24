@@ -65,6 +65,9 @@ class NotificationManager {
   /// Each monitor connection's one feed.
   final Map<InboundConnection, MonitorSink> _monitors = {};
 
+  /// notification.received reports still waiting for their pushes.
+  final Set<Future<void>> _pendingReports = {};
+
   /// Telemetry is off unless [telemetry] is given.
   NotificationManager(
       this.atSign, this._notifStore, this._notifyConnectionsPool,
@@ -80,6 +83,7 @@ class NotificationManager {
       sink.close();
     }
     _monitors.clear();
+    await Future.wait(_pendingReports.toList());
     _ephemeralSweep?.cancel();
     _ephemeral.clear();
     _explicitExpiry.clear();
@@ -557,11 +561,15 @@ class NotificationManager {
     if (!telemetry.isEnabled) {
       return;
     }
-    unawaited(Future.wait([
+    late final Future<void> report;
+    report = Future.wait([
       for (final Future<LivePush?> push in pushes)
         push.timeout(livePushTimeout, onTimeout: () => null),
-    ]).then((List<LivePush?> written) =>
-        telemetry.received(n, pushedTo: written.nonNulls.toList())));
+    ])
+        .then((List<LivePush?> written) =>
+            telemetry.received(n, pushedTo: written.nonNulls.toList()))
+        .whenComplete(() => _pendingReports.remove(report));
+    _pendingReports.add(report);
   }
 }
 

@@ -18,7 +18,6 @@ const String atServerNotificationReceivedEventName =
     '$atServerTelemetryEventPrefix.notification.received';
 
 // attributes
-const int atServerTelemetryMaxValueLength = 64;
 const String notificationFromAttribute = 'atsign.notification.from';
 const String notificationToAttribute = 'atsign.notification.to';
 const String notificationPushCountAttribute = 'atsign.notification.push_count';

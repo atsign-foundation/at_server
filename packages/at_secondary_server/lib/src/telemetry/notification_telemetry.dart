@@ -1,5 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/monitor_sink.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_telemetry/at_telemetry.dart';
 
 import 'at_server_telemetry.dart';
@@ -36,22 +37,28 @@ final class NotificationTelemetry {
     });
   }
 
-  /// Reports a notification another atServer delivered, with the live
-  /// pushes written for it.
+  /// Reports a notification another atServer delivered, listing once each
+  /// enrollment proved by pkam that one of [pushedTo] was written for. A
+  /// push to a CRAM connection is neither listed nor counted.
   void received(
     AtNotification n, {
     List<LivePush> pushedTo = const <LivePush>[],
   }) {
+    final Set<String> devices = <String>{
+      for (final LivePush push in pushedTo)
+        if (push.authType == AuthType.apkam ||
+            push.authType == AuthType.pkamLegacy)
+          if (push.enrollmentId case final String enrollmentId) enrollmentId,
+    };
     _emit(atServerNotificationReceivedEventName, n, <String, Object?>{
       if (n.fromAtSign case final String fromAtSign)
         notificationFromAttribute: fromAtSign,
-      notificationPushCountAttribute: pushedTo.length,
-      if (pushedTo.isNotEmpty)
+      notificationPushCountAttribute: devices.length,
+      if (devices.isNotEmpty)
         notificationPushedToAttribute: <Map<String, Object?>>[
-          for (final LivePush push in pushedTo)
+          for (final String enrollmentId in devices)
             <String, Object?>{
-              if (push.enrollmentId case final String enrollmentId)
-                AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
+              AtTelemetryAttributes.enrollmentId: enrollmentId,
             },
         ],
     });
@@ -61,11 +68,5 @@ final class NotificationTelemetry {
     _telemetry.emitEvent(name,
         attributes: attributes,
         notificationIds: <String>[if (n.id case final String id) id]);
-  }
-
-  String _bounded(String value) {
-    return value.length <= atServerTelemetryMaxValueLength
-        ? value
-        : value.substring(0, atServerTelemetryMaxValueLength);
   }
 }
