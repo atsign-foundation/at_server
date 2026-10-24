@@ -282,7 +282,18 @@ class _MonitorFeed implements MonitorSink {
       // NOTE read in the same step as isAuthorized reads them, so the push is
       // reported as the enrollment that authorized it.
       push = (enrollmentId: metaData.enrollmentId, authType: metaData.authType);
-      if (!await _handler.isAuthorized(metaData, atKey: n.notification)) {
+      final bool authorized;
+      try {
+        authorized =
+            await _handler.isAuthorized(metaData, atKey: n.notification);
+      } catch (e) {
+        _handler.logger.severe('$e while looking up the enrollment for'
+            ' notification ${n.id}'
+            ' (${sanitiseForLogging(n.notification ?? '')}) to'
+            ' ${_describeConnection()}');
+        return null;
+      }
+      if (!authorized) {
         _dropped(n, 'not authorized for that key');
         return null;
       }

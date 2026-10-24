@@ -327,6 +327,27 @@ void main() {
     expect(connection.writes.single, contains('statsNotification.$alice'));
   });
 
+  group('Given a replay in which one enrollment read fails', () {
+    test('when the replay runs, then it writes the others and the feed stays',
+        () async {
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      for (final String id in ['s1', 's2', 's3']) {
+        await notificationManager.notify(received(id));
+      }
+      final String e1 =
+          await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
+      final _RecordingConnection connection = apkamConnection(e1);
+      monitor.failEnrollmentReads(
+          [null, DataStoreException('enrollment store unavailable')]);
+
+      await runMonitor(connection, 'monitor:$t');
+      await pushLive(received('live1'));
+
+      expect(connection.ids, ['s1', 's3', 'live1']);
+      expect(notificationManager.monitorCount, 1);
+    });
+  });
+
   group('Given a monitor push whose enrollment read is in flight', () {
     late String e1;
     late _RecordingConnection connection;
@@ -512,6 +533,13 @@ class _InstrumentedMonitor extends MonitorVerbHandler {
   /// Holds the next lookup until the returned completer completes.
   Completer<void> holdNextLookup() => _hold = Completer<void>();
 
+  final List<Exception?> _readFailures = <Exception?>[];
+
+  /// Makes the enrollment reads fail in turn with [failures]: null lets that
+  /// read through.
+  void failEnrollmentReads(List<Exception?> failures) =>
+      _readFailures.addAll(failures);
+
   /// Holds the next enrollment read, after the lookup has read which
   /// enrollment the connection stands on, until the returned completer
   /// completes.
@@ -519,6 +547,12 @@ class _InstrumentedMonitor extends MonitorVerbHandler {
 
   @override
   Future<EnrollDataStoreValue?> resolveEnrollment(String enrollmentId) async {
+    if (_readFailures.isNotEmpty) {
+      final Exception? failure = _readFailures.removeAt(0);
+      if (failure != null) {
+        throw failure;
+      }
+    }
     final Completer<void>? hold = _holdRead;
     _holdRead = null;
     if (hold != null) {
