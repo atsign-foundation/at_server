@@ -15,7 +15,13 @@ abstract interface class DrainableConnection {
 class InboundWriteQueue<T> {
   /// A queue holding at most [maxUnsentBytes] waiting behind one write.
   InboundWriteQueue({required this.maxUnsentBytes}) {
-    _out = StreamController<T>(sync: true, onListen: _pump, onResume: _pump);
+    // NOTE pumped from a microtask: inside the transport's own listen or
+    // resume callback a write is parked rather than delivered, so the count
+    // would drop before the transport has taken it.
+    _out = StreamController<T>(
+        sync: true,
+        onListen: () => scheduleMicrotask(_pump),
+        onResume: () => scheduleMicrotask(_pump));
   }
 
   /// The most bytes that may wait once something is already waiting.
