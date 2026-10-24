@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_access.dart';
@@ -63,8 +62,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
     (bool, Response) isEnrollmentActive =
         await _verifyIfEnrollmentIsActive(response, atConnectionMetadata);
     if (isEnrollmentActive.$1 == false) {
-      (atConnectionMetadata as InboundConnectionMetadata)
-          .markCloseReason(InboundConnectionCloseReason.enrollmentInactive);
       await atConnection.close();
       return isEnrollmentActive.$2;
     }

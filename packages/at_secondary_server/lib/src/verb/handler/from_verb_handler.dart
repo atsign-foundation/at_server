@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -115,8 +114,6 @@ class FromVerbHandler extends AbstractVerbHandler {
     await responseManager
         .getResponseHandler(getVerb())
         .process(atConnection, response);
-    (atConnection.metaData as InboundConnectionMetadata)
-        .markCloseReason(InboundConnectionCloseReason.protocolError);
     await atConnection.close();
   }
 
