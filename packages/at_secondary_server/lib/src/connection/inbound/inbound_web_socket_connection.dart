@@ -148,6 +148,7 @@ class InboundWebSocketConnection
     _writes.bindOnce(ws.addStream, _failed);
     await _writes.write(data, utf8Length(data),
         connection: this, logger: logger);
+    metaData.lastAccessed = DateTime.timestamp();
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${sanitiseForLogging(data)}'));

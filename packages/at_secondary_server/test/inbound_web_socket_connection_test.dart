@@ -59,6 +59,17 @@ void main() {
       });
     });
 
+    test('when it is written to, then its last access time moves on', () async {
+      final connection = InboundWebSocketConnection(ws, '123', null);
+      final DateTime before =
+          DateTime.timestamp().subtract(const Duration(seconds: 1));
+      connection.metaData.lastAccessed = before;
+
+      await connection.write('data:first\n@');
+
+      expect(connection.metaData.lastAccessed!.isAfter(before), isTrue);
+    });
+
     test('when it is written to after it closed, then the write is refused',
         () async {
       final connection = InboundWebSocketConnection(ws, '123', null);
