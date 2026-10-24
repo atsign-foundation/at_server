@@ -4,6 +4,8 @@ import 'dart:math' show min;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
 
@@ -94,6 +96,13 @@ class NotificationManager {
           logger.severe(s);
           throw StateError(s);
         }
+        final String? reserved = _reservedNamespaceOfSent(n);
+        if (reserved != null) {
+          String s = 'notificationType "sent" but notification ${n.id} uses'
+              ' reserved namespace ${sanitiseForLogging(reserved)}';
+          logger.severe(s);
+          throw StateError(s);
+        }
         sent.add(n); // Useful for testing only
         // We are sending this notification to another atSign
         getPerAtSignNotifSender(n.toAtSign!.toAtsign()).notifs.add(n);
@@ -127,6 +136,13 @@ class NotificationManager {
       throw StateError('Closed');
     }
 
+    final String? reserved = _reservedNamespaceOfSent(n);
+    if (reserved != null) {
+      logger.warning('Not queuing notification ${n.id} for ${n.toAtSign}:'
+          ' it uses reserved namespace ${sanitiseForLogging(reserved)}');
+      return;
+    }
+
     // `id` is non-null by construction — AtNotificationBuilder defaults it
     // to a fresh Uuid v4.
     if (ephemeral) {
@@ -143,6 +159,13 @@ class NotificationManager {
     // Queue it for delivery
     enqueue(n);
   }
+
+  // NOTE no notification for another atSign, which is what a sent one is,
+  // uses a reserved namespace.
+  static String? _reservedNamespaceOfSent(AtNotification n) =>
+      n.type == NotificationType.sent
+          ? reservedNamespaceOfNotification(n.notification ?? '')
+          : null;
 
   Future<List<AtNotification>> getUndelivered() async {
     return await getFilteredSorted(

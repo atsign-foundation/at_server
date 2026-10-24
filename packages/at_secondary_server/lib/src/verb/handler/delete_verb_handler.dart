@@ -5,8 +5,10 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -101,6 +103,15 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
           ' is not authorized to delete key: $keyToDelete');
+    }
+    // NOTE a reserved namespace's records change only through the verbs that
+    // own it.
+    final String? reserved = reservedNamespaceBarringChange(deleteKey,
+        atSign: AtSecondaryServerImpl.getInstance().currentAtSign,
+        enrollmentId: inboundConnectionMetadata.enrollmentId);
+    if (reserved != null) {
+      throw UnAuthorizedException('Record in reserved namespace'
+          ' ${sanitiseForLogging(reserved)} may not be deleted');
     }
     bool cramSecretExisted = false;
     try {

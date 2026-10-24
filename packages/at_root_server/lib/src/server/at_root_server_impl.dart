@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:at_root_server/src/client/at_root_client.dart';
 import 'package:at_root_server/src/client/at_root_client_pool.dart';
+import 'package:at_root_server/src/directory_lookup.dart';
 import 'package:at_root_server/src/server/at_root_config.dart';
 import 'package:at_root_server/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_persistence_root_server/at_persistence_root_server.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_utils/at_utils.dart' show PseudoServerSocket;
+import 'package:meta/meta.dart';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 
 /// Impl class for the root server of the @protocol.
@@ -15,6 +17,20 @@ class RootServerImpl implements AtRootServer {
   final logger = AtSignLogger('RootServerImpl');
   static late dynamic _serverSocket;
   static HttpServer? httpServer;
+
+  /// Serves the TLS port's connections that negotiate http/1.1.
+  static HttpServer? alpnHttpServer;
+
+  /// How long an HTTP connection may stay idle. HttpServer checks it on a
+  /// timer of the same period, so an idle connection closes within twice it.
+  static const Duration httpIdleTimeout = Duration(seconds: 5);
+
+  /// The protocols the TLS port offers by ALPN.
+  static const List<String> alpnProtocols = ['atProtocol/1.0', 'http/1.1'];
+
+  /// Where both protocols read the atDirectory's records.
+  @visibleForTesting
+  DirectoryLookup lookup = redisDirectoryLookup;
   bool _isRunning = false;
   bool _stopInProgress = false;
   late AtRootServerContext serverContext;
@@ -88,7 +104,7 @@ class RootServerImpl implements AtRootServer {
       }
       logger.info('Connection from '
           '${socket.remoteAddress.address}:${socket.remotePort}');
-      var client = RootClient(socket);
+      var client = RootClient(socket, lookup: lookup);
       logger.info('connection successful');
       client.write('@');
     } catch (e) {
@@ -106,50 +122,63 @@ class RootServerImpl implements AtRootServer {
   Future<void> stop() async {
     _stopInProgress = true;
     try {
+      // NOTE the port stops accepting first, so no connection is accepted
+      // after the server that would serve it has closed.
+      await _serverSocket.close();
       if (httpServer != null) {
         await httpServer!.close();
+        httpServer = null;
       }
-      var result = RootClientPool().closeAll();
-      if (result) {
-        //close server socket
-        await _serverSocket.close();
-        _isRunning = false;
+      if (alpnHttpServer != null) {
+        await alpnHttpServer!.close();
+        alpnHttpServer = null;
       }
+      RootClientPool().closeAll();
+      _isRunning = false;
     } on Exception {
       throw Exception;
     }
   }
 
   Future<void> _startHttpsServer() async {
-    var secCon = SecurityContext.defaultContext;
-
-    secCon.useCertificateChain(serverContext.securityContext!.publicKeyPath());
-    secCon.usePrivateKey(serverContext.securityContext!.privateKeyPath());
+    // NOTE its own context, so the TLS port's ALPN offer is never made here.
+    final SecurityContext secCon = SecurityContext()
+      ..useCertificateChain(serverContext.securityContext!.publicKeyPath())
+      ..usePrivateKey(serverContext.securityContext!.privateKeyPath());
 
     httpServer = await HttpServer.bindSecure(
-        InternetAddress.anyIPv4, serverContext.httpsPort!, secCon);
+        InternetAddress.anyIPv4, serverContext.httpsPort!, secCon)
+      ..idleTimeout = httpIdleTimeout;
 
     logger.info('HttpsServer listening at ${serverContext.httpsPort}');
 
-    final keyStoreManager = KeystoreManagerImpl();
-    httpServer!.listen((HttpRequest request) {
-      handleHttpRequest(request, keyStoreManager);
-    });
+    httpServer!.listen(handleHttpRequest,
+        onError: (Object e) =>
+            logger.warning('A connection to the HTTPS port failed: $e'));
   }
 
-  Future<void> handleHttpRequest(
-    HttpRequest request,
-    KeystoreManagerImpl keyStoreManager,
-  ) async {
+  /// Answers one HTTP request from [lookup]'s records: the record for
+  /// `GET /@<atSign>`, or a redirect to that atSign's atServer for a path
+  /// below it, readable from any origin and ending its connection. Never
+  /// throws: a request it cannot answer is answered 400 or 500.
+  Future<void> handleHttpRequest(HttpRequest request) async {
+    final HttpResponse response = request.response;
     try {
+      response.headers.set(HttpHeaders.accessControlAllowOriginHeader, '*');
+      response.persistentConnection = false;
       if (request.uri.toString().length > 1000) {
-        request.response.statusCode = HttpStatus.badRequest;
-        await request.response.close();
+        response.statusCode = HttpStatus.badRequest;
         return;
       }
       switch (request.method) {
         case 'GET':
-          String decodedRequestPath = Uri.decodeComponent(request.uri.path);
+          String decodedRequestPath;
+          try {
+            decodedRequestPath = Uri.decodeComponent(request.uri.path);
+          } on FormatException {
+            response.statusCode = HttpStatus.badRequest;
+            return;
+          }
           logger.info('GET $decodedRequestPath');
 
           if (decodedRequestPath.startsWith('/')) {
@@ -158,54 +187,52 @@ class RootServerImpl implements AtRootServer {
           if (decodedRequestPath.startsWith('@')) {
             decodedRequestPath = decodedRequestPath.substring(1);
           }
-          List<String> pathParts = decodedRequestPath.split('/');
-          String atSignToLookUp;
-          String encodedRedirectPath = '';
-          atSignToLookUp = pathParts.removeAt(0);
-          if (pathParts.isNotEmpty) {
-            encodedRedirectPath =
-                pathParts.map((s) => Uri.encodeComponent(s)).join('/');
-          }
-
-          String? v = await keyStoreManager.getKeyStore().get(atSignToLookUp);
+          final List<String> pathParts = decodedRequestPath.split('/');
+          final String? key = directoryKeyOf(pathParts.removeAt(0));
+          final String? v = key == null ? null : await lookup(key);
 
           if (v == null) {
-            request.response.statusCode = HttpStatus.notFound;
-            request.response.write('404 not found');
+            response.statusCode = HttpStatus.notFound;
+            response.write('404 not found');
+          } else if (pathParts.every((String part) => part.isEmpty)) {
+            response.statusCode = HttpStatus.ok;
+            response.write(v);
           } else {
-            if (encodedRedirectPath.isEmpty) {
-              request.response.statusCode = HttpStatus.ok;
-              request.response.write(v);
-            } else {
-              final locationHeaderValue = StringBuffer('https://$v');
-              locationHeaderValue.write('/$encodedRedirectPath');
-              if (request.uri.query.isNotEmpty) {
-                locationHeaderValue.write('?${request.uri.query}');
-              }
-
-              request.response.statusCode = HttpStatus.movedTemporarily;
-              request.response.headers.add(
-                HttpHeaders.locationHeader,
-                locationHeaderValue.toString(),
-              );
+            final StringBuffer location = StringBuffer('https://$v/@')
+              ..write(Uri.encodeComponent(key!))
+              ..write('/')
+              ..write(pathParts.map(Uri.encodeComponent).join('/'));
+            if (request.uri.query.isNotEmpty) {
+              location.write('?${request.uri.query}');
             }
+            response.statusCode = HttpStatus.movedTemporarily;
+            response.headers
+                .add(HttpHeaders.locationHeader, location.toString());
           }
         default:
-          request.response.statusCode = HttpStatus.unauthorized;
-          request.response.write('Unauthorized');
+          response.statusCode = HttpStatus.unauthorized;
+          response.write('Unauthorized');
       }
     } catch (e) {
-      logger.info('Error while handling http req'
-          ' ${Uri.decodeFull(request.requestedUri.toString())}'
-          ' : $e');
+      logger.warning('Could not answer an HTTP request for ${request.uri}: $e');
+      try {
+        response.statusCode = HttpStatus.internalServerError;
+      } on StateError {
+        // NOTE the status cannot change once the headers are sent.
+      }
     } finally {
-      await request.response.close();
+      try {
+        await response.close();
+      } catch (e) {
+        logger.finer('An HTTP answer was not delivered: $e');
+      }
     }
   }
 
   void _startSecuredServer() {
     try {
-      var secCon = SecurityContext.defaultContext;
+      // NOTE its own context, so the HTTPS port never makes this ALPN offer.
+      final SecurityContext secCon = SecurityContext();
       var retryCount = 0;
       var certsAvailable = false;
       // if certs are unavailable then retry max 10 minutes
@@ -220,6 +247,7 @@ class RootServerImpl implements AtRootServer {
           secCon.useCertificateChain(
               serverContext.securityContext!.publicKeyPath());
           secCon.usePrivateKey(serverContext.securityContext!.privateKeyPath());
+          secCon.setAlpnProtocols(alpnProtocols, true);
           certsAvailable = true;
         } on FileSystemException {
           retryCount++;
@@ -258,9 +286,10 @@ class RootServerImpl implements AtRootServer {
   }
 
   void _listen(var serverSocket) {
-    serverSocket.listen((connection) {
-      _handle(AtClientConnectionImpl(connection));
-    }, onError: (error) {
+    final PseudoServerSocket? httpSockets =
+        serverSocket is SecureServerSocket ? serveHttpOn(serverSocket) : null;
+    serverSocket.listen((connection) => acceptSocket(connection, httpSockets),
+        onError: (error) {
       if (error is HandshakeException) {
         // This is not unusual.
         // See https://github.com/atsign-foundation/at_server/issues/1590
@@ -269,6 +298,42 @@ class RootServerImpl implements AtRootServer {
         logger.warning('ServerSocket.listen: onError :$error');
       }
     });
+  }
+
+  /// Starts [alpnHttpServer] on the connections [serverSocket] hands it, and
+  /// returns the socket that hands them over. An error the HTTP server
+  /// raises is logged, never thrown.
+  @visibleForTesting
+  PseudoServerSocket serveHttpOn(SecureServerSocket serverSocket) {
+    final PseudoServerSocket httpSockets = PseudoServerSocket(serverSocket);
+    runZonedGuarded(() {
+      alpnHttpServer = HttpServer.listenOn(httpSockets)
+        ..idleTimeout = httpIdleTimeout;
+      alpnHttpServer!.listen(handleHttpRequest);
+    },
+        (Object e, StackTrace st) =>
+            logger.warning('An HTTP connection failed: $e\n$st'));
+    return httpSockets;
+  }
+
+  /// Serves [connection] the Atsign Protocol, or hands it to [httpSockets]
+  /// when it negotiated http/1.1. An unexpected error closes only
+  /// [connection].
+  @visibleForTesting
+  void acceptSocket(Socket connection, PseudoServerSocket? httpSockets) {
+    try {
+      if (httpSockets != null &&
+          connection is SecureSocket &&
+          connection.selectedProtocol == 'http/1.1') {
+        httpSockets.add(connection);
+        return;
+      }
+      _handle(AtClientConnectionImpl(connection));
+    } catch (e, st) {
+      logger.warning(
+          'Closed a new connection after an unexpected error: $e\n$st');
+      connection.destroy();
+    }
   }
 
   @override

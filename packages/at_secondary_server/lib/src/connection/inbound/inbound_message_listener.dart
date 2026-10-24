@@ -30,11 +30,9 @@ class InboundMessageListener {
   InboundMessageListener(this.connection);
 
   late Function(String, InboundConnection) onBufferEndCallBack;
-  late Function(List<int>, InboundConnection) onStreamCallBack;
 
   /// Listens to the underlying connection's socket
-  void listen(callback, streamCallBack) {
-    onStreamCallBack = streamCallBack;
+  void listen(callback) {
     onBufferEndCallBack = callback;
     logger.finest(
         'Calling inbound underlying.listen within runZonedGuarded block');
@@ -102,9 +100,8 @@ class InboundMessageListener {
         return;
       }
       await onBufferEndCallBack(command, connection);
-      // NOTE A handler may have closed the connection - a revoked
-      // enrollment, an invalid stream id. Anything queued behind it must not
-      // be dispatched onto it.
+      // NOTE A handler may have closed the connection, for a revoked
+      // enrollment. Anything queued behind it must not be dispatched onto it.
       if (connection.metaData.isClosed || connection.metaData.isStale) {
         _buffer.clear();
         return;
@@ -134,10 +131,6 @@ class InboundMessageListener {
     if (connection.metaData.isStale || connection.metaData.isClosed) {
       //clear buffer as data is redundant
       _buffer.clear();
-      return;
-    }
-    if (connection.metaData.isStream) {
-      await onStreamCallBack(data, connection);
       return;
     }
     // If buffer has capacity add data to buffer,

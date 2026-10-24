@@ -88,13 +88,10 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   }
 
   @override
-  void acceptRequests(Function(String, InboundConnection) callback,
-      Function(List<int>, InboundConnection) streamCallBack) {
+  void acceptRequests(Function(String, InboundConnection) callback) {
     var listener = InboundMessageListener(this);
-    listener.listen(callback, streamCallBack);
+    listener.listen(callback);
   }
-
-  bool? isStream;
 
   @override
   Future<void> close() async {

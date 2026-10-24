@@ -19,7 +19,7 @@ class Batch extends Verb {
 
   @override
   String usage() {
-    return 'e.g batch:[{"id":1, "commmand":"update:location@alice newyork"},{"id":2, "commmand":"delete:location@alice"}]';
+    return 'e.g batch:[{"id":1, "command":"update:location@alice newyork"},{"id":2, "command":"delete:location@alice"}]';
   }
 
   @override

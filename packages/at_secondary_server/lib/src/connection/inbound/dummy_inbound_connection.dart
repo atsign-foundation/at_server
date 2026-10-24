@@ -13,8 +13,7 @@ class DummyInboundConnection implements InboundConnection {
   int timeFrameInMillis = AtSecondaryConfig.timeFrameInMillis;
 
   @override
-  void acceptRequests(Function(String p1, InboundConnection p2) callback,
-      Function(List<int>, InboundConnection) streamCallback) {}
+  void acceptRequests(Function(String p1, InboundConnection p2) callback) {}
 
   @override
   Future<void> close() async {}
@@ -52,8 +51,6 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   String? initiatedBy;
-
-  bool isStream = false;
 
   @override
   bool isRequestAllowed() {

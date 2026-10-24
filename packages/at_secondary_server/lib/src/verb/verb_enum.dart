@@ -14,7 +14,6 @@ enum VerbEnum {
   config,
   notify,
   monitor,
-  stream,
   batch,
   info,
   noop

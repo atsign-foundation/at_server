@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
@@ -331,16 +332,13 @@ class ETU {
       keys.add(key);
       values.add(value);
 
-      r = Response();
       key = '$bob:shared_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'
           '$alice';
       value = 'shared_foo_$i data';
-      await uvh.processVerb(
-          Response(),
-          getVerbParam(VerbSyntax.update, 'update:$key $value'),
-          inboundConnection);
-      expect(r.isError, false);
+      // NOTE stored directly, as no client may write a per-enrollment record
+      // for another atSign; the atServer still moves any that exist.
+      await keyValueStore.put(key, AtData()..data = value);
       keys.add(key);
       values.add(value);
     }
