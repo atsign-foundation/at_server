@@ -273,22 +273,29 @@ class _MonitorFeed implements MonitorSink {
       _dropped(n, 'it has expired');
       return null;
     }
-    if (!metaData.isAuthenticated) {
-      _dropped(n, 'the connection is not authenticated');
-      return null;
-    }
-    // NOTE read in the same step as isAuthorized reads them, so the push is
-    // reported as the enrollment that authorized it.
-    final LivePush push =
-        (enrollmentId: metaData.enrollmentId, authType: metaData.authType);
-    if (!await _handler.isAuthorized(metaData, atKey: n.notification)) {
-      _dropped(n, 'not authorized for that key');
-      return null;
-    }
-    if (_closed || connection.isInValid()) {
-      _dropped(n, 'the connection is closed');
-      return null;
-    }
+    LivePush push;
+    do {
+      if (!metaData.isAuthenticated) {
+        _dropped(n, 'the connection is not authenticated');
+        return null;
+      }
+      // NOTE read in the same step as isAuthorized reads them, so the push is
+      // reported as the enrollment that authorized it.
+      push = (enrollmentId: metaData.enrollmentId, authType: metaData.authType);
+      if (!await _handler.isAuthorized(metaData, atKey: n.notification)) {
+        _dropped(n, 'not authorized for that key');
+        return null;
+      }
+      if (_closed || connection.isInValid()) {
+        _dropped(n, 'the connection is closed');
+        return null;
+      }
+      // NOTE authorized again whenever the connection re-authenticated
+      // during the lookup: a push is written only for the enrollment the
+      // connection stands on when it is written.
+    } while (!metaData.isAuthenticated ||
+        metaData.enrollmentId != push.enrollmentId ||
+        metaData.authType != push.authType);
     try {
       await connection.write('notification: ${jsonEncode(n.mapForClient)}\n');
       return push;

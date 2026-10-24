@@ -7,6 +7,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -326,6 +327,72 @@ void main() {
     expect(connection.writes.single, contains('statsNotification.$alice'));
   });
 
+  group('Given a monitor push whose enrollment read is in flight', () {
+    late String e1;
+    late _RecordingConnection connection;
+
+    setUp(() async {
+      e1 = await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
+      connection = apkamConnection(e1);
+      await runMonitor(connection);
+    });
+
+    test(
+        'when a pkam on the connection fails meanwhile, then the push is not written',
+        () async {
+      final Completer<void> read = monitor.holdNextEnrollmentRead();
+      notificationManager.enqueue(received('n1'));
+      await pumpEventQueue();
+
+      connection.metadata.isAuthenticated = false;
+      read.complete();
+      await notificationManager.monitorsIdle;
+
+      expect(connection.ids, isEmpty);
+      expect(warnings.single, contains('the connection is not authenticated'));
+    });
+
+    test(
+        'when the connection re-authenticates as an enrollment that may not read it, then the push is not written',
+        () async {
+      final String e2 =
+          await createAndPersistAnEnrollment('chat', 'tablet', {'buzz': 'rw'});
+      final Completer<void> read = monitor.holdNextEnrollmentRead();
+      notificationManager.enqueue(received('n1'));
+      await pumpEventQueue();
+
+      connection.metadata.enrollmentId = e2;
+      read.complete();
+      await notificationManager.monitorsIdle;
+
+      expect(connection.ids, isEmpty);
+      expect(warnings.single,
+          allOf(contains('enrollment $e2'), contains('not authorized')));
+    });
+
+    test(
+        'when the connection re-authenticates as an enrollment that may read it, then it is reported under that enrollment',
+        () async {
+      final RecordingExporter exporter = RecordingExporter();
+      enableRecording(serverTelemetry, exporter);
+      final String e2 =
+          await createAndPersistAnEnrollment('chat', 'tablet', {'wavi': 'rw'});
+      final Completer<void> read = monitor.holdNextEnrollmentRead();
+      notificationManager.enqueue(received('n1'), report: true);
+      await pumpEventQueue();
+
+      connection.metadata.enrollmentId = e2;
+      read.complete();
+      final AtTelemetryLogRecord report =
+          await exporter.firstNamed('atsign.atserver.notification.received');
+
+      expect(connection.ids, ['n1']);
+      expect(report.attributes['atsign.notification.pushed_to'], [
+        {'atsign.enrollment.id': e2},
+      ]);
+    });
+  });
+
   group('Given fifty monitor feeds with telemetry on', () {
     test('when one received notification is reported, then it starts one timer',
         () async {
@@ -440,9 +507,25 @@ class _InstrumentedMonitor extends MonitorVerbHandler {
 
   int lookups = 0;
   Completer<void>? _hold;
+  Completer<void>? _holdRead;
 
   /// Holds the next lookup until the returned completer completes.
   Completer<void> holdNextLookup() => _hold = Completer<void>();
+
+  /// Holds the next enrollment read, after the lookup has read which
+  /// enrollment the connection stands on, until the returned completer
+  /// completes.
+  Completer<void> holdNextEnrollmentRead() => _holdRead = Completer<void>();
+
+  @override
+  Future<EnrollDataStoreValue?> resolveEnrollment(String enrollmentId) async {
+    final Completer<void>? hold = _holdRead;
+    _holdRead = null;
+    if (hold != null) {
+      await hold.future;
+    }
+    return super.resolveEnrollment(enrollmentId);
+  }
 
   @override
   Future<bool> isAuthorized(InboundConnectionMetadata inboundConnectionMetadata,
