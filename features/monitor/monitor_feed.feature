@@ -10,9 +10,11 @@ Feature: A connection has at most one monitor feed
   regex (sender is not matched, as today), then the live pushes queued
   meanwhile, each notification once. Live pushes still match the key or
   the sender, as today. Every push is checked against the enrollment the
-  connection stands on at the moment it is written. A push that is not
-  written logs a warning naming the notification's id and key and the
-  connection's session and enrollment.
+  connection stands on at the moment it is written. A push the feed
+  decides not to write logs a warning naming the notification's id and key
+  and the connection's session and enrollment. A feed that ends with
+  pushes still queued logs one warning counting those it would have
+  written, and a write that fails logs at severe, naming the id and key.
 
   Races: the fan-out takes its list of feeds synchronously when a
   notification is queued, so each notification goes to each connection's

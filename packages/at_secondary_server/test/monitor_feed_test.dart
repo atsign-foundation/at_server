@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -403,6 +404,25 @@ void main() {
     expect(connection.writes.single, contains('statsNotification.$alice'));
   });
 
+  group('Given a monitor connection whose write fails', () {
+    test('when a push is written, then the failure names its id and key',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+      final List<String> severe = <String>[];
+      final StreamSubscription<LogRecord> logs = monitor.logger.logger.onRecord
+          .where((LogRecord r) => r.level == Level.SEVERE)
+          .listen((LogRecord r) => severe.add(r.message));
+      addTearDown(logs.cancel);
+      connection.failNextWrite = const SocketException('reset');
+
+      await pushLive(received('n1'));
+
+      expect(severe.single,
+          allOf(contains('n1'), contains('@alice:phone.wavi@bob')));
+    });
+  });
+
   group('Given a monitor connection that is idle but still open', () {
     test('when a push is dropped, then the warning says it is idle or stale',
         () async {
@@ -686,11 +706,19 @@ class _RecordingConnection extends DummyInboundConnection {
   /// idle or stale one does.
   bool idle = false;
 
+  /// What the next write throws, if anything.
+  Exception? failNextWrite;
+
   @override
   bool isInValid() => idle || super.isInValid();
 
   @override
   Future<void> write(String data) async {
+    final Exception? failure = failNextWrite;
+    failNextWrite = null;
+    if (failure != null) {
+      throw failure;
+    }
     final Completer<void>? hold = _hold;
     _hold = null;
     if (hold != null) {

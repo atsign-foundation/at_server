@@ -22,7 +22,8 @@
   latest regex and `selfNotifications` flag, instead of sending each later
   notification once more. Notifications reach a monitor connection in the
   order they arrive, and only while it is authenticated. A notification not
-  written to a monitor logs one warning naming it and the connection.
+  written to a monitor is logged with the connection: one warning each, or
+  one warning counting them when the feed ends with them still queued.
 
 - fix: a connection whose client leaves more than 16 MiB waiting to be read
   is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`

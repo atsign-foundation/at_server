@@ -314,7 +314,8 @@ class _MonitorFeed implements MonitorSink {
       return push;
     } catch (e) {
       _handler.logger.severe('$e while delivering notification ${n.id}'
-          ' to ${_describeConnection()}');
+          ' (${sanitiseForLogging(n.notification ?? '')}) to'
+          ' ${_describeConnection()}');
       return null;
     }
   }
