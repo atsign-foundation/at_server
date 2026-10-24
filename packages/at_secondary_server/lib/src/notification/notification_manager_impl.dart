@@ -38,11 +38,6 @@ class NotificationManager {
   Map<Atsign, PerAtSignNotifSender> senders = {};
 
   @visibleForTesting
-  final StreamController<AtNotification> received =
-      StreamController.broadcast();
-  @visibleForTesting
-  final StreamController<AtNotification> self = StreamController.broadcast();
-  @visibleForTesting
   final StreamController<AtNotification> sent = StreamController.broadcast();
 
   /// How often expired ephemeral notifications are dropped from memory.
@@ -93,8 +88,6 @@ class NotificationManager {
       await s.close();
     }
 
-    await received.close();
-    await self.close();
     await sent.close();
   }
 
@@ -169,7 +162,6 @@ class NotificationManager {
 
       case NotificationType.received:
         // We have received from another atSign
-        received.add(n);
         _pushToMonitors(n, report: report ? _startReport(n) : null);
         break;
       case NotificationType.self:
@@ -180,7 +172,6 @@ class NotificationManager {
           throw StateError(s);
         }
         // We are sending this notification to ourselves (other clients)
-        self.add(n);
         _pushToMonitors(n);
         break;
       case null:

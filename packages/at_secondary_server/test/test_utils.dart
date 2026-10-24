@@ -23,6 +23,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -110,6 +111,29 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
 }
 
 class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
+
+/// A monitor feed that keeps every notification it is pushed, writing none.
+class RecordingMonitorSink implements MonitorSink {
+  @override
+  final InboundConnection connection = DummyInboundConnection();
+
+  /// Every notification pushed to this feed, in order.
+  final List<AtNotification> pushed = <AtNotification>[];
+
+  bool closed = false;
+
+  @override
+  Future<void> get idle => Future<void>.value();
+
+  @override
+  void push(AtNotification n, {LivePushReport? report}) {
+    pushed.add(n);
+    report?.settle(report.expect(), null);
+  }
+
+  @override
+  void close() => closed = true;
+}
 
 class MockInboundConnectionManager extends Mock
     implements InboundConnectionManager {}
