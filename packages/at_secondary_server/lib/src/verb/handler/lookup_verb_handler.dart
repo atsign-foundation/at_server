@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
@@ -129,6 +130,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     await responseManager
         .getResponseHandler(getVerb())
         .process(atConnection, response);
+    md.markCloseReason(InboundConnectionCloseReason.protocolError);
     await atConnection.close();
   }
 

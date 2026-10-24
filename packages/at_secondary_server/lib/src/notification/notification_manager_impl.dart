@@ -3,8 +3,10 @@ import 'dart:math' show min;
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
@@ -21,6 +23,8 @@ class NotificationManager {
 
   @visibleForTesting
   NotifyConnectionsPool get notifyConnectionsPool => _notifyConnectionsPool;
+
+  final AtServerTelemetry? telemetry;
 
   final AtSignLogger logger = AtSignLogger(' NotificationManager ');
 
@@ -50,8 +54,15 @@ class NotificationManager {
 
   Timer? _ephemeralSweep;
 
+  @visibleForTesting
+  static Duration livePushTimeout = const Duration(seconds: 10);
+
+  final Map<String, List<Future<InboundConnectionMetadata?>>> _livePushes =
+      <String, List<Future<InboundConnectionMetadata?>>>{};
+
   NotificationManager(
-      this.atSign, this._notifStore, this._notifyConnectionsPool);
+      this.atSign, this._notifStore, this._notifyConnectionsPool,
+      {this.telemetry});
 
   Future<void> close() async {
     if (_closed) {
@@ -131,7 +142,9 @@ class NotificationManager {
   /// [ephemeral], and calls [enqueue]. [explicitExpiry] marks an expiry the
   /// client set, which is forwarded as given to atServers that take it.
   Future<void> notify(AtNotification n,
-      {bool ephemeral = false, bool explicitExpiry = false}) async {
+      {bool ephemeral = false,
+      bool explicitExpiry = false,
+      bool reportReceived = false}) async {
     if (closed) {
       throw StateError('Closed');
     }
@@ -156,8 +169,20 @@ class NotificationManager {
       _explicitExpiry.add(n.id!);
     }
 
+    if (reportReceived) {
+      _reportReceived(n);
+    }
+
     // Queue it for delivery
     enqueue(n);
+  }
+
+  void recordLivePush(
+    AtNotification n,
+    Future<InboundConnectionMetadata?> push,
+  ) {
+    _livePushes[n.id]
+        ?.add(push.timeout(livePushTimeout, onTimeout: () => null));
   }
 
   // NOTE no notification for another atSign, which is what a sent one is,
@@ -483,6 +508,20 @@ class NotificationManager {
     commandBody = 'id:${atNotification.id!}:$commandBody';
     return commandBody;
   }
+
+  void _reportReceived(AtNotification n) {
+    final AtServerTelemetry? telemetry = this.telemetry;
+    final String? id = n.id;
+    if (telemetry == null || !telemetry.isEnabled || id == null) {
+      return;
+    }
+    _livePushes[id] = <Future<InboundConnectionMetadata?>>[];
+    Timer.run(() async {
+      final List<InboundConnectionMetadata?> pushes = await Future.wait(
+          _livePushes.remove(id) ?? <Future<InboundConnectionMetadata?>>[]);
+      telemetry.notificationReceived(n, pushedTo: pushes.nonNulls.toList());
+    });
+  }
 }
 
 class PerAtSignNotifSender {
@@ -551,6 +590,7 @@ class PerAtSignNotifSender {
         if (n.isExpired()) {
           logger.info('notification ${n.id} has expired - will not deliver');
           n.notificationStatus = NotificationStatus.expired;
+          notifMgr.telemetry?.notificationExpired(n);
           try {
             await notifMgr.put(n.id, n);
           } catch (e) {
@@ -577,6 +617,7 @@ class PerAtSignNotifSender {
         // if response was data:success - great, we're done!
         if (notifyResponse == 'data:success') {
           n.notificationStatus = NotificationStatus.delivered;
+          notifMgr.telemetry?.notificationDelivered(n);
           if (logger.isLoggable('info')) {
             logger.info('Delivered ${n.id} (${n.notification})');
           }
@@ -597,6 +638,7 @@ class PerAtSignNotifSender {
         } on SecondaryNotFoundException catch (_) {
           logger.warning('no such atSign $atSign - giving up on ${n.id}');
           n.notificationStatus = NotificationStatus.errored;
+          notifMgr.telemetry?.notificationError(n);
           await notifMgr.put(n.id, n);
           return;
         }
