@@ -31,6 +31,9 @@
   always sent whole, and a `monitor` replay waits for the client to read
   rather than queuing its whole backlog.
 
+- fix: a WebSocket connection running `monitor` is no longer closed as
+  idle while notifications are being written to it.
+
 - fix: telemetry events the collector never gets, because it rejects a batch
   or the buffer overflows, are logged as one warning per failure counting
   them by event name, not one warning per event.
