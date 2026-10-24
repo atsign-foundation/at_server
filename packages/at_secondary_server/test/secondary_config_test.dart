@@ -92,5 +92,18 @@ void main() async {
       AtSignLogger atLogger = AtSignLogger('test');
       expect(atLogger.logger.level, equals(logging.Level.WARNING));
     });
+
+    test(
+        'Config: the otp limits are read from otp.maxTtlInMinutes and '
+        'otp.maxLive', () async {
+      final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+      addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+      // The yaml paths are pinned by values that are not the defaults (60 and
+      // 10): a getter reading the wrong key would pass with those.
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('otp:\n  maxTtlInMinutes: 7\n  maxLive: 3') as YamlMap;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 7);
+      expect(AtSecondaryConfig.maxLiveOtps, 3);
+    });
   });
 }

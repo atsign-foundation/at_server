@@ -4,6 +4,20 @@
   `__manage:rw`. An enrollment holding `__manage` alone could set it before;
   it is now refused with AT0009.
 
+- ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
+  `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
+  Without a ttl an OTP still lives 5 minutes, or the maximum if that is
+  shorter. A maximum of 0 or less means the default, and one above a year is
+  cut to a year.
+
+- ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
+  OTPs are live (env `maxLiveOtps`, default 10; 0 or less means the default).
+  The count is for the atSign as a whole, whichever enrollment issued them,
+  and the SPP is not counted.
+  An OTP issued with `ttl:0` before this release never expires, so it counts
+  until a full-privilege connection finds it with `otp:list` and deletes it
+  with `otp:delete`.
+
 - feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
   `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
   them all; an enrollment holding `__manage` sees only the OTPs whose
