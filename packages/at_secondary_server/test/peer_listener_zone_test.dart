@@ -12,6 +12,7 @@ import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart'
     show AtConnectionMetaData, AuthType, InboundConnection;
 import 'package:logging/logging.dart';
@@ -144,6 +145,60 @@ void main() {
   });
 
   test(
+      'Given the stats service is off, when a peer delivers a notification with ttr, then it is answered data:success, keeps its connection, nothing reaches a zone, the cached key is written, and its next notification is answered too',
+      () async {
+    expect(atServer.statsNotificationService.currentAtSign, isNull,
+        reason: 'precondition: the stats service was never scheduled');
+    final _PooledPeer connection = _PooledPeer(bob);
+    atServer.inboundConnectionManager.pool.add(connection);
+    final _Peer peer = _Peer.listen('bob', bob, notify, connection: connection);
+    String withTtr(String id) =>
+        'notify:id:$id:update:messageType:key:ttln:60000:ttr:-1'
+        ':@alice:phone.wavi@bob:v';
+
+    await peer.send(withTtr('n1'));
+    await peer.send(withTtr('n2'));
+    await pumpEventQueue();
+
+    expect(
+        peer.connection.writes, ['data:success\n@bob@', 'data:success\n@bob@']);
+    expectNothingEscaped([peer]);
+    expect(await keyValueStore.exists('cached:@alice:phone.wavi@bob'), isTrue);
+  });
+
+  test(
+      "Given the stats service is off, when the atSign's own client updates a key, then it is answered once, with the commit id",
+      () async {
+    atServer.inboundConnectionManager.pool.add(_PooledPeer(bob));
+    final UpdateVerbHandler update = UpdateVerbHandler(
+        keyValueStore, atServer.statsNotificationService, manager, alice);
+    final Connection client = aliceClient();
+
+    await _serve(update, 'update:@bob:phone.wavi@alice v', client);
+
+    expect(client.writes, [matches(RegExp(r'^data:\d+\n@alice@$'))]);
+  });
+
+  test(
+      'Given the stats service is on and writing stats fails, when a peer delivers a notification with ttr, then it is answered data:success, keeps its connection and nothing reaches a zone',
+      () async {
+    atServer.statsNotificationService.currentAtSign = alice;
+    addTearDown(() => atServer.statsNotificationService.currentAtSign = null);
+    final _PooledPeer connection = _PooledPeer(bob);
+    atServer.inboundConnectionManager.pool.add(connection);
+    atServer.inboundConnectionManager.pool.add(peer(carol));
+    final _Peer listening =
+        _Peer.listen('bob', bob, notify, connection: connection);
+
+    await listening.send('notify:id:n1:update:messageType:key:ttln:60000'
+        ':ttr:-1:@alice:phone.wavi@bob:v');
+    await pumpEventQueue();
+
+    expect(listening.connection.writes, ['data:success\n@bob@']);
+    expectNothingEscaped([listening]);
+  });
+
+  test(
       "Given a monitor connection whose metadata is not an inbound connection's, when a peer's notification is pushed to it, then the peer keeps its connection, nothing reaches a zone, and the other monitor is still written it",
       () async {
     final MonitorVerbHandler handler =
@@ -186,6 +241,20 @@ void main() {
   });
 }
 
+/// A peer connection the inbound pool can hold, as it holds every inbound
+/// connection.
+class _PooledPeer extends Connection {
+  _PooledPeer(Atsign atSign) : super(peer(atSign).metaData);
+
+  bool? _isMonitor = false;
+
+  @override
+  bool? get isMonitor => _isMonitor;
+
+  @override
+  set isMonitor(bool? value) => _isMonitor = value;
+}
+
 /// A monitor connection whose metadata is not an inbound connection's.
 class _PlainMonitor extends Fake implements InboundConnection {
   final AtConnectionMetaData _metaData = _PlainMetaData()
@@ -215,10 +284,12 @@ class _PlainMetaData extends AtConnectionMetaData {}
 class _Peer {
   _Peer._(this.name, this.connection);
 
-  /// Listens on a connection [from] has proved itself on by pol, sending its
-  /// notifications to [notify] as the atServer's callback does.
-  factory _Peer.listen(String name, Atsign from, AbstractVerbHandler notify) {
-    final _Peer listening = _Peer._(name, peer(from));
+  /// Listens on a connection [from] has proved itself on by pol, or on
+  /// [connection], sending its notifications to [notify] as the atServer's
+  /// callback does.
+  factory _Peer.listen(String name, Atsign from, AbstractVerbHandler notify,
+      {Connection? connection}) {
+    final _Peer listening = _Peer._(name, connection ?? peer(from));
     final InboundMessageListener listener =
         InboundMessageListener(listening.connection);
     listener.logger.level = 'warning';

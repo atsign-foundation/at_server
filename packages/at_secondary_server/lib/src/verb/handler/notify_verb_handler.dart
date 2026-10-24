@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
@@ -400,14 +401,18 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return int.parse(arg);
   }
 
-  ///Sends the latest commitId to the StatsNotificationService
+  /// Sends the latest commitId to the StatsNotificationService, logging
+  /// rather than passing on any failure, since the notification has already
+  /// been answered.
   void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      AtSecondaryServerImpl.getInstance()
+      unawaited(AtSecondaryServerImpl.getInstance()
           .statsNotificationService
           .writeStatsToMonitor(
               latestCommitID: '$cachedKeyCommitId',
-              operationType: operationType);
+              operationType: operationType)
+          .catchError((Object e) => logger
+              .severe('$e while writing stats after a cached key changed')));
     }
   }
 

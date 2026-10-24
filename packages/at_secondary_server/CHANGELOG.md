@@ -52,6 +52,12 @@
   or the buffer overflows, are logged as one warning per failure counting
   them by event name, not one warning per event.
 
+- fix: with stats notifications turned off
+  (`notification.statsNotificationJobTimeInterval` below zero), a change
+  made by the atSign's own client is answered once, with no AT0010 after
+  it, and another atServer's notification that changes a cached key no
+  longer closes that atServer's connection.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
