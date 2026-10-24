@@ -4,16 +4,16 @@ Feature: A connection that leaves too many bytes unsent is closed
   its transport has not yet taken. When a write arrives while bytes are
   already waiting, or held for a monitor's replay, and would take them
   above the limit (16 MiB by default, connection.inbound_max_unsent_bytes
-  in config.yaml), the atServer drops what is waiting, closes the
-  connection and logs one warning naming the session, the enrollment (or
-  CRAM, pol and the peer's atSign, or not authenticated) and the byte
-  counts. A write onto an empty queue with nothing held is always taken,
-  whatever its size, so one large notification or response never closes
-  a connection by itself. A
-  monitor's replay waits until the queue is empty before each
-  notification, so a client that is reading never reaches the limit
-  through replay. Stats notifications go through the same queue and
-  count toward the limit.
+  in config.yaml, which the atServer refuses to start with when it is
+  below 1 MiB or not an integer), the atServer drops what is waiting,
+  closes the connection and logs one warning naming the session, the
+  enrollment (or CRAM, pol and the peer's atSign, or not authenticated)
+  and the byte counts. A write onto an empty queue with nothing held is
+  always taken, whatever its size, so one large notification or response
+  never closes a connection by itself. A monitor's replay waits until the
+  queue is empty before each notification, so a client that is reading
+  never reaches the limit through replay. Stats notifications go through
+  the same queue and count toward the limit.
 
   Races: the limit is checked synchronously in the write that would
   breach it; that write throws ConnectionInvalidException, and so does

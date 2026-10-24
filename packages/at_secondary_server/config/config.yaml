@@ -117,6 +117,8 @@ connection:
   # write that arrives while bytes are waiting and would take them above this
   # closes the connection, dropping what was waiting. A client that reads,
   # however slowly, is not closed unless it falls this far behind.
+  # The atServer refuses to start if this is below 1 MiB (1048576) or is not
+  # an integer.
   # Default value is 16 MiB (16 * 1024 * 1024 == 16777216)
   inbound_max_unsent_bytes: 16777216
 

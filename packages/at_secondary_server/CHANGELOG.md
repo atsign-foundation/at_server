@@ -33,7 +33,8 @@
 
 - fix: a connection whose client leaves more than 16 MiB waiting to be read
   is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`
-  in config.yaml sets the limit. One large notification or response is
+  in config.yaml sets the limit, and the atServer refuses to start if it is
+  below 1 MiB or not an integer. One large notification or response is
   always sent whole, and a `monitor` replay waits for the client to read
   rather than queuing its whole backlog. A client that stops reading
   during that replay is closed at the limit too, counting the live

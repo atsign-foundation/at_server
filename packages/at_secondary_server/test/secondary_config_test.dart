@@ -113,10 +113,52 @@ void main() async {
         'when config.yaml sets connection.inbound_max_unsent_bytes, then that is the limit a new context takes',
         () {
       AtSecondaryConfig.configYamlMap =
-          loadYaml('connection:\n  inbound_max_unsent_bytes: 12345') as YamlMap;
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 2097152')
+              as YamlMap;
 
-      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 12345);
-      expect(AtSecondaryContext().inboundMaxUnsentBytes, 12345);
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 2097152);
+      expect(AtSecondaryContext().inboundMaxUnsentBytes, 2097152);
+    });
+
+    test(
+        'Given config.yaml sets it to exactly 1 MiB, when it is read, then that is the limit',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 1048576')
+              as YamlMap;
+
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 1048576);
+    });
+
+    test(
+        'Given config.yaml sets it below 1 MiB, when it is read, then it is refused naming the key and the floor',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 1048575')
+              as YamlMap;
+
+      expect(
+          () => AtSecondaryContext(),
+          throwsA(isA<InvalidConfigException>().having(
+              (InvalidConfigException e) => e.message,
+              'message',
+              allOf(contains('connection.inbound_max_unsent_bytes'),
+                  contains('1048576'), contains('1048575')))));
+    });
+
+    test(
+        'Given config.yaml sets it to something that is not an integer, when it is read, then it is refused naming the key and the floor',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 16MiB') as YamlMap;
+
+      expect(
+          () => AtSecondaryConfig.inbound_max_unsent_bytes,
+          throwsA(isA<InvalidConfigException>().having(
+              (InvalidConfigException e) => e.message,
+              'message',
+              allOf(contains('connection.inbound_max_unsent_bytes'),
+                  contains('1048576'), contains('16MiB')))));
     });
 
     test(
@@ -125,10 +167,25 @@ void main() async {
       final ProcessResult result = await Process.run(
           Platform.resolvedExecutable,
           ['run', 'test/tool/print_inbound_max_unsent_bytes.dart'],
-          environment: {'inbound_max_unsent_bytes': '4242'});
+          environment: {'inbound_max_unsent_bytes': '3145728'});
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect((result.stdout as String).trim().split('\n').last, '4242');
+      expect((result.stdout as String).trim().split('\n').last, '3145728');
+    });
+
+    test(
+        'Given the environment variable is not an integer, when it is read, then it is refused naming the key and the floor',
+        () async {
+      final ProcessResult result = await Process.run(
+          Platform.resolvedExecutable,
+          ['run', 'test/tool/print_inbound_max_unsent_bytes.dart'],
+          environment: {'inbound_max_unsent_bytes': 'lots'});
+
+      expect(result.exitCode, isNot(0));
+      expect(
+          result.stderr,
+          allOf(contains('connection.inbound_max_unsent_bytes'),
+              contains('1048576'), contains('lots')));
     });
   });
 }
