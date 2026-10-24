@@ -72,6 +72,23 @@ void main() {
           'enroll:request asks for namespaces the OTP it presents does not'
               ' cover'));
 
+  /// Sends an enroll:request with OTP [passcode] for [namespaces], expects
+  /// AT0009, and checks the refusal stored nothing: the keystore lost only
+  /// the spent OTP, and no notification was stored for an approver.
+  Future<void> expectRefusedBeyondOtp(
+      String passcode, Map<String, String> namespaces) async {
+    final String otpKey =
+        canonicalAtKey(OtpVerbHandler.passcodeKey(passcode, isSpp: false));
+    final List<String> keysBefore =
+        (await (await keyValueStore.getKeys()).toList())..remove(otpKey);
+    final int notificationsBefore =
+        (await notifStore.iterate().toList()).length;
+    await expectLater(request(passcode, namespaces), refusedAsBeyondOtp);
+    expect((await (await keyValueStore.getKeys()).toList())..sort(),
+        keysBefore..sort());
+    expect((await notifStore.iterate().toList()).length, notificationsBefore);
+  }
+
   test('An OTP admits a request within its namespaces', () async {
     await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'rw'});
     expect(await request('ABC123', {'wavi': 'r'}), 'pending');
@@ -79,30 +96,28 @@ void main() {
 
   test('An OTP refuses a namespace it does not hold, and is spent', () async {
     await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'rw'});
-    await expectLater(request('ABC123', {'buzz': 'rw'}), refusedAsBeyondOtp);
+    await expectRefusedBeyondOtp('ABC123', {'buzz': 'rw'});
     await expectLater(request('ABC123', {'wavi': 'r'}), refusedAsInvalidOtp);
   });
 
   test('An OTP refuses more access than it holds', () async {
     await otpIssuedWith('ABC123', {'*': 'r', '__manage': 'rw'});
-    await expectLater(request('ABC123', {'wavi': 'rw'}), refusedAsBeyondOtp);
+    await expectRefusedBeyondOtp('ABC123', {'wavi': 'rw'});
   });
 
   test('An OTP holding * does not cover __manage', () async {
     await otpIssuedWith('ABC123', {'*': 'rw'});
-    await expectLater(
-        request('ABC123', {'__manage': 'r'}), refusedAsBeyondOtp);
+    await expectRefusedBeyondOtp('ABC123', {'__manage': 'r'});
   });
 
   test('An OTP refuses more access on __manage than it holds', () async {
     await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'r'});
-    await expectLater(
-        request('ABC123', {'__manage': 'rw'}), refusedAsBeyondOtp);
+    await expectRefusedBeyondOtp('ABC123', {'__manage': 'rw'});
   });
 
   test('An OTP refuses more access on * than it holds', () async {
     await otpIssuedWith('ABC123', {'*': 'r', '__manage': 'rw'});
-    await expectLater(request('ABC123', {'*': 'rw'}), refusedAsBeyondOtp);
+    await expectRefusedBeyondOtp('ABC123', {'*': 'rw'});
   });
 
   test("An OTP's namespaces are compared as the keystore folds them",
@@ -119,7 +134,7 @@ void main() {
   test('An OTP does not cover a namespace ending in its letters without a dot',
       () async {
     await otpIssuedWith('ABC123', {'wavi': 'rw', '__manage': 'rw'});
-    await expectLater(request('ABC123', {'xwavi': 'rw'}), refusedAsBeyondOtp);
+    await expectRefusedBeyondOtp('ABC123', {'xwavi': 'rw'});
   });
 
   test('An OTP holding * covers a namespace it also holds more narrowly',

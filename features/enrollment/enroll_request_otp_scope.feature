@@ -22,6 +22,8 @@ Feature: An enroll:request presenting an OTP asks only for namespaces the OTP co
   Races: the OTP is claimed as before; the comparison reads no shared state.
   DoS: the comparison is the requested namespaces times the OTP's, which the
   enroll params and enrollment record size limits bound.
+  Refusal: a refused request stores no enrollment record and no notification
+  for an approver, and its OTP is spent.
 
   Scenario: An OTP admits a request within its namespaces
     Given @alice's atServer holds OTP P, issued with {"wavi":"rw","__manage":"rw"}
