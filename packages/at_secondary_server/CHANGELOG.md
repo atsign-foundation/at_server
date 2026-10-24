@@ -7,10 +7,24 @@
   `notification.received` when another atServer delivers one, naming the
   sender (`atsign.notification.from`) and, once the pushes to the `monitor`
   connections open at that moment have finished, how many it was pushed to
-  (`atsign.notification.push_count`) and, for each, the connection's
-  enrollment, auth type and client details (`atsign.notification.pushed_to`).
+  (`atsign.notification.push_count`) and, for each, the connection's id,
+  enrollment and auth type (`atsign.notification.pushed_to`).
   Every event carries the notification's id (`atsign.notification.ids`),
   which is the same on the sending and the receiving atServer.
+
+- feat: an atServer whose telemetry is on tells its collector about the
+  connections its own clients make. `connection.authenticated` when a
+  connection proves who it is, with the connection's id
+  (`atsign.connection.id`), transport (`atsign.connection.transport`), auth
+  type (`atsign.connection.auth_type`) and, for APKAM, the enrollment it
+  proved (`atsign.enrollment.id`) with that enrollment's approved app and
+  device names (`atsign.enrollment.app_name`, `atsign.enrollment.device_name`).
+  `connection.monitoring` when it starts receiving notifications as they
+  arrive, and `connection.closed` with why it closed
+  (`atsign.connection.close_reason`). Closes at shutdown are left to
+  `lifecycle.stopped`. Nothing a client says about itself, such as its app
+  version, platform or SDK version, is sent; apps report those in their own
+  telemetry.
 
 - fix: telemetry events the collector never gets, because it rejects a batch
   or the buffer overflows, are logged as one warning per failure counting

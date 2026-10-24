@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -113,6 +115,73 @@ final class AtServerTelemetry {
         .whenComplete(_reportUndelivered);
   }
 
+  void connectionAuthenticated(AtConnection connection) {
+    if (!isEnabled || connection is! InboundConnection) {
+      return;
+    }
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (metaData is! InboundConnectionMetadata ||
+        metaData.isClosed ||
+        !metaData.isAuthenticated) {
+      return;
+    }
+    metaData.telemetryAnnounced = true;
+    emitEvent(
+      atServerConnectionAuthenticatedEventName,
+      attributes: <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        connectionTransportAttribute: _transportOf(connection),
+        if (_authTypeOf(metaData) case final String authType)
+          connectionAuthTypeAttribute: authType,
+        if (metaData.enrollmentId case final String enrollmentId)
+          AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
+        if (metaData.enrollmentAppName case final String appName)
+          enrollmentAppNameAttribute: _bounded(appName),
+        if (metaData.enrollmentDeviceName case final String deviceName)
+          enrollmentDeviceNameAttribute: _bounded(deviceName),
+      },
+    );
+  }
+
+  void connectionMonitoring(InboundConnection connection) {
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (!isEnabled ||
+        metaData is! InboundConnectionMetadata ||
+        !metaData.telemetryAnnounced) {
+      return;
+    }
+    emitEvent(
+      atServerConnectionMonitoringEventName,
+      attributes: <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+      },
+    );
+  }
+
+  void connectionClosed(InboundConnection connection) {
+    final AtConnectionMetaData metaData = connection.metaData;
+    if (!isEnabled ||
+        metaData is! InboundConnectionMetadata ||
+        !metaData.telemetryAnnounced) {
+      return;
+    }
+    metaData.telemetryAnnounced = false;
+    final InboundConnectionCloseReason reason = metaData.closeReason ??
+        (metaData.isStale
+            ? InboundConnectionCloseReason.stale
+            : InboundConnectionCloseReason.unknown);
+    if (reason == InboundConnectionCloseReason.serverShutdown) {
+      return;
+    }
+    emitEvent(
+      atServerConnectionClosedEventName,
+      attributes: <String, Object?>{
+        connectionIdAttribute: metaData.connectionId,
+        connectionCloseReasonAttribute: reason.wireName,
+      },
+    );
+  }
+
   void notificationDelivered(AtNotification notification) {
     _emitNotificationEvent(
       atServerNotificationDeliveredEventName,
@@ -212,18 +281,33 @@ final class AtServerTelemetry {
 
   Map<String, Object?> _pushTargetOf(InboundConnectionMetadata connection) {
     return <String, Object?>{
+      connectionIdAttribute: connection.connectionId,
       if (connection.enrollmentId case final String enrollmentId)
-        AtTelemetryAttributes.enrollmentId: enrollmentId,
-      if (connection.authType case final AuthType authType)
-        connectionAuthTypeAttribute: authType.name,
-      if (connection.clientId case final String clientId)
-        AtTelemetryAttributes.clientId: clientId,
-      if (connection.appName case final String appName)
-        clientAppNameAttribute: appName,
-      if (connection.appVersion case final String appVersion)
-        clientAppVersionAttribute: appVersion,
-      if (connection.platform case final String platform)
-        clientPlatformAttribute: platform,
+        AtTelemetryAttributes.enrollmentId: _bounded(enrollmentId),
+      if (_authTypeOf(connection) case final String authType)
+        connectionAuthTypeAttribute: authType,
     };
+  }
+
+  String _transportOf(InboundConnection connection) {
+    return connection is InboundWebSocketConnection ? 'websocket' : 'tls';
+  }
+
+  String? _authTypeOf(InboundConnectionMetadata metaData) {
+    if (!metaData.isAuthenticated) {
+      return null;
+    }
+    return switch (metaData.authType) {
+      AuthType.cram => 'cram',
+      AuthType.pkamLegacy => 'pkam_legacy',
+      AuthType.apkam => 'apkam',
+      null => null,
+    };
+  }
+
+  String _bounded(String value) {
+    return value.length <= atServerTelemetryMaxValueLength
+        ? value
+        : value.substring(0, atServerTelemetryMaxValueLength);
   }
 }

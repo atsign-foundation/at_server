@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -114,6 +115,9 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       }
     }
     atConnection.isMonitor = true;
+    AtSecondaryServerImpl.getInstance()
+        .telemetry
+        .connectionMonitoring(atConnection);
   }
 
   /// - Checks if connection is authorized for this notif's key's namespace

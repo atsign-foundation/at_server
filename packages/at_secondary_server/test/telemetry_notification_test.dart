@@ -240,12 +240,9 @@ void main() {
         notificationPushCountAttribute: 1,
         notificationPushedToAttribute: <Map<String, Object?>>[
           <String, Object?>{
+            connectionIdAttribute: pushed.metadata.connectionId,
             AtTelemetryAttributes.enrollmentId: phone,
             connectionAuthTypeAttribute: 'apkam',
-            AtTelemetryAttributes.clientId: 'client-$phone',
-            clientAppNameAttribute: 'chat',
-            clientAppVersionAttribute: '1.2.3',
-            clientPlatformAttribute: 'android',
           },
         ],
         AtTelemetryAttributes.notificationIds: <String>['n-3'],
