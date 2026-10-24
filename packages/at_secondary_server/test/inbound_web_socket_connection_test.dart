@@ -9,9 +9,17 @@ import 'package:test/test.dart';
 class MockWebSocket extends Mock implements WebSocket {}
 
 void main() {
+  setUpAll(() => registerFallbackValue(const Stream<dynamic>.empty()));
+
   test('SENT is logged with its control characters escaped', () async {
     final ws = MockWebSocket();
     when(() => ws.done).thenAnswer((_) => Completer<void>().future);
+    final written = <dynamic>[];
+    when(() => ws.addStream(any())).thenAnswer((invocation) {
+      (invocation.positionalArguments[0] as Stream<dynamic>)
+          .listen(written.add);
+      return Completer<void>().future;
+    });
     final connection = InboundWebSocketConnection(ws, '123', null);
     final Level prior = connection.logger.logger.level;
     connection.logger.level = 'info';
@@ -23,7 +31,7 @@ void main() {
       await sub.cancel();
       connection.logger.logger.level = prior;
     }
-    verify(() => ws.add('error:AT0015-key not found : k\r\x1b[2J\n@'));
+    expect(written, ['error:AT0015-key not found : k\r\x1b[2J\n@']);
     final sent = records.singleWhere((r) => r.message.contains('SENT: '));
     expect(sent.message,
         contains(r'SENT: error:AT0015-key not found : k\r\x1b[2J\n@'));

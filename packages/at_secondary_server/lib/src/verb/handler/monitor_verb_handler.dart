@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
 import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -128,12 +129,17 @@ class _MonitorFeed implements MonitorSink {
       (n.notification?.contains(_regex) ?? false);
 
   /// Writes [backlog] once [after] has settled, then releases the live
-  /// pushes queued behind it.
+  /// pushes queued behind it. Each stored notification waits until the
+  /// connection has nothing waiting to be sent.
   Future<void> open(List<AtNotification> backlog, {Future<void>? after}) async {
+    final InboundConnection connection = this.connection;
     try {
       await after;
       for (final AtNotification n in backlog) {
-        if (_closed) {
+        if (connection case final DrainableConnection drainable) {
+          await drainable.drained;
+        }
+        if (_closed || connection.isInValid()) {
           break;
         }
         if (await _write(n) != null) {
@@ -232,12 +238,8 @@ class _MonitorFeed implements MonitorSink {
         ' ${_describeConnection()}: $why');
   }
 
-  String _describeConnection() {
-    final InboundConnectionMetadata metaData =
-        connection.metaData as InboundConnectionMetadata;
-    return 'session ${metaData.sessionID},'
-        ' enrollment ${metaData.enrollmentId ?? 'none'}';
-  }
+  String _describeConnection() => describeInboundConnection(
+      connection.metaData as InboundConnectionMetadata);
 }
 
 extension MapForClient on AtNotification {

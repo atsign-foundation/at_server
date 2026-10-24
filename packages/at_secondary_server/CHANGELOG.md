@@ -22,6 +22,12 @@
   order they arrive, and only while it is authenticated. A notification not
   written to a monitor logs one warning naming it and the connection.
 
+- fix: a connection whose client leaves more than 16 MiB waiting to be read
+  is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`
+  in config.yaml sets the limit. One large notification or response is
+  always sent whole, and a `monitor` replay waits for the client to read
+  rather than queuing its whole backlog.
+
 - fix: telemetry events the collector never gets, because it rejects a batch
   or the buffer overflows, are logged as one warning per failure counting
   them by event name, not one warning per event.

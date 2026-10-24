@@ -1,19 +1,24 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart'
+    show AtIOException, ConnectionInvalidException;
 import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:meta/meta.dart';
 
 import 'connection_util.dart';
 import 'dummy_inbound_connection.dart';
 
 class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
-    implements InboundConnection {
+    implements InboundConnection, DrainableConnection {
   @override
   bool? isMonitor = false;
 
@@ -25,6 +30,9 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
+
+  late final InboundWriteQueue<List<int>> _writes;
+  Future<void>? _transport;
 
   InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
       : super(socket) {
@@ -40,6 +48,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
+    _writes = InboundWriteQueue<List<int>>(
+        maxUnsentBytes: secondaryContext.inboundMaxUnsentBytes);
 
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
@@ -113,6 +123,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
             ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
             ')'));
       }
+      _writes.close();
       underlying.destroy();
     } catch (_) {
       // Ignore exception on a connection close
@@ -123,8 +134,38 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   }
 
   @override
+  Future<void> get drained => _writes.drained;
+
+  /// How many bytes are waiting for the client to read.
+  @visibleForTesting
+  int get unsentBytes => _writes.unsentBytes;
+
+  @override
   Future<void> write(String data) async {
-    await super.write(data);
+    if (isInValid()) {
+      throw ConnectionInvalidException('Connection is invalid');
+    }
+    try {
+      _transport ??= underlying.addStream(_writes.stream).then((_) {},
+          onError: (Object e) =>
+              logger.info('Socket stopped taking writes: $e'));
+    } catch (e) {
+      metaData.isStale = true;
+      logger.severe('write caught ${e.toString()}');
+      throw AtIOException(e.toString());
+    }
+    final List<int> bytes = utf8.encode(data);
+    if (!_writes.add(bytes, bytes.length)) {
+      final int waiting = _writes.unsentBytes + bytes.length;
+      logger.warning('Closing'
+          ' ${describeInboundConnection(metaData as InboundConnectionMetadata)}:'
+          ' $waiting bytes would be waiting for it to read, over the limit of'
+          ' ${_writes.maxUnsentBytes}');
+      await close();
+      throw ConnectionInvalidException(
+          'Connection closed: too many bytes waiting for the client to read');
+    }
+    metaData.lastAccessed = DateTime.timestamp();
     if (metaData is InboundConnectionMetadata) {
       if (logger.isLoggable('info')) {
         logger.info(logger.getAtConnectionLogMessage(

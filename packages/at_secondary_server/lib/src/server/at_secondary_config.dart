@@ -72,6 +72,7 @@ class AtSecondaryConfig {
 
   //Connection
   static const int _inboundMaxLimit = 200;
+  static const int _inboundMaxUnsentBytes = 16 * 1024 * 1024;
   static const int _outboundMaxLimit = 200;
   static const int _unauthenticatedInboundIdleTimeMillis =
       10 * 60 * 1000; // 10 minutes
@@ -461,6 +462,21 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['connection', 'inbound_max_limit']);
     } on ElementNotFoundException {
       return _inboundMaxLimit;
+    }
+  }
+
+  /// The most bytes an inbound connection may leave waiting for its client
+  /// to read, behind one write, before it is closed.
+  // ignore: non_constant_identifier_names
+  static int get inbound_max_unsent_bytes {
+    var result = _getIntEnvVar('inbound_max_unsent_bytes');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['connection', 'inbound_max_unsent_bytes']);
+    } on ElementNotFoundException {
+      return _inboundMaxUnsentBytes;
     }
   }
 

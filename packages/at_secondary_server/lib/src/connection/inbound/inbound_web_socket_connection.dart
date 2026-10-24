@@ -1,18 +1,24 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart' show ConnectionInvalidException;
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:meta/meta.dart';
 
 import 'connection_util.dart';
 
-class InboundWebSocketConnection implements InboundConnection {
+/// An inbound connection carried over a WebSocket, one text frame per write.
+class InboundWebSocketConnection
+    implements InboundConnection, DrainableConnection {
   WebSocket ws;
 
   AtSignLogger logger = AtSignLogger('InboundWebSocketConnection');
@@ -32,6 +38,9 @@ class InboundWebSocketConnection implements InboundConnection {
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
 
+  late final InboundWriteQueue<String> _writes;
+  Future<void>? _transport;
+
   InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
@@ -45,6 +54,8 @@ class InboundWebSocketConnection implements InboundConnection {
 
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
+    _writes = InboundWriteQueue<String>(
+        maxUnsentBytes: secondaryContext.inboundMaxUnsentBytes);
 
     if (logger.isLoggable('info')) {
       logger.info(
@@ -87,6 +98,13 @@ class InboundWebSocketConnection implements InboundConnection {
   }
 
   @override
+  Future<void> get drained => _writes.drained;
+
+  /// How many bytes are waiting for the client to read.
+  @visibleForTesting
+  int get unsentBytes => _writes.unsentBytes;
+
+  @override
   Future<void> close() async {
     // Some defensive code just in case we accidentally call close multiple times
     if (metaData.isClosed) {
@@ -101,24 +119,40 @@ class InboundWebSocketConnection implements InboundConnection {
         logger.info(logger.getAtConnectionLogMessage(
             metaData, 'closing WebSocket (readyState ${ws.readyState})'));
       }
-      try {
+      _writes.close();
+      final Future<void>? transport = _transport;
+      if (transport == null) {
         await ws.close();
-      } catch (e) {
-        logger.severe('ws.close() exception: $e');
+      } else {
+        // NOTE ws.close() throws while the write queue is bound, so it waits
+        // until the queue's end has reached the WebSocket.
+        unawaited(transport.then((_) => ws.close()).catchError(
+            (Object e) => logger.severe('ws.close() exception: $e')));
       }
-      if (logger.isLoggable('info')) {
-        logger.info(logger.getAtConnectionLogMessage(
-            metaData, 'Closed WebSocket (readyState ${ws.readyState})'));
-      }
-    } catch (_) {
-      // Ignore exception on a connection close
+    } catch (e) {
+      logger.severe('ws.close() exception: $e');
       metaData.isStale = true;
     }
   }
 
   @override
   Future<void> write(String data) async {
-    ws.add(data);
+    if (_writes.isClosed) {
+      return;
+    }
+    _transport ??= ws.addStream(_writes.stream).then((_) {},
+        onError: (Object e) =>
+            logger.info('WebSocket stopped taking writes: $e'));
+    final int length = utf8.encode(data).length;
+    if (!_writes.add(data, length)) {
+      final int waiting = _writes.unsentBytes + length;
+      logger.warning('Closing ${describeInboundConnection(metaData)}: $waiting'
+          ' bytes would be waiting for it to read, over the limit of'
+          ' ${_writes.maxUnsentBytes}');
+      await close();
+      throw ConnectionInvalidException(
+          'Connection closed: too many bytes waiting for the client to read');
+    }
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${sanitiseForLogging(data)}'));
