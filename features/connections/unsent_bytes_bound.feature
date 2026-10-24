@@ -16,9 +16,11 @@ Feature: A connection that leaves too many bytes unsent is closed
 
   Races: the limit is checked synchronously in the write that would
   breach it; that write throws ConnectionInvalidException, and so does
-  every later one, because the connection is closed. A replay waiting
-  for the queue to empty is released when the connection closes. The
-  warning is logged once per connection.
+  every later one, because the connection is closed. A WebSocket
+  connection's socket is destroyed in that same close, as a TLS
+  connection's is; no close frame is sent, since the client is not
+  reading. A replay waiting for the queue to empty is released when the
+  connection closes. The warning is logged once per connection.
   Replay: nothing is stored or spent; a client resumes from its own
   watermark with monitor:<epoch>, and each replayed notification is
   authorized again for the enrollment the connection stands on.
@@ -39,6 +41,17 @@ Feature: A connection that leaves too many bytes unsent is closed
     Then the atServer closes the connection
     And it logs one warning naming the session, enrollment e1, the bytes waiting and the limit
     And the bytes that were waiting are dropped
+
+  Scenario: A WebSocket connection closed at the limit releases its socket at once
+    Given a WebSocket monitor connection whose client has stopped reading
+    When notifications keep arriving until more than the limit is waiting to be sent
+    Then the atServer closes the connection and destroys its socket at once, without waiting for the client to read
+    And it logs one warning naming the session, the enrollment, the bytes waiting and the limit
+
+  Scenario: A WebSocket client that closes its end is closed by the atServer
+    Given a WebSocket connection that has been written to
+    When the client sends a close frame and closes its socket
+    Then the atServer closes the connection and its socket, and the connection leaves the pool
 
   Scenario: A client that reads slowly is not closed
     Given a monitor connection whose client reads, but slower than notifications arrive for a while

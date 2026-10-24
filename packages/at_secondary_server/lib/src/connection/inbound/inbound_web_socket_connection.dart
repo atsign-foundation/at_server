@@ -20,6 +20,9 @@ class InboundWebSocketConnection
     implements InboundConnection, DrainableConnection {
   WebSocket ws;
 
+  /// The socket [ws] runs over.
+  final Socket socket;
+
   AtSignLogger logger = AtSignLogger('InboundWebSocketConnection');
 
   @override
@@ -39,7 +42,8 @@ class InboundWebSocketConnection
 
   late final InboundWriteQueue<String> _writes;
 
-  InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
+  InboundWebSocketConnection(
+      this.ws, this.socket, String? sessionId, this.owningPool) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.timestamp()
@@ -140,6 +144,21 @@ class InboundWebSocketConnection
     }
   }
 
+  /// Closes the connection and destroys its socket at once, sending no close
+  /// frame, for a client that has stopped reading.
+  Future<void> _closeUnread() async {
+    if (metaData.isClosed) {
+      return;
+    }
+    metaData.isClosed = true;
+    if (logger.isLoggable('info')) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'destroying the socket of a WebSocket'));
+    }
+    _writes.close();
+    socket.destroy();
+  }
+
   @override
   Future<void> write(String data) async {
     if (isInValid()) {
@@ -147,7 +166,7 @@ class InboundWebSocketConnection
     }
     _writes.bindOnce(ws.addStream, onFailed: _failed, onEnded: close);
     await _writes.write(data, utf8Length(data),
-        connection: this, logger: logger);
+        connection: this, logger: logger, closeAtLimit: _closeUnread);
     metaData.lastAccessed = DateTime.timestamp();
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(

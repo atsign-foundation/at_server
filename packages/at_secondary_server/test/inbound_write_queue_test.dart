@@ -183,7 +183,9 @@ void main() {
 
       await expectLater(
           queue.write('a', 1,
-              connection: DummyInboundConnection(), logger: logger),
+              connection: DummyInboundConnection(),
+              logger: logger,
+              closeAtLimit: () async {}),
           throwsA(isA<ConnectionInvalidException>()));
       expect(warnings, isEmpty);
     });

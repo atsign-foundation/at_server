@@ -34,6 +34,11 @@
   always sent whole, and a `monitor` replay waits for the client to read
   rather than queuing its whole backlog.
 
+- fix: a WebSocket connection closed at the unsent-bytes limit releases its
+  socket at once, rather than once its client reads again. The atServer no
+  longer negotiates WebSocket compression: a client that offers
+  `permessage-deflate` is sent uncompressed frames.
+
 - fix: a WebSocket connection running `monitor` is no longer closed as
   idle while notifications are being written to it.
 

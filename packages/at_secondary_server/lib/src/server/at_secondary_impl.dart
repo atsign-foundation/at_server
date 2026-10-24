@@ -12,6 +12,7 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/inbound/web_socket_upgrade.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -616,12 +617,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     });
   }
 
-  /// Serves the atProtocol on [ws]. An unexpected error closes only [ws].
-  Future<void> webSocketListener(WebSocket ws) async {
+  /// Serves the atProtocol on [ws], which runs over [socket]. An unexpected
+  /// error closes only [ws].
+  Future<void> webSocketListener(WebSocket ws, Socket socket) async {
     InboundConnection? connection;
     try {
       try {
-        connection = inboundConnectionManager.createWebSocketConnection(ws,
+        connection = inboundConnectionManager.createWebSocketConnection(
+            ws, socket,
             sessionId: SecondaryUtil.makeSessionId());
         connection.acceptRequests(_executeVerbCallBack);
         await connection.write('@');
@@ -646,9 +649,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       httpReqHandler.handle(req);
       return;
     }
-    WebSocketTransformer.upgrade(req).then((WebSocket ws) {
+    upgradeToWebSocket(req).then(((WebSocket, Socket) upgraded) {
       logger.info('Upgraded to WebSocket connection');
-      return webSocketListener(ws);
+      return webSocketListener(upgraded.$1, upgraded.$2);
     }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
   }
 

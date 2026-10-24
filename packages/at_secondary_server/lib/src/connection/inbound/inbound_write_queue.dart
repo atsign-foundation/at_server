@@ -73,12 +73,13 @@ class InboundWriteQueue<T> {
 
   /// Queues [data], [length] bytes long, for [connection]. When bytes are
   /// already waiting and [data] would take them above [maxUnsentBytes], logs
-  /// one warning through [logger] naming [connection], closes it and throws
-  /// [ConnectionInvalidException]; it throws that too once the queue has
-  /// closed.
+  /// one warning through [logger] naming [connection], closes it through
+  /// [closeAtLimit] and throws [ConnectionInvalidException]; it throws that
+  /// too once the queue has closed.
   Future<void> write(T data, int length,
       {required InboundConnection connection,
-      required AtSignLogger logger}) async {
+      required AtSignLogger logger,
+      required Future<void> Function() closeAtLimit}) async {
     if (_closed) {
       throw ConnectionInvalidException('Connection is invalid');
     }
@@ -91,7 +92,7 @@ class InboundWriteQueue<T> {
         : 'session ${metaData.sessionID}';
     logger.warning('Closing $who: ${_unsentBytes + length} bytes would be'
         ' waiting for it to read, over the limit of $maxUnsentBytes');
-    await connection.close();
+    await closeAtLimit();
     throw ConnectionInvalidException(
         'Connection closed: too many bytes waiting for the client to read');
   }

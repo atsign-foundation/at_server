@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart' show ConnectionInvalidException;
 import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
+import 'package:at_secondary/src/connection/inbound/web_socket_upgrade.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:logging/logging.dart';
@@ -10,6 +11,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 class MockWebSocket extends Mock implements WebSocket {}
+
+class MockSocket extends Mock implements Socket {}
 
 void main() {
   setUpAll(() => registerFallbackValue(const Stream<dynamic>.empty()));
@@ -23,7 +26,8 @@ void main() {
           .listen(written.add);
       return Completer<void>().future;
     });
-    final connection = InboundWebSocketConnection(ws, '123', null);
+    final connection =
+        InboundWebSocketConnection(ws, MockSocket(), '123', null);
     final Level prior = connection.logger.logger.level;
     connection.logger.level = 'info';
     final records = <LogRecord>[];
@@ -60,7 +64,8 @@ void main() {
     });
 
     test('when it is written to, then its last access time moves on', () async {
-      final connection = InboundWebSocketConnection(ws, '123', null);
+      final connection =
+          InboundWebSocketConnection(ws, MockSocket(), '123', null);
       final DateTime before =
           DateTime.timestamp().subtract(const Duration(seconds: 1));
       connection.metaData.lastAccessed = before;
@@ -72,7 +77,8 @@ void main() {
 
     test('when it is written to after it closed, then the write is refused',
         () async {
-      final connection = InboundWebSocketConnection(ws, '123', null);
+      final connection =
+          InboundWebSocketConnection(ws, MockSocket(), '123', null);
       await connection.write('data:first\n@');
       await connection.close();
 
@@ -84,7 +90,8 @@ void main() {
     test(
         'when its WebSocket stops taking writes, then later writes are refused',
         () async {
-      final connection = InboundWebSocketConnection(ws, '123', null);
+      final connection =
+          InboundWebSocketConnection(ws, MockSocket(), '123', null);
       await connection.write('data:first\n@');
 
       transport.completeError(const SocketException('connection reset'));
@@ -115,7 +122,8 @@ void main() {
             .pause();
         return Completer<void>().future;
       });
-      final connection = InboundWebSocketConnection(ws, '123', null);
+      final MockSocket socket = MockSocket();
+      final connection = InboundWebSocketConnection(ws, socket, '123', null);
       final Level priorLevel = connection.logger.logger.level;
       connection.logger.level = 'warning';
       final warnings = <String>[];
@@ -133,6 +141,8 @@ void main() {
           throwsA(isA<ConnectionInvalidException>()));
 
       expect(connection.metaData.isClosed, isTrue);
+      verify(() => socket.destroy()).called(1);
+      verifyNever(() => ws.close());
       expect(
           warnings.single,
           allOf(
@@ -155,7 +165,8 @@ void main() {
             .listen((_) {}, onDone: () => writesEnded = true);
         return transport.future;
       });
-      final connection = InboundWebSocketConnection(ws, '123', null);
+      final connection =
+          InboundWebSocketConnection(ws, MockSocket(), '123', null);
       await connection.write('data:first\n@');
 
       await connection.close();
@@ -176,8 +187,8 @@ void main() {
       final HttpServer http =
           await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => http.close(force: true));
-      final Future<WebSocket> upgraded =
-          http.first.then((HttpRequest r) => WebSocketTransformer.upgrade(r));
+      final Future<(WebSocket, Socket)> upgraded =
+          http.first.then((HttpRequest r) => upgradeToWebSocket(r));
       final Socket client =
           await Socket.connect(InternetAddress.loopbackIPv4, http.port);
       addTearDown(client.destroy);
@@ -188,8 +199,9 @@ void main() {
           'Connection: Upgrade\r\n'
           'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
           'Sec-WebSocket-Version: 13\r\n\r\n');
-      final WebSocket ws = await upgraded;
-      final connection = InboundWebSocketConnection(ws, 'closing', null);
+      final (WebSocket ws, Socket socket) = await upgraded;
+      final connection =
+          InboundWebSocketConnection(ws, socket, 'closing', null);
       ws.listen((_) {}, onError: (_) {});
       await connection.write('@');
       await Future<void>.delayed(const Duration(milliseconds: 100));

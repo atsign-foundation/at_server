@@ -158,7 +158,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       throw AtIOException(e.toString());
     }
     final List<int> bytes = utf8.encode(data);
-    await _writes.write(bytes, bytes.length, connection: this, logger: logger);
+    await _writes.write(bytes, bytes.length,
+        connection: this, logger: logger, closeAtLimit: close);
     metaData.lastAccessed = DateTime.timestamp();
     if (metaData is InboundConnectionMetadata) {
       if (logger.isLoggable('info')) {
