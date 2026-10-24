@@ -12,6 +12,9 @@
   Every event carries the notification's id (`atsign.notification.ids`),
   which is the same on the sending and the receiving atServer.
 
+- fix: a `notify` whose id is longer than 36 characters is refused with
+  AT0003, whether the atSign's own client or another atServer sends it.
+
 - fix: telemetry events the collector never gets, because it rejects a batch
   or the buffer overflows, are logged as one warning per failure counting
   them by event name, not one warning per event.
