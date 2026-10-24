@@ -903,6 +903,15 @@ void main() {
           issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
       expect(await liveCount(), 2);
     });
+
+    test('a refused ttl is answered before the live-OTP cap is checked',
+        () async {
+      await issue('otp:get');
+      await issue('otp:get');
+      // NOTE the cap of 2 is full, but the ttl is refused first.
+      await expectLater(
+          issue('otp:get:ttl:0'), throwsA(isA<IllegalArgumentException>()));
+    });
   });
 
   test('info lists otp.list and otp.delete as Beta', () {

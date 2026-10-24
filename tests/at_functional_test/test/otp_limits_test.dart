@@ -36,15 +36,23 @@ void main() {
         expect(jsonDecode(response.replaceFirst('error:', ''))['errorCode'],
             'AT0022');
       }
-      // NOTE exactly the maximum, which NoPorts issue_keys asks for.
-      final String otp = (await firstAtSignConnection
-              .sendRequestToServer('otp:get:ttl:3600000'))
-          .replaceFirst('data:', '')
-          .trim();
-      expect(otp, hasLength(6));
-      // NOTE deleted so it doesn't count toward the cap for later tests.
-      expect(await firstAtSignConnection.sendRequestToServer('otp:delete:$otp'),
-          'data:ok');
+      // NOTE exactly the maximum, which NoPorts issue_keys asks for, so it
+      // must not be refused for its ttl. Earlier test files may have filled
+      // the live-OTP cap; the ttl is checked first, so AT0028 then still
+      // shows the ttl was accepted.
+      final String accepted = await firstAtSignConnection
+          .sendRequestToServer('otp:get:ttl:3600000');
+      if (accepted.startsWith('data:')) {
+        final String otp = accepted.replaceFirst('data:', '').trim();
+        expect(otp, hasLength(6));
+        // NOTE deleted so it doesn't count toward the cap for later tests.
+        expect(
+            await firstAtSignConnection.sendRequestToServer('otp:delete:$otp'),
+            'data:ok');
+      } else {
+        expect(jsonDecode(accepted.replaceFirst('error:', ''))['errorCode'],
+            'AT0028');
+      }
     });
   });
 
