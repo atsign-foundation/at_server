@@ -1,6 +1,7 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundClient;
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
@@ -156,6 +157,22 @@ void main() async {
       expect(nm.monitorCount, 0);
       expect(nm.sent.isClosed, false);
       expect(nm.sent.isPaused, false);
+    });
+
+    test(
+        'Given a newer feed for a connection, when removing only the older one, then the newer one stays',
+        () {
+      var nm = makeMgr();
+      var connection = DummyInboundConnection();
+      var older = RecordingMonitorSink(connection);
+      var newer = RecordingMonitorSink(connection);
+      nm.addMonitor(older);
+      nm.addMonitor(newer);
+
+      nm.removeMonitor(connection, only: older);
+
+      expect(nm.monitorCount, 1);
+      expect(newer.closed, false);
     });
 
     test('Verify notify closed guard', () async {

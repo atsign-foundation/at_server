@@ -117,6 +117,15 @@ class NotificationManager {
   @visibleForTesting
   int get monitorCount => _monitors.length;
 
+  /// How many notifications wait in the monitor feeds.
+  @visibleForTesting
+  int get queuedPushes => _monitors.values
+      .fold(0, (int sum, MonitorSink sink) => sum + sink.queued);
+
+  /// How many notification.received reports have not been sent yet.
+  @visibleForTesting
+  int get pendingReportCount => _pendingReports.length;
+
   /// Completes once every monitor feed has settled what it was handed.
   @visibleForTesting
   Future<void> get monitorsIdle =>

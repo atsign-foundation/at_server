@@ -114,8 +114,12 @@ class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
 
 /// A monitor feed that keeps every notification it is pushed, writing none.
 class RecordingMonitorSink implements MonitorSink {
+  /// A feed for [connection], or for a connection of its own.
+  RecordingMonitorSink([InboundConnection? connection])
+      : connection = connection ?? DummyInboundConnection();
+
   @override
-  final InboundConnection connection = DummyInboundConnection();
+  final InboundConnection connection;
 
   /// Every notification pushed to this feed, in order.
   final List<AtNotification> pushed = <AtNotification>[];
@@ -124,6 +128,9 @@ class RecordingMonitorSink implements MonitorSink {
 
   @override
   Future<void> get idle => Future<void>.value();
+
+  @override
+  int get queued => 0;
 
   @override
   void push(AtNotification n, {LivePushReport? report}) {

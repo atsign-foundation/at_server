@@ -259,22 +259,53 @@ void main() {
     });
 
     test('A push still waiting after 10 seconds is not counted', () async {
-      NotificationManager.livePushTimeout = const Duration(milliseconds: 50);
+      NotificationManager.livePushTimeout = const Duration(seconds: 1);
       final String e1 =
           await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
       final _MonitorConnection connection = apkam(e1);
       await monitor(connection);
       final Completer<void> writing = connection.holdNextWrite();
 
-      final Response response = await deliver('n-6');
-      expect(writing.isCompleted, isFalse);
+      final Response response =
+          await deliver('n-6').timeout(const Duration(milliseconds: 300));
       expect(response.data, 'data:success',
-          reason: 'the notify verb does not wait for the push');
+          reason: 'the notify verb answers before the report goes out');
 
       expect((await report())['atsign.notification.push_count'], 0);
       writing.complete();
       await notificationManager.monitorsIdle;
       expect(connection.ids, ['n-6'], reason: 'the push is still written');
+    });
+
+    test(
+        'Given a sent report, when it has gone out, then the manager no longer holds it',
+        () async {
+      await deliver('n-sent');
+      await report();
+      await pumpEventQueue();
+
+      expect(notificationManager.pendingReportCount, 0);
+    });
+
+    test(
+        "Given a client's notify to its own atSign, when it is pushed to a monitor, then no notification.received is sent",
+        () async {
+      final _MonitorConnection monitoring = _cram();
+      await monitor(monitoring);
+      final DummyInboundConnection client = DummyInboundConnection()
+        ..metadata.isAuthenticated = true
+        ..metadata.authType = AuthType.cram;
+
+      await notify.processInternal(
+          'notify:update:messageType:key:@alice:phone.wavi@alice:v', client);
+      await notificationManager.monitorsIdle;
+      await pumpEventQueue();
+
+      expect(monitoring.ids, hasLength(1), reason: 'control: it was pushed');
+      expect(
+          eventNames(exporter.records,
+              prefix: 'atsign.atserver.notification.received'),
+          isEmpty);
     });
 
     test('Two senders using the same id each get their own report', () async {
@@ -413,6 +444,37 @@ void main() {
         expect(connectionEvents(), isEmpty);
       });
     });
+  });
+
+  test(
+      'Given telemetry off, when a received notification is queued for a report, then no report or timer is started',
+      () async {
+    await verbTestsSetUp();
+    addTearDown(verbTestsTearDown);
+    int timers = 0;
+
+    runZoned(
+        () => notificationManager.enqueue(
+            (AtNotificationBuilder()
+                  ..id = 'n-off'
+                  ..fromAtSign = bob
+                  ..toAtSign = alice
+                  ..notification = '@alice:phone.wavi@bob'
+                  ..notificationDateTime = DateTime.now()
+                  ..type = NotificationType.received)
+                .build(),
+            report: true),
+        zoneSpecification: ZoneSpecification(createTimer: (Zone self,
+            ZoneDelegate parent,
+            Zone zone,
+            Duration duration,
+            void Function() f) {
+      timers++;
+      return parent.createTimer(zone, duration, f);
+    }));
+
+    expect(notificationManager.pendingReportCount, 0);
+    expect(timers, 0);
   });
 
   test('Nothing is sent while telemetry is off', () async {

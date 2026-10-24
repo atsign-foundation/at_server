@@ -16,6 +16,9 @@ abstract interface class MonitorSink {
   /// Never completes with an error.
   Future<void> get idle;
 
+  /// How many notifications wait in this feed to be settled.
+  int get queued;
+
   /// Queues [n] for this feed's connection, if the feed takes its type. When
   /// [report] is given, the feed settles [n] in it once it has written [n]
   /// or decided not to.

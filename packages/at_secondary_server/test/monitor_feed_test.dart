@@ -8,9 +8,12 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
-import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:at_server_spec/at_server_spec.dart'
+    show AuthType, InboundConnection;
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryLogRecord;
 import 'package:logging/logging.dart';
 import 'package:test/test.dart';
@@ -180,6 +183,79 @@ void main() {
     });
 
     tearDown(() async => await gated.close());
+
+    test(
+        'Given a replay of one sender\'s notification, when another sender\'s with the same id arrives live, then both are written',
+        () async {
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      await gated.notify(received('same'));
+      final _RecordingConnection connection = cramConnection();
+      final Completer<void> reading = gated.holdNextRead();
+
+      final Future<void> monitoring = runMonitor(connection, 'monitor:$t');
+      await pumpEventQueue();
+      gated.enqueue(
+          received('same', key: '@alice:phone.wavi@carol', from: '@carol'));
+      reading.complete();
+      await monitoring;
+      await gated.monitorsIdle;
+
+      expect([
+        for (final String w in connection.writes)
+          jsonDecode(w.substring('notification: '.length))['from'],
+      ], [
+        '@bob',
+        '@carol'
+      ]);
+    });
+
+    test(
+        'Given a replay that is waiting on the store, when the connection closes, then a report waiting on its feed goes out at once',
+        () async {
+      final RecordingExporter exporter = RecordingExporter();
+      enableRecording(serverTelemetry, exporter);
+      final gatedWithTelemetry = _GatedNotificationManager(
+          alice, notifStore, notificationManager.notifyConnectionsPool,
+          telemetry: NotificationTelemetry(serverTelemetry));
+      addTearDown(gatedWithTelemetry.close);
+      monitor = _InstrumentedMonitor(keyValueStore, gatedWithTelemetry);
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      final _RecordingConnection connection = cramConnection();
+      final Completer<void> reading = gatedWithTelemetry.holdNextRead();
+      addTearDown(() {
+        if (!reading.isCompleted) reading.complete();
+      });
+      unawaited(runMonitor(connection, 'monitor:$t'));
+      await pumpEventQueue();
+      gatedWithTelemetry.enqueue(received('n1'), report: true);
+
+      connection.metadata.isClosed = true;
+      final AtTelemetryLogRecord report = await exporter
+          .firstNamed('atsign.atserver.notification.received')
+          .timeout(const Duration(seconds: 2));
+
+      expect(report.attributes['atsign.notification.push_count'], 0);
+    });
+
+    test(
+        'Given a replay that is waiting on the store, when self notifications arrive for a feed without selfNotifications, then none is queued',
+        () async {
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      final _RecordingConnection connection = cramConnection();
+      final Completer<void> reading = gated.holdNextRead();
+      final Future<void> monitoring = runMonitor(connection, 'monitor:$t');
+      await pumpEventQueue();
+
+      for (int i = 0; i < 3; i++) {
+        gated.enqueue(_self('s$i'));
+      }
+      expect(gated.queuedPushes, 0);
+      gated.enqueue(received('n1'));
+      expect(gated.queuedPushes, 1, reason: 'control: a received one is');
+
+      reading.complete();
+      await monitoring;
+    });
 
     test('Replay is written before live pushes, each notification once',
         () async {
@@ -361,6 +437,87 @@ void main() {
 
       expect(connection.ids, ['s1', 's3', 'live1']);
       expect(notificationManager.monitorCount, 1);
+    });
+  });
+
+  group('Given stored self notifications', () {
+    for (final (String command, List<String> replayed) in [
+      ('monitor', <String>[]),
+      ('monitor:selfNotifications', ['s1']),
+    ]) {
+      test(
+          'when a client runs $command with an epoch, then it replays $replayed',
+          () async {
+        final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+        await notificationManager.notify(_self('s1'));
+        final _RecordingConnection connection = cramConnection();
+
+        await runMonitor(
+            connection,
+            command == 'monitor'
+                ? 'monitor:$t'
+                : 'monitor:selfNotifications:$t');
+
+        expect(connection.ids, replayed);
+      });
+    }
+  });
+
+  group('Given a connection that has run monitor three times', () {
+    test('when it closes, then its feed is removed once', () async {
+      final _CountingNotificationManager counting =
+          _CountingNotificationManager(
+              alice, notifStore, notificationManager.notifyConnectionsPool);
+      addTearDown(counting.close);
+      monitor = _InstrumentedMonitor(keyValueStore, counting);
+      final _RecordingConnection connection = cramConnection();
+      for (int i = 0; i < 3; i++) {
+        await runMonitor(connection);
+      }
+
+      connection.metadata.isClosed = true;
+      await pumpEventQueue();
+
+      expect(counting.removals, 1);
+    });
+  });
+
+  group('Given a replay whose connection closes part way', () {
+    test('when the replay goes on, then it logs no drop for the rest',
+        () async {
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      for (final String id in ['s1', 's2', 's3']) {
+        await notificationManager.notify(received(id));
+      }
+      final _RecordingConnection connection = cramConnection();
+      final Completer<void> writing = connection.holdNextWrite();
+
+      final Future<void> monitoring = runMonitor(connection, 'monitor:$t');
+      await pumpEventQueue();
+      connection.metadata.isClosed = true;
+      writing.complete();
+      await monitoring;
+
+      expect(connection.ids, ['s1']);
+      expect(warnings, isEmpty);
+    });
+  });
+
+  group('Given a push to a connection that has just closed', () {
+    test(
+        'when the feed drains it, then it is dropped without an enrollment lookup',
+        () async {
+      final String e1 =
+          await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
+      final _RecordingConnection connection = apkamConnection(e1);
+      await runMonitor(connection);
+
+      notificationManager.enqueue(received('n1'));
+      connection.metadata.isClosed = true;
+      await pumpEventQueue();
+
+      expect(monitor.lookups, 0);
+      expect(warnings.single, contains('the connection is closed'));
     });
   });
 
@@ -604,10 +761,35 @@ class _InstrumentedMonitor extends MonitorVerbHandler {
   }
 }
 
+/// A self notification from @alice to herself.
+AtNotification _self(String id) => (AtNotificationBuilder()
+      ..id = id
+      ..fromAtSign = alice
+      ..toAtSign = alice
+      ..notification = 'phone.wavi'
+      ..notificationDateTime = DateTime.now()
+      ..type = NotificationType.self)
+    .build();
+
+/// A NotificationManager that counts the monitor feeds it removes.
+class _CountingNotificationManager extends NotificationManager {
+  _CountingNotificationManager(
+      super.atSign, super.notifStore, super.notifyConnectionsPool);
+
+  int removals = 0;
+
+  @override
+  void removeMonitor(InboundConnection connection, {MonitorSink? only}) {
+    removals++;
+    super.removeMonitor(connection, only: only);
+  }
+}
+
 /// A NotificationManager whose next store read can be held, or made to fail.
 class _GatedNotificationManager extends NotificationManager {
   _GatedNotificationManager(
-      super.atSign, super.notifStore, super.notifyConnectionsPool);
+      super.atSign, super.notifStore, super.notifyConnectionsPool,
+      {super.telemetry});
 
   Completer<void>? _hold;
   Exception? _failure;

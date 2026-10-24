@@ -107,6 +107,9 @@ class _MonitorFeed implements MonitorSink {
   final InboundConnection connection;
 
   @override
+  int get queued => _queued.length;
+
+  @override
   Future<void> get idle {
     if (_isIdle) {
       return Future<void>.value();

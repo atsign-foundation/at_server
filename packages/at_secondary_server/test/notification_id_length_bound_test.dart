@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:test/test.dart';
@@ -78,8 +77,7 @@ void main() {
     expect(await footprint(), before);
     expect(monitoring.lastWrittenData, isNull);
     expect(
-        eventNames(exporter.records,
-            prefix: '$atServerTelemetryEventPrefix.notification.'),
+        eventNames(exporter.records, prefix: 'atsign.atserver.notification.'),
         isEmpty);
     expect(connection.closeCount, 0);
   });
@@ -100,8 +98,8 @@ void main() {
       expect(await storedIds(), [id36]);
       expect(monitoring.lastWrittenData, contains(id36),
           reason: 'a monitor is pushed an accepted notification');
-      expect(
-          eventNames(exporter.records), [atServerNotificationReceivedEventName],
+      expect(eventNames(exporter.records),
+          ['atsign.atserver.notification.received'],
           reason: 'an accepted notification is reported');
     });
   });
