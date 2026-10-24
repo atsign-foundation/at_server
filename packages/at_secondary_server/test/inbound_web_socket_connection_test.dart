@@ -140,6 +140,35 @@ void main() {
     });
   });
 
+  group('Given a WebSocket connection that has been written to', () {
+    test(
+        'when it closes, then it ends its writes and closes the WebSocket only after they have ended',
+        () async {
+      final ws = MockWebSocket();
+      when(() => ws.done).thenAnswer((_) => Completer<void>().future);
+      when(() => ws.readyState).thenReturn(WebSocket.open);
+      when(() => ws.close()).thenAnswer((_) async {});
+      final Completer<void> transport = Completer<void>();
+      bool writesEnded = false;
+      when(() => ws.addStream(any())).thenAnswer((invocation) {
+        (invocation.positionalArguments[0] as Stream<dynamic>)
+            .listen((_) {}, onDone: () => writesEnded = true);
+        return transport.future;
+      });
+      final connection = InboundWebSocketConnection(ws, '123', null);
+      await connection.write('data:first\n@');
+
+      await connection.close();
+      await Future<void>.delayed(Duration.zero);
+      expect(writesEnded, isTrue);
+      verifyNever(() => ws.close());
+
+      transport.complete();
+      await Future<void>.delayed(Duration.zero);
+      verify(() => ws.close()).called(1);
+    });
+  });
+
   group('Given a real WebSocket connection that has been written to', () {
     test(
         'when its client sends a close frame, then the connection closes without waiting on the listener',

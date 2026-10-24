@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:test/test.dart';
@@ -91,6 +94,41 @@ void main() async {
       AtSignLogger.root_level = 'wARNinG';
       AtSignLogger atLogger = AtSignLogger('test');
       expect(atLogger.logger.level, equals(logging.Level.WARNING));
+    });
+  });
+
+  group('Given the inbound unsent-bytes limit', () {
+    late YamlMap? saved;
+
+    setUp(() => saved = AtSecondaryConfig.configYamlMap);
+    tearDown(() => AtSecondaryConfig.configYamlMap = saved);
+
+    test('when nothing sets it, then it is 16 MiB', () {
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({});
+
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 16777216);
+    });
+
+    test(
+        'when config.yaml sets connection.inbound_max_unsent_bytes, then that is the limit a new context takes',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 12345') as YamlMap;
+
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 12345);
+      expect(AtSecondaryContext().inboundMaxUnsentBytes, 12345);
+    });
+
+    test(
+        'when the inbound_max_unsent_bytes environment variable sets it, then that is the limit',
+        () async {
+      final ProcessResult result = await Process.run(
+          Platform.resolvedExecutable,
+          ['run', 'test/tool/print_inbound_max_unsent_bytes.dart'],
+          environment: {'inbound_max_unsent_bytes': '4242'});
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect((result.stdout as String).trim().split('\n').last, '4242');
     });
   });
 }
