@@ -119,11 +119,13 @@ class StatsNotificationService {
   Future<void> writeStatsToMonitor(
       {String? latestCommitID, String? operationType}) async {
     latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
-    // Gets the list of active connections.
+    // NOTE a snapshot: a write can close its connection, which then leaves
+    // the pool while this loop is still going.
     var connectionsList = AtSecondaryServerImpl.getInstance()
         .inboundConnectionManager
         .pool
-        .getConnections();
+        .getConnections()
+        .toList();
     if (connectionsList.isEmpty) {
       _logger.finer('No stats written. (No connections.)');
       return;
