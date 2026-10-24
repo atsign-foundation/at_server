@@ -269,6 +269,71 @@ void main() async {
           reason: 'send() kept retrying after the manager was closed');
     });
 
+    test(
+        'Given a notification the recipient\'s atServer refuses, when it is retried until it expires, then later notifications to that atSign wait behind it and it ends expired',
+        () async {
+      final Duration savedInitialDelay = PerAtSignNotifSender.initialDelay;
+      final Duration savedMaxDelay = PerAtSignNotifSender.maxDelay;
+      PerAtSignNotifSender.initialDelay = const Duration(milliseconds: 5);
+      PerAtSignNotifSender.maxDelay = const Duration(milliseconds: 20);
+      addTearDown(() {
+        PerAtSignNotifSender.initialDelay = savedInitialDelay;
+        PerAtSignNotifSender.maxDelay = savedMaxDelay;
+      });
+      final NotificationManager nm = makeMgr();
+      addTearDown(nm.close);
+      final MockSecondaryAddressFinder addressFinder =
+          MockSecondaryAddressFinder();
+      when(() => addressFinder.findSecondary(bob)).thenAnswer(
+          (_) async => at_lookup.SecondaryAddress('bob.example.com', 1234));
+      when(() => nm.notifyConnectionsPool.secondaryAddressFinder)
+          .thenReturn(addressFinder);
+      final MockOutboundClient client = MockOutboundClient();
+      when(() => nm.notifyConnectionsPool.getOutboundClient(bob))
+          .thenAnswer((_) async => client);
+      when(() => client.usePeerFeature(any())).thenAnswer((_) async => false);
+      final List<(String, DateTime)> attempts = <(String, DateTime)>[];
+      when(() => client.notify(any())).thenAnswer((Invocation i) async {
+        final String body = i.positionalArguments[0] as String;
+        final String key = body.contains('refused') ? 'refused' : 'later';
+        attempts.add((key, DateTime.now()));
+        return key == 'refused'
+            ? 'error:AT0003-Exception: notification id must have at most 36'
+                ' characters'
+            : 'data:success';
+      });
+      AtNotification sent(String key, {int? ttl}) => (AtNotificationBuilder()
+            ..id = key
+            ..type = NotificationType.sent
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:$key$alice'
+            ..ttl = ttl)
+          .build();
+      final AtNotification refused = sent('refused', ttl: 300);
+
+      await nm.notify(refused);
+      await nm.notify(sent('later'));
+      for (int i = 0;
+          i < 300 && !attempts.any(((String, DateTime) a) => a.$1 == 'later');
+          i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      final List<DateTime> refusals = [
+        for (final (String key, DateTime at) in attempts)
+          if (key == 'refused') at
+      ];
+      final DateTime laterAt =
+          attempts.firstWhere(((String, DateTime) a) => a.$1 == 'later').$2;
+      expect(refusals.length, greaterThan(1),
+          reason: 'a refused notification is retried');
+      expect(laterAt.isBefore(refused.expiresAt!), isFalse,
+          reason: 'the later one is not sent until the refused one expires');
+      expect(laterAt.isBefore(refusals.last), isFalse);
+      expect(refused.notificationStatus, NotificationStatus.expired);
+    });
+
     test('Verify close', () async {
       var nm = makeMgr();
       var monitor = RecordingMonitorSink();

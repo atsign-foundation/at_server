@@ -9,6 +9,8 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart'
+    as exception_handler;
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
@@ -168,6 +170,61 @@ void main() {
           contains('the limit of $limit'),
         ]));
     expect(pair.server.unsentBytes, 0);
+  });
+
+  test(
+      'Given two monitor connections, when one is closed at the limit, then its refused push is logged at severe, its feed ends, and the other still gets its notifications',
+      () async {
+    final _Pair stalled = await connect();
+    final _Pair reading = await connect();
+    for (final _Pair pair in [stalled, reading]) {
+      pair.server.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+    }
+    reading.read();
+    final MonitorVerbHandler handler =
+        MonitorVerbHandler(keyValueStore, notificationManager);
+    final Level priorLevel = handler.logger.logger.level;
+    handler.logger.level = 'warning';
+    final List<String> severe = <String>[];
+    final StreamSubscription<LogRecord> logs = handler.logger.logger.onRecord
+        .where((LogRecord r) => r.level == Level.SEVERE)
+        .listen((LogRecord r) => severe.add(r.message));
+    addTearDown(() async {
+      await logs.cancel();
+      handler.logger.logger.level = priorLevel;
+    });
+    await handler.processVerb(
+        Response(), handler.parse('monitor'), stalled.server);
+    await handler.processVerb(
+        Response(), handler.parse('monitor after'), reading.server);
+    expect(notificationManager.monitorCount, 2, reason: 'precondition');
+
+    await pushUntilClosed(stalled.server);
+    await pumpEventQueue();
+
+    expect(
+        severe,
+        contains(allOf(
+            contains('too many bytes waiting'),
+            contains('while delivering notification'),
+            contains(stalled.server.metaData.sessionID))));
+    expect(notificationManager.monitorCount, 1,
+        reason: 'the closed connection takes its feed with it');
+    expect(reading.server.metaData.isClosed, isFalse);
+    notificationManager.enqueue((AtNotificationBuilder()
+          ..id = 'after'
+          ..fromAtSign = bob
+          ..toAtSign = alice
+          ..notification = '@alice:after.wavi@bob'
+          ..atValue = 'v'
+          ..notificationDateTime = DateTime.now()
+          ..type = NotificationType.received)
+        .build());
+    await notificationManager.monitorsIdle;
+    await reading.untilLines(1);
+    expect(reading.ids, ['after']);
   });
 
   test('A client that reads slowly is not closed', () async {
@@ -392,6 +449,17 @@ void main() {
     await keyValueStore.put(
         'public:big.wavi$alice', AtData()..data = 'p' * (32 * 1024));
     final _Pair pair = await connect();
+    final Level priorLevel = exception_handler.logger.logger.level;
+    exception_handler.logger.level = 'info';
+    final List<String> shouts = <String>[];
+    final StreamSubscription<LogRecord> logs = exception_handler
+        .logger.logger.onRecord
+        .where((LogRecord r) => r.level == Level.SHOUT)
+        .listen((LogRecord r) => shouts.add(r.message));
+    addTearDown(() async {
+      await logs.cancel();
+      exception_handler.logger.logger.level = priorLevel;
+    });
     int sent = 0;
 
     while (!pair.server.metaData.isClosed && sent < 2000) {
@@ -406,6 +474,8 @@ void main() {
 
     expect(pair.server.metaData.isClosed, isTrue);
     expect(warnings.single, contains('not authenticated'));
+    expect(shouts.single, contains('too many bytes waiting'),
+        reason: 'the refused response is logged too');
   });
 
   test('What the client sees when it is closed', () async {

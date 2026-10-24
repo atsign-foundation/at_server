@@ -765,6 +765,237 @@ void main() {
       expect(warnings, contains(contains('the connection is closed')));
     });
   });
+
+  group('Given notifications a client missed while it was away', () {
+    test(
+        'when it runs monitor:<t>, then an ephemeral one still held is replayed and an expired one is not',
+        () async {
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      await notificationManager.notify(received('held'), ephemeral: true);
+      await notificationManager.notify((AtNotificationBuilder()
+            ..id = 'expired'
+            ..fromAtSign = bob
+            ..toAtSign = alice
+            ..notification = '@alice:phone.wavi@bob'
+            ..notificationDateTime = DateTime.now()
+            ..expiresAt = DateTime.now().subtract(const Duration(seconds: 1))
+            ..type = NotificationType.received)
+          .build());
+      final _RecordingConnection connection = cramConnection();
+
+      await runMonitor(connection, 'monitor:$t');
+
+      expect(connection.ids, ['held']);
+      expect(warnings, isEmpty);
+    });
+  });
+
+  group('Given a received notification a monitor would otherwise get', () {
+    late RecordingExporter exporter;
+    late List<String> severe;
+
+    setUp(() {
+      exporter = RecordingExporter();
+      enableRecording(serverTelemetry, exporter);
+      severe = <String>[];
+      final StreamSubscription<LogRecord> logs = monitor.logger.logger.onRecord
+          .where((LogRecord r) => r.level == Level.SEVERE)
+          .listen((LogRecord r) => severe.add(r.message));
+      addTearDown(logs.cancel);
+    });
+
+    /// Queues [n] for a report, as a peer's delivery does, and returns the
+    /// report's attributes once the feeds have settled it.
+    Future<Map<String, Object?>> deliver(AtNotification n) async {
+      notificationManager.enqueue(n, report: true);
+      await notificationManager.monitorsIdle;
+      return (await exporter
+              .firstNamed('atsign.atserver.notification.received')
+              .timeout(const Duration(seconds: 2)))
+          .attributes;
+    }
+
+    test(
+        'when the connection is no longer authenticated, then it is not written, a warning names it, the connection and feed stay, and the report counts no push',
+        () async {
+      final String e1 =
+          await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
+      final _RecordingConnection connection = apkamConnection(e1);
+      await runMonitor(connection);
+      connection.metadata.isAuthenticated = false;
+
+      final Map<String, Object?> report = await deliver(received('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(warnings.single,
+          allOf(contains('missed'), contains('not authenticated')));
+      expect(severe, isEmpty);
+      expect(connection.metadata.isClosed, isFalse);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      connection.metadata.isAuthenticated = true;
+      await pushLive(received('next'));
+      expect(connection.ids, ['next'],
+          reason: 'the feed carries on once the connection may have it');
+    });
+
+    test(
+        "when the connection's enrollment may not read it, then it is not written, a warning names it, the connection and feed stay, and the report counts no push",
+        () async {
+      final String e1 =
+          await createAndPersistAnEnrollment('chat', 'phone', {'buzz': 'rw'});
+      final _RecordingConnection connection = apkamConnection(e1);
+      await runMonitor(connection);
+
+      final Map<String, Object?> report = await deliver(received('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(warnings.single,
+          allOf(contains('missed'), contains('not authorized')));
+      expect(severe, isEmpty);
+      expect(connection.metadata.isClosed, isFalse);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      await pushLive(received('next', key: '@alice:phone.buzz@bob'));
+      expect(connection.ids, ['next'],
+          reason: 'the feed carries on with what the enrollment may read');
+    });
+
+    test(
+        'when the connection is idle or stale, then it is not written, a warning says so, the connection and feed stay, and delivery resumes once it is active',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+      connection.idle = true;
+
+      final Map<String, Object?> report = await deliver(received('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(
+          warnings.single,
+          allOf(
+              contains('missed'), contains('the connection is idle or stale')));
+      expect(severe, isEmpty);
+      expect(connection.metadata.isClosed, isFalse);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      connection.idle = false;
+      await pushLive(received('next'));
+      expect(connection.ids, ['next']);
+    });
+
+    test(
+        'when looking up the enrollment fails, then it is not written, a severe line names it and the connection, the feed stays, and the next is written',
+        () async {
+      final String e1 =
+          await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
+      final _RecordingConnection connection = apkamConnection(e1);
+      await runMonitor(connection);
+      monitor.failEnrollmentReads(
+          [DataStoreException('enrollment store unavailable')]);
+
+      final Map<String, Object?> report = await deliver(received('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(
+          severe.single,
+          allOf(
+              contains('enrollment store unavailable'),
+              contains(
+                  'while looking up the enrollment for notification missed'),
+              contains('apkam-session')));
+      expect(warnings, isEmpty);
+      expect(connection.metadata.isClosed, isFalse);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      await pushLive(received('next'));
+      expect(connection.ids, ['next']);
+    });
+
+    test(
+        'when it has expired by the time it is written, then it is not written, a warning says so, and the feed stays',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+
+      final Map<String, Object?> report = await deliver((AtNotificationBuilder()
+            ..id = 'missed'
+            ..fromAtSign = bob
+            ..toAtSign = alice
+            ..notification = '@alice:phone.wavi@bob'
+            ..notificationDateTime = DateTime.now()
+            ..expiresAt = DateTime.now().subtract(const Duration(seconds: 1))
+            ..type = NotificationType.received)
+          .build());
+
+      expect(connection.ids, isEmpty);
+      expect(warnings.single,
+          allOf(contains('missed'), contains('it has expired')));
+      expect(severe, isEmpty);
+      expect(connection.metadata.isClosed, isFalse);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      await pushLive(received('next'));
+      expect(connection.ids, ['next']);
+    });
+
+    test(
+        'when writing it to the connection fails, then a severe line names it, the feed stays, and the next is written',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+      connection.failNextWrite = const SocketException('reset');
+
+      final Map<String, Object?> report = await deliver(received('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(
+          severe.single,
+          allOf(
+              contains('reset'),
+              contains('while delivering notification missed'),
+              contains('@alice:phone.wavi@bob')));
+      expect(warnings, isEmpty);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      await pushLive(received('next'));
+      expect(connection.ids, ['next']);
+    });
+
+    test(
+        'when its key and sender do not match the regex, then it is not written, nothing is logged and no enrollment is looked up',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection, 'monitor buzz');
+
+      final Map<String, Object?> report = await deliver(received('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(monitor.lookups, 0);
+      expect(warnings, isEmpty);
+      expect(severe, isEmpty);
+      expect(notificationManager.monitorCount, 1);
+      expect(report['atsign.notification.push_count'], 0);
+      await pushLive(received('next', key: '@alice:phone.buzz@bob'));
+      expect(connection.ids, ['next']);
+    });
+
+    test(
+        'when it is a self notification and the monitor did not ask for them, then it is not written and nothing is logged',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      await runMonitor(connection);
+
+      await pushLive(_self('missed'));
+
+      expect(connection.ids, isEmpty);
+      expect(warnings, isEmpty);
+      expect(severe, isEmpty);
+      expect(notificationManager.monitorCount, 1);
+      await pushLive(received('next'));
+      expect(connection.ids, ['next']);
+    });
+  });
 }
 
 /// A connection that keeps every write, and can hold its next write.
