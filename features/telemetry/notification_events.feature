@@ -15,16 +15,19 @@ Feature: An atServer with telemetry on reports what becomes of notifications
 
   data:success also answers five kinds of drop on the receiving atServer
   (text notifications, keys that are not well formed, reserved
-  namespaces, notifications already expired, ids already seen), so
+  namespaces, notifications already expired, ids it already holds), so
   notification.delivered means "accepted or dropped by the recipient's
   atServer". A collector matches notification.delivered to
   notification.received on sender, recipient and id together, never on
   the id alone: the sender chooses the id.
 
   Races: the report closes over its own notification and the pushes made
-  for it; nothing is keyed by id, so two senders using one id cannot
-  disturb each other's reports. The enrollment reported for a push is the
-  one it was authorized for, read in the same step as the authorization.
+  for it. The receiving atServer holds notifications by id alone: once it
+  holds one with an id, a later one with that id that another atServer
+  delivers, whichever atSign sent it, is answered data:success and
+  dropped with a warning, so it is neither pushed nor in a
+  notification.received. The enrollment reported for a push is the one
+  it was authorized for, read in the same step as the authorization.
   Replay: a peer re-sending an id it has already delivered is dropped
   before it is stored (unchanged), so it is not reported twice.
   DoS: every attribute is bounded: ids at 36 characters for notifications
@@ -70,10 +73,11 @@ Feature: An atServer with telemetry on reports what becomes of notifications
     Then notification.received has push_count 0
     And the notify verb was answered data:success without waiting for the push
 
-  Scenario: Two senders using the same id each get their own report
-    Given notifications from @bob and from @carol with the same id, each pushed to one monitor
-    When both are reported
-    Then each notification.received has push_count 1
+  Scenario: A later notification with an id already held is dropped, whoever sent it
+    Given @bob's atServer has delivered notification n9, pushed to one monitor
+    When @carol's atServer delivers a notification with id n9
+    Then it is answered data:success and dropped with a warning
+    And the monitor is pushed only @bob's, and one notification.received is sent, from @bob
 
   Scenario: A repeated delivery of the same id is reported once
     Given @bob's atServer has delivered notification n2

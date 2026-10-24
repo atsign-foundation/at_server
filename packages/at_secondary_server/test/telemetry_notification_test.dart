@@ -308,34 +308,39 @@ void main() {
           isEmpty);
     });
 
-    test('Two senders using the same id each get their own report', () async {
+    test(
+        'A later notification with an id already held is dropped, whoever sent it',
+        () async {
       final String e1 =
           await createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
-      await monitor(apkam(e1));
-      final Atsign carol = '@carol'.toAtsign();
-      AtNotification from(Atsign sender) => (AtNotificationBuilder()
-            ..id = 'same'
-            ..fromAtSign = sender
-            ..toAtSign = alice
-            ..notification = '@alice:phone.wavi$sender'
-            ..notificationDateTime = DateTime.now()
-            ..type = NotificationType.received)
-          .build();
+      final _MonitorConnection connection = apkam(e1);
+      await monitor(connection);
+      final Level priorLevel = notify.logger.logger.level;
+      notify.logger.level = 'warning';
+      addTearDown(() => notify.logger.logger.level = priorLevel);
+      final List<String> warnings = <String>[];
+      final StreamSubscription<LogRecord> subscription = notify
+          .logger.logger.onRecord
+          .where((LogRecord record) => record.level == Level.WARNING)
+          .listen((LogRecord record) => warnings.add(record.message));
+      addTearDown(subscription.cancel);
 
-      notificationManager.enqueue(from(bob), report: true);
-      notificationManager.enqueue(from(carol), report: true);
+      final Response first = await deliver('n9');
+      await report();
+      final Response second = await deliver('n9', from: '@carol'.toAtsign());
       await notificationManager.monitorsIdle;
       await pumpEventQueue();
 
+      expect([first.data, second.data], ['data:success', 'data:success']);
+      expect(warnings, ['We have already received notification n9']);
+      expect((await notificationManager.get('n9'))?.fromAtSign, '@bob');
+      expect(connection.ids, ['n9'], reason: "only @bob's was pushed");
       expect([
         for (final AtTelemetryLogRecord r in exporter.records)
-          (
-            r.attributes['atsign.notification.from'],
-            r.attributes['atsign.notification.push_count']
-          )
+          if (r.eventName == 'atsign.atserver.notification.received')
+            r.attributes['atsign.notification.from']
       ], [
-        ('@bob', 1),
-        ('@carol', 1),
+        '@bob'
       ]);
     });
 
