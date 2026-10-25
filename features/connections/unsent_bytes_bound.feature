@@ -29,8 +29,10 @@ Feature: A connection that leaves too many bytes unsent is closed
   live pushes a monitor's replay holds back, each counted as the line it
   would write; a push the feed's regex does not match is not held. So
   what an atServer holds for one connection is bounded by the limit plus
-  one write or held push plus what the transport itself buffers (about
-  0.55 MB plain or WebSocket, 5.1 MB TLS, measured on loopback). The
+  one write or held push plus what the transport itself buffers, which
+  the operating system bounds (measured on loopback: about 0.6 MB plain,
+  WebSocket or TLS on macOS; about 2.6 MB plain, 2.7 MB WebSocket and
+  4.3 MB TLS on Linux). The
   bound holds before authentication too, so a client that pipelines
   lookups of a large public value and never reads is closed. The
   connection logs one warning when it closes; whatever made the refused
