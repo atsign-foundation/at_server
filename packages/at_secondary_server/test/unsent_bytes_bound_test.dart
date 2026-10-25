@@ -27,6 +27,8 @@ void main() {
   const int limit = 64 * 1024;
   const String certs =
       '../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs';
+  const String replayWaiting = 'precondition: the transport is not taking '
+      'writes, so the first replayed notification waits in the queue';
   final List<_Pair> pairs = <_Pair>[];
   late List<String> warnings;
   AtSecondaryContext? priorContext;
@@ -148,6 +150,16 @@ void main() {
   Future<String> enrollment() =>
       createAndPersistAnEnrollment('chat', 'phone', {'wavi': 'rw'});
 
+  /// Writes one 16 MiB line to [pair]'s connection while its client is not
+  /// reading. The empty queue takes it, and the transport is still writing it
+  /// out when the next write arrives, so that write waits in the queue. The
+  /// client discards the line unread.
+  Future<void> fillTransport(_Pair pair) async {
+    const int length = 16 * 1024 * 1024;
+    pair.discard(length);
+    await pair.server.write('data:${'f' * (length - 6)}\n');
+  }
+
   test('A monitor connection whose client stops reading is closed at the limit',
       () async {
     final String e1 = await enrollment();
@@ -233,12 +245,20 @@ void main() {
       ..isAuthenticated = true
       ..authType = AuthType.cram;
     await monitor(pair.server);
-    pair.readSlowly();
+    await fillTransport(pair);
 
     for (int batch = 0; batch < 10; batch++) {
-      await pushLive([
+      final List<AtNotification> ns = [
         for (int i = 0; i < 6; i++) notification('n${batch * 6 + i}'),
-      ]);
+      ];
+      await pushLive(ns);
+      if (batch == 0) {
+        expect(pair.server.unsentBytes,
+            ns.map(lineLength).reduce((int a, int b) => a + b),
+            reason: 'bytes waiting under the limit are kept: the batch the '
+                'client is behind on waits whole in the queue');
+        pair.readSlowly();
+      }
       expect(pair.server.unsentBytes, lessThanOrEqualTo(limit));
       await pair.server.drained;
     }
@@ -256,18 +276,29 @@ void main() {
       ..authType = AuthType.cram;
     await monitor(pair.server);
 
-    await pushLive([notification('big-1', valueLength: 1024 * 1024)]);
-    expect(pair.server.unsentBytes, 0,
-        reason: 'nothing was waiting, so the transport took it');
-    await pushLive([notification('big-2', valueLength: 1024 * 1024)]);
-    expect(pair.server.unsentBytes, greaterThan(limit),
-        reason: 'nothing was waiting, so the queue took it whole');
-    expect(pair.server.metaData.isClosed, isFalse);
+    final List<String> ids = <String>[];
+    late AtNotification big;
+    while (pair.server.unsentBytes == 0) {
+      expect(ids, hasLength(lessThan(64)),
+          reason: 'the transport took 64 lines of 1 MiB from a client that '
+              'is not reading, so none was seen waiting');
+      big = notification('big-${ids.length}', valueLength: 1024 * 1024);
+      await pushLive([big]);
+      ids.add(big.id!);
+      expect(pair.server.metaData.isClosed, isFalse,
+          reason: 'a line larger than the limit, written onto an empty '
+              'queue, is taken');
+    }
+    expect(pair.server.unsentBytes, lineLength(big),
+        reason: 'nothing was waiting, so the queue took the whole line, '
+            'larger than the limit, while the transport was not taking '
+            'writes');
 
     pair.read();
-    await pair.untilLines(2);
+    await pair.untilLines(ids.length);
 
-    expect(pair.ids, ['big-1', 'big-2']);
+    expect(pair.ids, ids,
+        reason: 'each line is sent whole once the client reads');
     expect(pair.server.metaData.isClosed, isFalse);
   });
 
@@ -283,9 +314,19 @@ void main() {
     pair.server.metaData
       ..isAuthenticated = true
       ..authType = AuthType.cram;
-    pair.read();
+    await fillTransport(pair);
 
-    await monitor(pair.server, 'monitor:$t');
+    final Future<void> monitoring = monitor(pair.server, 'monitor:$t');
+    await _until(
+        () => pair.server.unsentBytes > 0 || pair.server.metaData.isClosed,
+        reason: replayWaiting);
+    await pumpEventQueue();
+    expect(pair.server.unsentBytes, lineLength(backlog.first),
+        reason: 'the replay waits for the client to read each notification '
+            'before it writes the next, instead of filling the queue');
+
+    pair.read();
+    await monitoring;
     expect(pair.server.metaData.isClosed, isFalse);
     await pair.untilLines(300);
 
@@ -305,9 +346,12 @@ void main() {
     pair.server.metaData
       ..isAuthenticated = true
       ..authType = AuthType.cram;
+    await fillTransport(pair);
 
     final Future<void> monitoring = monitor(pair.server, 'monitor:$t');
-    await _until(() => pair.server.unsentBytes > 0);
+    await _until(
+        () => pair.server.unsentBytes > 0 || pair.server.metaData.isClosed,
+        reason: replayWaiting);
     final List<AtNotification> live = [
       for (int i = 0; i < 3; i++) notification('live-$i'),
     ];
@@ -316,10 +360,10 @@ void main() {
     }
     await pumpEventQueue();
 
-    final int longestLine = [...backlog, ...live]
-        .map(lineLength)
-        .reduce((int a, int b) => a > b ? a : b);
-    expect(pair.server.unsentBytes, lessThanOrEqualTo(longestLine));
+    expect(pair.server.unsentBytes, lineLength(backlog.first),
+        reason: 'no more than one notification waits in the queue: the '
+            'stalled replay waits for the client, and the live pushes are '
+            'held behind it');
     expect(pair.server.metaData.isClosed, isFalse);
 
     pair.read();
@@ -344,9 +388,12 @@ void main() {
     pair.server.metaData
       ..isAuthenticated = true
       ..authType = AuthType.cram;
+    await fillTransport(pair);
 
     final Future<void> monitoring = monitor(pair.server, 'monitor:$t');
-    await _until(() => pair.server.unsentBytes > 0);
+    await _until(
+        () => pair.server.unsentBytes > 0 || pair.server.metaData.isClosed,
+        reason: replayWaiting);
     for (int i = 0; !pair.server.metaData.isClosed && i < 200; i++) {
       notificationManager.enqueue(notification('live-$i'));
       await pumpEventQueue();
@@ -376,8 +423,11 @@ void main() {
     pair.server.metaData
       ..isAuthenticated = true
       ..authType = AuthType.cram;
+    await fillTransport(pair);
     final Future<void> monitoring = monitor(pair.server, 'monitor:$t wavi');
-    await _until(() => pair.server.unsentBytes > 0);
+    await _until(
+        () => pair.server.unsentBytes > 0 || pair.server.metaData.isClosed,
+        reason: replayWaiting);
 
     for (int i = 0; i < 4; i++) {
       notificationManager.enqueue((AtNotificationBuilder()
@@ -394,7 +444,8 @@ void main() {
     await pumpEventQueue();
     expect(pair.server.metaData.isClosed, isFalse,
         reason: 'precondition: four of them stay under the limit');
-    expect(pair.server.heldBytes, 0);
+    expect(pair.server.heldBytes, 0,
+        reason: 'a live push the regex does not match is not held');
     expect(notificationManager.queuedPushes, 0);
     final AtNotification wanted = notification('live-0');
     notificationManager.enqueue(wanted);
@@ -532,18 +583,20 @@ void main() {
   });
 }
 
-/// Waits, one event-loop turn at a time, until [condition] holds.
-Future<void> _until(bool Function() condition) async {
+/// Waits, one event-loop turn at a time, until [condition] holds, failing
+/// with [reason] if it never does.
+Future<void> _until(bool Function() condition,
+    {String reason = 'the awaited condition never held'}) async {
   for (int i = 0; i < 3000 && !condition(); i++) {
     await Future<void>.delayed(const Duration(milliseconds: 1));
   }
-  expect(condition(), isTrue, reason: 'the awaited condition never held');
+  expect(condition(), isTrue, reason: reason);
 }
 
 /// A loopback connection pair: the atServer's side and its client.
 class _Pair {
   _Pair(this.server, this.client, this._disposeLogs) {
-    _subscription = client.listen(_builder.add,
+    _subscription = client.listen(_take,
         onDone: () => _ended.complete(),
         onError: (Object _) {
           if (!_ended.isCompleted) _ended.complete();
@@ -557,6 +610,7 @@ class _Pair {
   final BytesBuilder _builder = BytesBuilder(copy: false);
   final Completer<void> _ended = Completer<void>();
   late final StreamSubscription<Uint8List> _subscription;
+  int _discarding = 0;
 
   /// Completes when the atServer has closed the connection and the client
   /// has read everything that reached it.
@@ -577,13 +631,16 @@ class _Pair {
   /// The ids of the notifications the client has read whole.
   List<Object?> get ids => [for (final n in notifications) n['id']];
 
+  /// Has the client drop the next [count] bytes it reads.
+  void discard(int count) => _discarding += count;
+
   /// Starts the client reading.
   void read() => _subscription.resume();
 
   /// Starts the client reading, pausing briefly after each chunk.
   void readSlowly() {
     _subscription.onData((Uint8List data) {
-      _builder.add(data);
+      _take(data);
       _subscription
           .pause(Future<void>.delayed(const Duration(milliseconds: 1)));
     });
@@ -592,6 +649,15 @@ class _Pair {
 
   /// Waits until the client has read [count] whole notifications.
   Future<void> untilLines(int count) => _until(() => ids.length >= count);
+
+  void _take(Uint8List data) {
+    if (_discarding >= data.length) {
+      _discarding -= data.length;
+      return;
+    }
+    _builder.add(Uint8List.sublistView(data, _discarding));
+    _discarding = 0;
+  }
 
   Future<void> dispose() async {
     await _disposeLogs();
