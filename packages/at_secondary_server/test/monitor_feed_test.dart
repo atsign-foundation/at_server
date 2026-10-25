@@ -593,13 +593,22 @@ void main() {
       final Completer<void> writing = connection.holdNextWrite();
 
       final Future<void> monitoring = runMonitor(connection, 'monitor:$t');
-      await pumpEventQueue();
+      final bool started = await Future.any([
+        connection.heldWriteStarted.then((_) => true),
+        monitoring.then((_) => false),
+      ]);
+      expect(started, isTrue,
+          reason: 'precondition: the replay is writing s1, its first stored '
+              'notification, when the connection closes');
       connection.metadata.isClosed = true;
       writing.complete();
       await monitoring;
 
-      expect(connection.ids, ['s1']);
-      expect(warnings, isEmpty);
+      expect(connection.ids, ['s1'],
+          reason: 's1 was being written when the connection closed');
+      expect(warnings, isEmpty,
+          reason: 'the replay stops at the close and logs no drop for the '
+              'notifications after it');
     });
   });
 
@@ -1012,6 +1021,7 @@ void main() {
 class _RecordingConnection extends DummyInboundConnection {
   final List<String> writes = <String>[];
   Completer<void>? _hold;
+  Completer<void>? _holding;
 
   /// The ids of the notifications written to this connection, in order.
   List<Object?> get ids => [
@@ -1021,7 +1031,13 @@ class _RecordingConnection extends DummyInboundConnection {
       ];
 
   /// Holds the next write until the returned completer completes.
-  Completer<void> holdNextWrite() => _hold = Completer<void>();
+  Completer<void> holdNextWrite() {
+    _holding = Completer<void>();
+    return _hold = Completer<void>();
+  }
+
+  /// Completes once the write that [holdNextWrite] holds has begun.
+  Future<void> get heldWriteStarted => _holding!.future;
 
   /// Whether the connection reports itself invalid while still open, as an
   /// idle or stale one does.
@@ -1048,6 +1064,7 @@ class _RecordingConnection extends DummyInboundConnection {
     final Completer<void>? hold = _hold;
     _hold = null;
     if (hold != null) {
+      _holding!.complete();
       await hold.future;
     }
     writes.add(data);
