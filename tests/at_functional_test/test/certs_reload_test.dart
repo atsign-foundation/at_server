@@ -265,6 +265,17 @@ void main() async {
     }
     expect(
         await firstAtSignConnection.authenticateConnection(), 'data:success');
+
+    /// A soft restart that crashes the atServer also passes the wait above,
+    /// since supervisord respawns it. The config value set above outlives an
+    /// in-process stop()/start(), but a new process starts with it false.
+    const String command = 'config:print:shouldReloadCertificates';
+    final String response =
+        await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    expect(response, 'data:true',
+        reason: 'the soft restart must stay in-process; the atServer that '
+            'answers is a new process');
   }
 
   test('A soft restart closes the HTTP connections the atServer held',
