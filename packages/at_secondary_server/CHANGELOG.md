@@ -16,6 +16,9 @@
 
 - fix: stopping the atServer closes its HTTP connections.
 
+- test: when `AT_UNIT_TEST_STORAGE_DIR` is set, the unit tests keep their
+  storage under it rather than under the package.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
@@ -34,6 +37,11 @@
 - feat: an OTP records the namespaces of the enrollment that issued it. An OTP
   issued before this, or over a CRAM connection, carries none, and only a
   full-privilege connection can list or delete it.
+
+- fix: an `enroll:request` presenting an OTP may ask only for namespaces the
+  OTP's own namespaces cover, by the same rules as `otp:list`. One asking for
+  more is refused with AT0009, and the OTP is spent. The SPP, and an OTP
+  issued over CRAM or before this release, do not limit the request.
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 

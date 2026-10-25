@@ -178,8 +178,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     // NOTE the owning id comes out of a caller-supplied atKey, so it is
     // folded to the keystore's own form before comparison.
-    return EnrollmentManager.canonicalEnrollmentId(
-            match.namedGroup('EnId')!) !=
+    return EnrollmentManager.canonicalEnrollmentId(match.namedGroup('EnId')!) !=
         enrollmentId;
   }
 
@@ -230,8 +229,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// except a CRAM connection sending `update`, plain or json; `update:meta`
   /// is refused. Throws [UnAuthorizedException]. Returns for any other key or
   /// non-writing verb.
-  void refuseFlatCredentialWrite(
-      InboundConnectionMetadata md, String? atKey) {
+  void refuseFlatCredentialWrite(InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
     if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
     if (isCramConnection(md) && getVerb() is Update) {
@@ -596,9 +594,17 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Whether [passcode] is a live SPP or OTP. A valid OTP is removed from the
   /// keystore so it cannot be reused, and only one caller can accept it; an
   /// SPP is not removed. A refused passcode changes no record.
-  Future<bool> isPasscodeValid(String? passcode) async {
+  Future<bool> isPasscodeValid(String? passcode) async =>
+      (await redeemPasscode(passcode)).isValid;
+
+  /// Checks [passcode] as [isPasscodeValid] does, and also returns the
+  /// namespaces a valid OTP was issued with. They are null for the SPP and
+  /// for an OTP that records none (issued over CRAM, or stored before OTPs
+  /// carried namespaces): such a passcode does not limit an enrollment.
+  Future<({bool isValid, Map<String, String>? namespaces})> redeemPasscode(
+      String? passcode) async {
     if (passcode == null) {
-      return false;
+      return (isValid: false, namespaces: null);
     }
     String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
     if (!await keyStore.exists(passcodeKey)) {
@@ -610,7 +616,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       AtData? sppAtData = await keyStore.get(passcodeKey);
       if (sppAtData?.data?.toLowerCase() == passcode.toLowerCase()) {
         if (SecondaryUtil.isActiveKey(sppAtData)) {
-          return true;
+          return (isValid: true, namespaces: null);
         } else {
           logger.finest(
               'SPP found in KeyStore but has expired. Validating as OTP');
@@ -622,27 +628,32 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     // NOTE only a passcode in the shape otp:get issues names an OTP record.
     if (!_otpShape.hasMatch(passcode)) {
-      return false;
+      return (isValid: false, namespaces: null);
     }
     final String otpKey =
         canonicalAtKey(OtpVerbHandler.passcodeKey(passcode, isSpp: false));
     // NOTE claimed with no await between the check and the add, so only one
     // caller at a time reads and removes an OTP.
     if (!_otpKeysBeingClaimed.add(otpKey)) {
-      return false;
+      return (isValid: false, namespaces: null);
     }
     try {
       final AtData? otpAtData;
       try {
         otpAtData = await keyStore.get(otpKey);
       } on KeyNotFoundException {
-        return false;
+        return (isValid: false, namespaces: null);
       }
       if (!SecondaryUtil.isActiveKey(otpAtData)) {
-        return false;
+        return (isValid: false, namespaces: null);
       }
       await keyStore.remove(otpKey);
-      return true;
+      final String? otpData = otpAtData?.data;
+      return (
+        isValid: true,
+        namespaces:
+            otpData == null ? null : OtpVerbHandler.readOtp(otpData).namespaces,
+      );
     } finally {
       _otpKeysBeingClaimed.remove(otpKey);
     }
