@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/notification/notification_key_length.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -33,7 +34,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// Why a notify whose id is longer than [maxIdLength] is refused.
   static const idTooLong =
       'notification id must have at most $maxIdLength characters';
-  final int _maxKeyLength = 255;
 
   final NotificationManager notifMgr;
 
@@ -168,15 +168,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // Also, If operation is delete removed the cached key - irrespective of TTR value.
     final OperationType operationType =
         getOperationType(verbParams[AtConstants.operation]);
-    final bool caches = operationType == OperationType.delete ||
-        _getTimeToRefresh(verbParams[AtConstants.ttr]) != null;
+    final bool caches = _cachedByRecipient(verbParams);
     final String cachedNotificationKey =
         '${AtConstants.cached}:${atNotificationBuilder.notification}';
     // NOTE checked before the notification is stored, so one whose key
     // cannot be cached is refused with nothing stored or pushed.
-    if (caches && cachedNotificationKey.length > _maxKeyLength) {
-      throw InvalidAtKeyException(
-          'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
+    if (caches) {
+      refuseOverlongNotificationKey(atNotificationBuilder.notification!,
+          cached: true);
     }
 
     // Store and send the notification
@@ -319,6 +318,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           ' reserved namespace ${sanitiseForLogging(reserved)}');
     }
     var keyToNotify = _getFullFormedAtKey(verbParams);
+    refuseOverlongNotificationKey(keyToNotify,
+        cached: _cachedByRecipient(verbParams));
     // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException
     bool isAuthorized = await _isAuthorizedToSendNotification(
@@ -713,6 +714,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // At this point, has to return true for legacy reasons. See #1944
     return true;
   }
+
+  /// Whether the recipient caches a notification sent with [verbParams].
+  bool _cachedByRecipient(
+          HashMap<String, String?> verbParams) =>
+      cachedByRecipient(
+          hasTtr: verbParams[AtConstants.ttr] != null,
+          isDelete: getOperationType(verbParams[AtConstants.operation]) ==
+              OperationType.delete);
 
   String _getFullFormedAtKey(HashMap<String, String?> verbParam) {
     // In the notify regex, although, "public" and "forAtSign" are mutually exclusive

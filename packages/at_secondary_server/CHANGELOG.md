@@ -65,6 +65,12 @@
   8 days when its client set `ttln`, and holds back its later notifications
   to the same atSign until then.
 
+- fix: a `notify` or `notify:all` from the atSign's own client whose key is
+  longer than 255 characters, counting `cached:` when it has a `ttr` or is
+  a delete, is refused with AT0016, and nothing is stored or sent. A
+  notification already queued with such a key is not sent: it is marked
+  errored, and later notifications to that atSign no longer wait behind it.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and

@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/monitor_sink.dart';
+import 'package:at_secondary/src/notification/notification_key_length.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
@@ -637,6 +638,22 @@ class PerAtSignNotifSender {
 
     if (n.notificationStatus != NotificationStatus.queued) {
       logger.severe('need status queued but got ${n.notificationStatus}');
+      return;
+    }
+
+    final int keyLength = notificationKeyLength(n.notification ?? '',
+        cached: notificationCachedByRecipient(n));
+    if (keyLength > maxNotificationKeyLength) {
+      logger.severe('Not sending notification ${n.id}: its key would be'
+          ' $keyLength characters long where $atSign holds it, over the'
+          ' limit of $maxNotificationKeyLength');
+      n.notificationStatus = NotificationStatus.errored;
+      notifMgr.telemetry.settled(n);
+      try {
+        await notifMgr.put(n.id, n);
+      } catch (e) {
+        logger.warning('Exception $e while setting status errored on ${n.id}');
+      }
       return;
     }
 
