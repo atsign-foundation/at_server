@@ -54,6 +54,17 @@ Feature: The atServer bounds the HTTP connections it holds
     And the connections it already holds are still answered
     And a client that negotiates atProtocol/1.0 is still served
 
+  Scenario Outline: An atServer started with connection.http_max_limit <limit> closes HTTP connections beyond it
+    Given @alice's atServer has started with connection.http_max_limit <limit> in its config
+    And it holds <limit> HTTP connections
+    When another client negotiates http/1.1
+    Then the atServer closes that connection without answering it
+
+    Examples:
+      | limit |
+      | 0     |
+      | 2     |
+
   Scenario: An atServer whose http_max_limit is 0 holds no HTTP connection
     Given @alice's atServer is configured with connection.http_max_limit 0
     When a client negotiates http/1.1

@@ -747,17 +747,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     }
     if (certsAvailable) {
-      _serverSocket = await SecureServerSocket.bind(
-          InternetAddress.anyIPv4, serverContext!.port, secCon,
-          requestClientCertificate: true);
-      logger.shout(
-          'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
-      logger.shout('Secure Socket open for $currentAtSign !');
-      _http = listenOn(_serverSocket,
-          httpMaxLimit: AtSecondaryConfig.http_max_limit);
+      await bindAndListen(secCon, serverContext!.port);
     } else {
       logger.severe('certs not available');
     }
+  }
+
+  /// Binds [port] with [context] and serves on it, holding at most
+  /// connection.http_max_limit HTTP connections. Returns the bound socket and
+  /// the HTTP side it hands connections to.
+  @visibleForTesting
+  Future<(SecureServerSocket, HttpConnections)> bindAndListen(
+      SecurityContext context, int port) async {
+    final SecureServerSocket socket = await SecureServerSocket.bind(
+        InternetAddress.anyIPv4, port, context,
+        requestClientCertificate: true);
+    _serverSocket = socket;
+    logger.shout(
+        'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
+    logger.shout('Secure Socket open for $currentAtSign !');
+    final HttpConnections http =
+        listenOn(socket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
+    _http = http;
+    return (socket, http);
   }
 
   /// Starts the secondary server in unsecured mode and listens on its socket.
@@ -765,8 +777,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
     logger.shout('Unsecure Socket open');
-    _http = listenOn(_serverSocket,
-        httpMaxLimit: AtSecondaryConfig.http_max_limit);
+    _http =
+        listenOn(_serverSocket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
   }
 
   /// Executes [command] on [connection].

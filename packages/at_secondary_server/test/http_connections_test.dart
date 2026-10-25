@@ -9,6 +9,7 @@ import 'package:at_secondary/src/server/http_connections.dart';
 import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import 'test_utils.dart';
 
@@ -177,6 +178,38 @@ void main() {
         await Future.wait([for (final _Client c in held) c.get('/hello')]);
     expect({for (final _Answer a in answers) a.status}, {200});
     await expectAtProtocolServed();
+  });
+
+  group(
+      'An atServer started with connection.http_max_limit <limit> closes HTTP '
+      'connections beyond it', () {
+    for (final int limit in [0, 2]) {
+      test('limit $limit', () async {
+        final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+        addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+        AtSecondaryConfig.configYamlMap =
+            loadYaml('connection:\n  http_max_limit: $limit') as YamlMap;
+        final (SecureServerSocket socket, HttpConnections connections) =
+            await AtSecondaryServerImpl.getInstance()
+                .bindAndListen(tlsContext(), await _freePort());
+        serverSocket = socket;
+        http = connections;
+        final List<_Client> held = await Future.wait(
+            [for (int i = 0; i < limit; i++) connect('http/1.1')]);
+        await untilHeld(limit);
+
+        final _Client beyond = await connect('http/1.1');
+
+        await beyond.closed.future.timeout(Duration(seconds: 3),
+            onTimeout: () =>
+                fail('a connection beyond $limit is open at startup'));
+        expect(beyond.received, isEmpty, reason: 'it is closed unanswered');
+        expect([
+          for (final _Client c in held)
+            if (c.closed.isCompleted) c
+        ], isEmpty, reason: 'the held connections are still open');
+      });
+    }
   });
 
   test('An atServer whose http_max_limit is 0 holds no HTTP connection',
@@ -393,6 +426,15 @@ void main() {
 
     expect(warnings, hasLength(2), reason: 'a second after one was held');
   });
+}
+
+/// A port nothing listens on now.
+Future<int> _freePort() async {
+  final ServerSocket socket =
+      await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final int port = socket.port;
+  await socket.close();
+  return port;
 }
 
 /// A client connection that negotiated a protocol by ALPN.
