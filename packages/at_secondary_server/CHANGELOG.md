@@ -33,6 +33,10 @@
 - test: when `AT_UNIT_TEST_STORAGE_DIR` is set, the unit tests keep their
   storage under it rather than under the package.
 
+- test: unit tests cover delivery to a client that reads a TLS or WebSocket
+  connection in bursts, what a `monitor` replay holds back, and the close
+  after a replay fails.
+
 - feat: an atServer whose telemetry is on tells its collector what becomes of
   notifications. For one it sends to another atSign: `notification.delivered`
   when the recipient's atServer answers `data:success`, which it also does
