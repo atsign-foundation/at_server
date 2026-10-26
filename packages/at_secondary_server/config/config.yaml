@@ -112,6 +112,11 @@ connection:
   # pool takes care of ensuring that idle connections are closed as necessary
   inbound_max_limit: 200
 
+  # At any point, at most [http_max_limit] HTTP connections (those that negotiate http/1.1 by ALPN)
+  # are held, apart from the [inbound_max_limit] connections above. A further one is closed without
+  # an answer, and 0 or less holds none. Read at startup.
+  http_max_limit: 50
+
   # The maximum idle time in milliseconds for an **unauthenticated** inbound connection.
   # Connections which have been idle for longer than this will be closed.
   # Default value is 10 minutes (10 * 60 * 1000 == 600000)

@@ -34,6 +34,28 @@ void main() async {
           reason: 'the built-in default must agree with the shipped yaml');
     });
 
+    test('Config: http_max_limit is read from connection.http_max_limit',
+        () async {
+      final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+      addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  http_max_limit: 7') as YamlMap;
+      expect(AtSecondaryConfig.http_max_limit, 7,
+          reason: 'a value other than the default pins the yaml path');
+    });
+
+    test('Config: http_max_limit is 50 with no yaml at all', () async {
+      final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+      addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({});
+      expect(AtSecondaryConfig.http_max_limit, 50);
+    });
+
+    test('Config: the shipped config.yaml sets http_max_limit to 50', () async {
+      expect(AtSecondaryConfig.configYamlMap?['connection']?['http_max_limit'],
+          50);
+    });
+
     test('Config: testingMode is false by default', () async {
       expect(AtSecondaryConfig.testingMode, isFalse,
           reason: 'testingMode relaxes rules that protect the atSign, so the '

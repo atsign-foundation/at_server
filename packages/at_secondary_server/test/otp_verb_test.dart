@@ -674,6 +674,25 @@ void main() {
       expect(OtpVerbHandler.covers({'*': 'rw'}, {'__MANAGE': 'rw'}), false);
     });
 
+    test('covers matches a held namespace by suffix, as access resolves', () {
+      expect(OtpVerbHandler.covers({'wavi': 'rw'}, {'x.wavi': 'rw'}), true);
+      expect(OtpVerbHandler.covers({'wavi': 'rw'}, {'xwavi': 'rw'}), false);
+      expect(OtpVerbHandler.covers({'x.wavi': 'rw'}, {'wavi': 'r'}), false);
+      expect(OtpVerbHandler.covers({'wavi': 'r'}, {'x.wavi': 'rw'}), false);
+      expect(
+          OtpVerbHandler.covers({'*': 'rw', 'wavi': 'r'}, {'x.wavi': 'rw'}),
+          true);
+      // NOTE the same grants in either order give the same answer.
+      expect(
+          OtpVerbHandler.covers(
+              {'wavi': 'r', 'x.wavi': 'rw'}, {'y.x.wavi': 'rw'}),
+          true);
+      expect(
+          OtpVerbHandler.covers(
+              {'x.wavi': 'rw', 'wavi': 'r'}, {'y.x.wavi': 'rw'}),
+          true);
+    });
+
     test('readOtp reads a malformed record as a namespace-less OTP', () {
       expect(OtpVerbHandler.readOtp('{oops'),
           (passcode: '{oops', namespaces: null));

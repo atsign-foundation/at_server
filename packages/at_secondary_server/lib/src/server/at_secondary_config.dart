@@ -72,6 +72,7 @@ class AtSecondaryConfig {
 
   //Connection
   static const int _inboundMaxLimit = 200;
+  static const int _httpMaxLimit = 50;
   static const int _outboundMaxLimit = 200;
   static const int _unauthenticatedInboundIdleTimeMillis =
       10 * 60 * 1000; // 10 minutes
@@ -461,6 +462,21 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['connection', 'inbound_max_limit']);
     } on ElementNotFoundException {
       return _inboundMaxLimit;
+    }
+  }
+
+  /// The most HTTP connections held at once, read at startup; 0 or less
+  /// holds none.
+  // ignore: non_constant_identifier_names
+  static int get http_max_limit {
+    var result = _getIntEnvVar('http_max_limit');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['connection', 'http_max_limit']);
+    } on ElementNotFoundException {
+      return _httpMaxLimit;
     }
   }
 
