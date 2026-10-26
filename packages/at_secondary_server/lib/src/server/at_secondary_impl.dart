@@ -39,6 +39,7 @@ import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
 
+import 'http_connections.dart';
 import 'http_request_handler.dart';
 
 /// Singleton implementation of [AtSecondaryServer].
@@ -94,6 +95,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   dynamic _serverSocket;
+  HttpConnections? _http;
   bool _isRunning = false;
   late Atsign currentAtSign;
   late AtCommitLog commitLog;
@@ -648,32 +650,38 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
   }
 
-  /// Listens on the secondary server socket and creates an inbound connection
-  /// for each client socket. Throws [SocketException] for socket errors.
-  void _listen(final serverSocket) {
-    // NOTE sockets whose ALPN selectedProtocol is neither null nor
-    // 'atProtocol/1.0' are handed to the PseudoServerSocket.
-    final pseudoServerSocket = PseudoServerSocket(serverSocket);
-    HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
+  /// Serves the Atsign Protocol on each connection [serverSocket] accepts,
+  /// and HTTP on those that negotiate it, holding at most [httpMaxLimit] HTTP
+  /// connections at once. An HTTP connection is held idle for at most
+  /// [idleTimeout], checked as often, and closed when an answer is not sent
+  /// within [answerDeadline].
+  @visibleForTesting
+  HttpConnections listenOn(SecureServerSocket serverSocket,
+      {required int httpMaxLimit,
+      Duration idleTimeout = HttpConnections.defaultIdleTimeout,
+      Duration answerDeadline = HttpConnections.defaultAnswerDeadline}) {
     final httpReqHandler = AtServerHttpRequestHandler(
         currentAtSign, keyValueStore, enrollmentManager);
-    httpServer
-        .listen((HttpRequest req) => routeHttpRequest(req, httpReqHandler));
+    final HttpConnections http = HttpConnections.serve(serverSocket,
+        maxConnections: httpMaxLimit,
+        idleTimeout: idleTimeout,
+        answerDeadline: answerDeadline,
+        onRequest: (HttpRequest req) => routeHttpRequest(req, httpReqHandler));
 
-    logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(
-        (clientSocket) => acceptSocket(clientSocket, pseudoServerSocket),
+    logger.finer('serverSocket listenOn : ${serverSocket.runtimeType}');
+    serverSocket.listen((clientSocket) => acceptSocket(clientSocket, http),
         onError: (error) {
       logger.warning("ServerSocket.listen called onError with '$error'");
     });
+    return http;
   }
 
-  /// Serves the atProtocol on [clientSocket], or hands it to
-  /// [pseudoServerSocket] when it negotiated another ALPN protocol. An
-  /// unexpected error closes only [clientSocket].
+  /// Serves the Atsign Protocol on [clientSocket], or hands it to [http] when
+  /// it negotiated another ALPN protocol. An unexpected error closes only
+  /// [clientSocket].
   @visibleForTesting
   Future<void> acceptSocket(
-      SecureSocket clientSocket, PseudoServerSocket pseudoServerSocket) async {
+      SecureSocket clientSocket, HttpConnections http) async {
     InboundConnection? connection;
     try {
       if (logger.isLoggable('finer')) {
@@ -698,7 +706,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         }
       } else {
         logger.info('Transferring socket to HttpServer for handling');
-        pseudoServerSocket.add(clientSocket);
+        http.add(clientSocket);
       }
     } catch (e, st) {
       logger.warning(
@@ -739,16 +747,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     }
     if (certsAvailable) {
-      _serverSocket = await SecureServerSocket.bind(
-          InternetAddress.anyIPv4, serverContext!.port, secCon,
-          requestClientCertificate: true);
-      logger.shout(
-          'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
-      logger.shout('Secure Socket open for $currentAtSign !');
-      _listen(_serverSocket);
+      await bindAndListen(secCon, serverContext!.port);
     } else {
       logger.severe('certs not available');
     }
+  }
+
+  /// Binds [port] with [context] and serves on it, holding at most
+  /// connection.http_max_limit HTTP connections. Returns the bound socket and
+  /// the HTTP side it hands connections to.
+  @visibleForTesting
+  Future<(SecureServerSocket, HttpConnections)> bindAndListen(
+      SecurityContext context, int port) async {
+    final SecureServerSocket socket = await SecureServerSocket.bind(
+        InternetAddress.anyIPv4, port, context,
+        requestClientCertificate: true);
+    _serverSocket = socket;
+    logger.shout(
+        'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
+    logger.shout('Secure Socket open for $currentAtSign !');
+    final HttpConnections http =
+        listenOn(socket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
+    _http = http;
+    return (socket, http);
   }
 
   /// Starts the secondary server in unsecured mode and listens on its socket.
@@ -756,7 +777,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
     logger.shout('Unsecure Socket open');
-    _listen(_serverSocket);
+    _http =
+        listenOn(_serverSocket, httpMaxLimit: AtSecondaryConfig.http_max_limit);
   }
 
   /// Executes [command] on [connection].
@@ -808,6 +830,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       logger.shout("Closing ServerSocket");
       _serverSocket.close();
+
+      logger.shout("Closing the HTTP server and its connections");
+      await _http?.close();
+      _http = null;
 
       logger.shout("Stopping StatsNotificationService");
       await statsNotificationService.cancel();

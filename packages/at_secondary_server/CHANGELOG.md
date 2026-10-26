@@ -1,4 +1,21 @@
 # 3.19.1
+- feat: an atServer holds at most `connection.http_max_limit` HTTP connections
+  at once, 50 by default; a connection beyond that is closed without an
+  answer, and 0 or less holds none. Atsign Protocol connections are not
+  affected.
+
+- feat: an HTTP connection with no request in progress is closed within 10
+  seconds of its TLS handshake completing or its last answer, and one whose
+  answer is not fully sent within 30 seconds of its request is closed then.
+
+- fix: an HTTP `GET` whose path or query does not decode is answered 400, and
+  one the atServer fails to answer, an unreadable record among them, is
+  answered 500.
+
+- fix: an error the HTTP server raises is logged.
+
+- fix: stopping the atServer closes its HTTP connections.
+
 - test: when `AT_UNIT_TEST_STORAGE_DIR` is set, the unit tests keep their
   storage under it rather than under the package.
 
