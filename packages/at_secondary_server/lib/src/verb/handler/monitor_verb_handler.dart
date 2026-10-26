@@ -88,6 +88,9 @@ class MonitorVerbHandler extends AbstractVerbHandler {
               comparator: notifMgr.compareDateTime);
       await feed.open(backlog);
     } catch (e, st) {
+      // NOTE ended here, not only by the close in process(): a batch runs
+      // monitor through processInternal, which leaves the connection open.
+      notifMgr.removeMonitor(atConnection, only: feed);
       throw _ReplayFailed(e, st);
     }
     atConnection.isMonitor = true;

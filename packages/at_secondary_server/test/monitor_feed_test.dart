@@ -385,6 +385,29 @@ void main() {
           allOf(contains('Dropped 1 queued notification'),
               contains('its monitor feed has ended')));
     });
+
+    test(
+        'Given a monitor:<t> run as a batch does, when its replay fails, then its feed is removed and a later monitor on the connection is written live pushes',
+        () async {
+      final _RecordingConnection connection = cramConnection();
+      final int t = DateTime.now().millisecondsSinceEpoch - 1000;
+      gated.failNextRead(DataStoreException('notification store unavailable'));
+
+      await expectLater(monitor.processInternal('monitor:$t', connection),
+          throwsA(isA<Exception>()));
+
+      expect(connection.metadata.isClosed, isFalse,
+          reason: 'precondition: a batch leaves the connection open');
+      expect(gated.monitorCount, 0);
+      gated.enqueue(received('n1'));
+      expect(gated.queuedPushes, 0, reason: 'no feed holds it unwritten');
+
+      await runMonitor(connection).timeout(const Duration(seconds: 2));
+      gated.enqueue(received('n2'));
+      await gated.monitorsIdle;
+
+      expect(connection.ids, ['n2']);
+    });
   });
 
   test('A notification the client did not ask for causes no enrollment lookup',
