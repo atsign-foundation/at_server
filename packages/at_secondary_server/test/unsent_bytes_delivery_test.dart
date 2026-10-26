@@ -119,8 +119,8 @@ void main() {
         int next = 0;
         String? misread;
         client.onLine = (Uint8List line) {
-          final int? s = int.tryParse(
-              ascii.decode(Uint8List.sublistView(line, 0, max(0, line.indexOf(58)))));
+          final int? s = int.tryParse(ascii.decode(
+              Uint8List.sublistView(line, 0, max(0, line.indexOf(58)))));
           if (s != next || s! >= lengths.length || line.length != lengths[s]) {
             misread ??= 'line $s of ${line.length} bytes arrived where line '
                 '$next was due';
@@ -151,8 +151,7 @@ void main() {
     }
   });
 
-  group('The bytes held for a replay are released however the replay ends',
-      () {
+  group('The bytes held for a replay are released however the replay ends', () {
     AtNotification notification(String id, int valueLength) =>
         (AtNotificationBuilder()
               ..id = id
@@ -191,8 +190,8 @@ void main() {
         }
       };
       await server.write('${'f' * (8 * 1024 * 1024)}\n');
-      replay = handler.processVerb(
-          Response(), handler.parse('monitor:$t'), server);
+      replay =
+          handler.processVerb(Response(), handler.parse('monitor:$t'), server);
       await _until(() => server.unsentBytes > 0,
           reason: 'precondition: the replay waits for the client');
       for (int i = 0; i < live; i++) {
@@ -279,8 +278,8 @@ Future<void> _until(bool Function() condition,
 /// [lengths]. Some writes are awaited, some made in a burst, some from the
 /// next turn, a microtask or drained's callback; once 2 MiB are waiting,
 /// it waits for them to drain or for a few milliseconds.
-Future<void> _writeLines(InboundConnection connection, Random random,
-    int total, List<int> lengths) async {
+Future<void> _writeLines(InboundConnection connection, Random random, int total,
+    List<int> lengths) async {
   final DrainableConnection drainable = connection as DrainableConnection;
   final List<Future<void>> writes = <Future<void>>[];
   int written = 0;
