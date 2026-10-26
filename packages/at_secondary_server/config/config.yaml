@@ -112,6 +112,16 @@ connection:
   # pool takes care of ensuring that idle connections are closed as necessary
   inbound_max_limit: 200
 
+  # The most bytes an inbound connection may leave waiting for its client to
+  # read. A write onto an empty queue is always taken, whatever its size; a
+  # write that arrives while bytes are waiting and would take them above this
+  # closes the connection, dropping what was waiting. A client that reads,
+  # however slowly, is not closed unless it falls this far behind.
+  # The atServer refuses to start if this is below 1 MiB (1048576) or is not
+  # an integer.
+  # Default value is 16 MiB (16 * 1024 * 1024 == 16777216)
+  inbound_max_unsent_bytes: 16777216
+
   # At any point, at most [http_max_limit] HTTP connections (those that negotiate http/1.1 by ALPN)
   # are held, apart from the [inbound_max_limit] connections above. A further one is closed without
   # an answer, and 0 or less holds none. Read at startup.

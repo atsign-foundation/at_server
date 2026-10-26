@@ -12,6 +12,7 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/inbound/web_socket_upgrade.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -27,6 +28,7 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetrySequence;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -131,6 +133,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
+  // NOTE before this, NotificationManager.close() may wait up to
+  // NotificationManager.livePushTimeout for notification.received reports.
   static const Duration _telemetryFlushTimeout = Duration(seconds: 15);
 
   /// Floor for the expiry-sweep sleep.
@@ -272,7 +276,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           secondaryAddressFinder,
           outboundConnectionFactory,
           poolSize: serverContext!.outboundConnectionLimit,
-        ));
+        ),
+        telemetry: NotificationTelemetry(telemetry));
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
@@ -614,12 +619,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     });
   }
 
-  /// Serves the atProtocol on [ws]. An unexpected error closes only [ws].
-  Future<void> webSocketListener(WebSocket ws) async {
+  /// Serves the atProtocol on [ws], which runs over [socket]. An unexpected
+  /// error closes only [ws].
+  Future<void> webSocketListener(WebSocket ws, Socket socket) async {
     InboundConnection? connection;
     try {
       try {
-        connection = inboundConnectionManager.createWebSocketConnection(ws,
+        connection = inboundConnectionManager.createWebSocketConnection(
+            ws, socket,
             sessionId: SecondaryUtil.makeSessionId());
         connection.acceptRequests(_executeVerbCallBack);
         await connection.write('@');
@@ -644,9 +651,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       httpReqHandler.handle(req);
       return;
     }
-    WebSocketTransformer.upgrade(req).then((WebSocket ws) {
+    upgradeToWebSocket(req).then(((WebSocket, Socket) upgraded) {
       logger.info('Upgraded to WebSocket connection');
-      return webSocketListener(ws);
+      return webSocketListener(upgraded.$1, upgraded.$2);
     }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
   }
 

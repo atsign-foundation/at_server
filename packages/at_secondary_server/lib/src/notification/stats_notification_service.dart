@@ -46,7 +46,10 @@ class StatsNotificationService {
   StatsNotificationService();
 
   final _logger = AtSignLogger('StatsNotificationService');
-  late String currentAtSign;
+
+  /// The atSign stats are written for, set by [schedule]; while it is null
+  /// the service is off and [writeStatsToMonitor] writes nothing.
+  String? currentAtSign;
   AtCommitLog? atCommitLog;
 
   static final Duration zeroDuration = Duration(microseconds: 0);
@@ -115,15 +118,23 @@ class StatsNotificationService {
     state = StatsNotificationServiceState.notScheduled;
   }
 
-  /// Writes the lastCommitID to all Monitor connections
+  /// Writes the lastCommitID to all Monitor connections, or nothing while
+  /// the service is off.
   Future<void> writeStatsToMonitor(
       {String? latestCommitID, String? operationType}) async {
+    final String? currentAtSign = this.currentAtSign;
+    if (currentAtSign == null) {
+      _logger.finer('No stats written. (The service is off.)');
+      return;
+    }
     latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
-    // Gets the list of active connections.
+    // NOTE a snapshot: a write can close its connection, which then leaves
+    // the pool while this loop is still going.
     var connectionsList = AtSecondaryServerImpl.getInstance()
         .inboundConnectionManager
         .pool
-        .getConnections();
+        .getConnections()
+        .toList();
     if (connectionsList.isEmpty) {
       _logger.finer('No stats written. (No connections.)');
       return;

@@ -39,6 +39,24 @@ String _escape(int codeUnit) => switch (codeUnit) {
       _ => '\\x${codeUnit.toRadixString(16).padLeft(2, '0')}',
     };
 
+/// Names the connection [md] belongs to for a log line: its session and who
+/// it stands for, from values the atServer assigned or proved.
+String describeInboundConnection(InboundConnectionMetadata md) {
+  final String standing = md.isAuthenticated
+      ? switch (md.authType) {
+          AuthType.cram => 'CRAM',
+          AuthType.pkamLegacy => 'legacy pkam',
+          AuthType.apkam => 'apkam',
+          null => 'authenticated',
+        }
+      : md.isPolAuthenticated
+          ? 'pol as ${md.fromAtSign}'
+          : 'not authenticated';
+  final String? enrollmentId = md.enrollmentId;
+  return 'session ${md.sessionID} ($standing'
+      '${enrollmentId == null ? '' : ', enrollment $enrollmentId'})';
+}
+
 extension AtConnectionMetadataLogging on AtSignLogger {
   String getAtConnectionLogMessage(
       AtConnectionMetaData atConnectionMetaData, String logMsg) {

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_key_length.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -77,8 +78,12 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
         atConnection.metaData as InboundConnectionMetadata;
     // NOTE each recipient's key is judged whole, as notify judges it, and
     // every one before any is stored, so a refusal stores nothing.
+    final bool cached = cachedByRecipient(
+        hasTtr: verbParams[AtConstants.ttr] != null,
+        isDelete: operation == OperationType.delete);
     for (final forAtSign in recipients) {
       final recipientKey = '$forAtSign:$key';
+      refuseOverlongNotificationKey(recipientKey, cached: cached);
       if (!await isAuthorized(inboundConnectionMetadata, atKey: recipientKey)) {
         throw UnAuthorizedException(
             'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'

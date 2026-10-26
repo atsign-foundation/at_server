@@ -31,6 +31,8 @@ class _FakeWebSocket extends Fake implements WebSocket {
 
 class _FakeHttpConnections extends Fake implements HttpConnections {}
 
+class _FakeSocket extends Fake implements Socket {}
+
 void main() {
   late MockInboundConnectionManager manager;
 
@@ -38,6 +40,7 @@ void main() {
     verbTestsSetUpLogging();
     registerFallbackValue(_FakeSecureSocket());
     registerFallbackValue(_FakeWebSocket());
+    registerFallbackValue(_FakeSocket());
     registerFallbackValue((String _, InboundConnection __) {});
     registerFallbackValue((List<int> _, InboundConnection __) {});
   });
@@ -91,12 +94,13 @@ void main() {
 
   test('an unexpected error setting up a WebSocket closes only that WebSocket',
       () async {
-    when(() => manager.createWebSocketConnection(any(),
+    when(() => manager.createWebSocketConnection(any(), any(),
         sessionId: any(named: 'sessionId'))).thenThrow(StateError('injected'));
     final ws = _FakeWebSocket();
 
-    final uncaught = await uncaughtFrom(
-        () => AtSecondaryServerImpl.getInstance().webSocketListener(ws));
+    final uncaught = await uncaughtFrom(() =>
+        AtSecondaryServerImpl.getInstance()
+            .webSocketListener(ws, _FakeSocket()));
 
     expect(uncaught, isEmpty);
     expect(ws.closed, isTrue);

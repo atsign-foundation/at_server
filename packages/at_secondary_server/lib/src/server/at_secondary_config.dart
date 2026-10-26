@@ -72,6 +72,7 @@ class AtSecondaryConfig {
 
   //Connection
   static const int _inboundMaxLimit = 200;
+  static const int _inboundMaxUnsentBytes = 16 * 1024 * 1024;
   static const int _httpMaxLimit = 50;
   static const int _outboundMaxLimit = 200;
   static const int _unauthenticatedInboundIdleTimeMillis =
@@ -463,6 +464,34 @@ class AtSecondaryConfig {
     } on ElementNotFoundException {
       return _inboundMaxLimit;
     }
+  }
+
+  /// The least [inbound_max_unsent_bytes] may be set to.
+  static const int inboundMaxUnsentBytesFloor = 1024 * 1024;
+
+  /// The most bytes an inbound connection may leave waiting for its client
+  /// to read, behind one write, before it is closed. Throws
+  /// [InvalidConfigException] when the environment or config.yaml sets it to
+  /// anything but an integer of at least [inboundMaxUnsentBytesFloor].
+  // ignore: non_constant_identifier_names
+  static int get inbound_max_unsent_bytes {
+    final Object? value;
+    final String? fromEnv = _envVars['inbound_max_unsent_bytes'];
+    if (fromEnv != null) {
+      value = int.tryParse(fromEnv.trim()) ?? fromEnv;
+    } else {
+      try {
+        value = getConfigFromYaml(['connection', 'inbound_max_unsent_bytes']);
+      } on ElementNotFoundException {
+        return _inboundMaxUnsentBytes;
+      }
+    }
+    if (value is int && value >= inboundMaxUnsentBytesFloor) {
+      return value;
+    }
+    throw InvalidConfigException('connection.inbound_max_unsent_bytes must be'
+        ' an integer of at least $inboundMaxUnsentBytesFloor (1 MiB), not'
+        ' $value');
   }
 
   /// The most HTTP connections held at once, read at startup; 0 or less
@@ -994,4 +1023,9 @@ class ModifiableConfigurationEntry {
 
 class ElementNotFoundException extends AtException {
   ElementNotFoundException(super.message);
+}
+
+/// A config value the atServer does not accept.
+class InvalidConfigException extends AtException {
+  InvalidConfigException(super.message);
 }

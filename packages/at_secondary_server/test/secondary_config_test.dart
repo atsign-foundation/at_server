@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:logging/logging.dart' as logging;
 import 'package:test/test.dart';
@@ -126,6 +129,98 @@ void main() async {
           loadYaml('otp:\n  maxTtlInMinutes: 7\n  maxLive: 3') as YamlMap;
       expect(AtSecondaryConfig.otpMaxTtlInMinutes, 7);
       expect(AtSecondaryConfig.maxLiveOtps, 3);
+    });
+  });
+
+  group('Given the inbound unsent-bytes limit', () {
+    late YamlMap? saved;
+
+    setUp(() => saved = AtSecondaryConfig.configYamlMap);
+    tearDown(() => AtSecondaryConfig.configYamlMap = saved);
+
+    test('when nothing sets it, then it is 16 MiB', () {
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({});
+
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 16777216);
+    });
+
+    test(
+        'when config.yaml sets connection.inbound_max_unsent_bytes, then that is the limit a new context takes',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 2097152')
+              as YamlMap;
+
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 2097152);
+      expect(AtSecondaryContext().inboundMaxUnsentBytes, 2097152);
+    });
+
+    test(
+        'Given config.yaml sets it to exactly 1 MiB, when it is read, then that is the limit',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 1048576')
+              as YamlMap;
+
+      expect(AtSecondaryConfig.inbound_max_unsent_bytes, 1048576);
+    });
+
+    test(
+        'Given config.yaml sets it below 1 MiB, when it is read, then it is refused naming the key and the floor',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 1048575')
+              as YamlMap;
+
+      expect(
+          () => AtSecondaryContext(),
+          throwsA(isA<InvalidConfigException>().having(
+              (InvalidConfigException e) => e.message,
+              'message',
+              allOf(contains('connection.inbound_max_unsent_bytes'),
+                  contains('1048576'), contains('1048575')))));
+    });
+
+    test(
+        'Given config.yaml sets it to something that is not an integer, when it is read, then it is refused naming the key and the floor',
+        () {
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('connection:\n  inbound_max_unsent_bytes: 16MiB') as YamlMap;
+
+      expect(
+          () => AtSecondaryConfig.inbound_max_unsent_bytes,
+          throwsA(isA<InvalidConfigException>().having(
+              (InvalidConfigException e) => e.message,
+              'message',
+              allOf(contains('connection.inbound_max_unsent_bytes'),
+                  contains('1048576'), contains('16MiB')))));
+    });
+
+    test(
+        'when the inbound_max_unsent_bytes environment variable sets it, then that is the limit',
+        () async {
+      final ProcessResult result = await Process.run(
+          Platform.resolvedExecutable,
+          ['run', 'test/tool/print_inbound_max_unsent_bytes.dart'],
+          environment: {'inbound_max_unsent_bytes': '3145728'});
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect((result.stdout as String).trim().split('\n').last, '3145728');
+    });
+
+    test(
+        'Given the environment variable is not an integer, when it is read, then it is refused naming the key and the floor',
+        () async {
+      final ProcessResult result = await Process.run(
+          Platform.resolvedExecutable,
+          ['run', 'test/tool/print_inbound_max_unsent_bytes.dart'],
+          environment: {'inbound_max_unsent_bytes': 'lots'});
+
+      expect(result.exitCode, isNot(0));
+      expect(
+          result.stderr,
+          allOf(contains('connection.inbound_max_unsent_bytes'),
+              contains('1048576'), contains('lots')));
     });
   });
 }
