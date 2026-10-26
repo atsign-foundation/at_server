@@ -72,10 +72,11 @@ void main() {
 
   /// Connects a client the way a real one does: by TLS negotiating
   /// atProtocol/1.0, or by WebSocket upgrading /ws over http/1.1. Returns
-  /// the client once it has the @ prompt, with the atServer's side of the
-  /// connection, authenticated by CRAM.
+  /// the client once it has the @ prompt, failing with [unprompted] if it
+  /// never arrives, with the atServer's side of the connection,
+  /// authenticated by CRAM.
   Future<(_Client, InboundConnection)> connect(
-      {required bool webSocket}) async {
+      {required bool webSocket, required String unprompted}) async {
     final Set<InboundConnection> before =
         atServer.inboundConnectionManager.pool.getConnections().toSet();
     final SecureSocket socket = await SecureSocket.connect(
@@ -100,9 +101,7 @@ void main() {
     final InboundConnection server = atServer.inboundConnectionManager.pool
         .getConnections()
         .singleWhere((InboundConnection c) => !before.contains(c));
-    await _until(() => client.prompted,
-        reason: 'the client receives every line once, in order and whole: '
-            'the @ prompt never arrived (seed $seed)');
+    await _until(() => client.prompted, reason: unprompted);
     (server.metaData as InboundConnectionMetadata)
       ..isAuthenticated = true
       ..authType = AuthType.cram;
@@ -112,38 +111,40 @@ void main() {
   group('A client that reads in bursts receives every byte written to it', () {
     for (final String transport in ['TLS', 'WebSocket']) {
       test(transport, () async {
-        final Random random = Random(seed);
-        final (_Client client, InboundConnection server) =
-            await connect(webSocket: transport == 'WebSocket');
-        final List<int> lengths = <int>[];
+        final String whole =
+            'the client receives every line once, in order and whole';
+        final (_Client client, InboundConnection server) = await connect(
+            webSocket: transport == 'WebSocket',
+            unprompted: '$whole: the @ prompt never arrived (seed $seed)');
+        final List<Uint8List> expected = <Uint8List>[];
         int next = 0;
         String? misread;
         client.onLine = (Uint8List line) {
-          final int? s = int.tryParse(ascii.decode(
-              Uint8List.sublistView(line, 0, max(0, line.indexOf(58)))));
-          if (s != next || s! >= lengths.length || line.length != lengths[s]) {
-            misread ??= 'line $s of ${line.length} bytes arrived where line '
-                '$next was due';
+          if (next >= expected.length || !_same(line, expected[next])) {
+            misread ??= 'line $next arrived as ${line.length} bytes that '
+                'differ from those written';
           }
           next++;
         };
         final _Watch watch = _Watch(server, seed);
-        client.readInBursts(random);
+        client.readInBursts(Random(seed + 1));
 
-        await watch.or(_writeLines(server, random, 8 * 1024 * 1024, lengths));
-        await watch.or(_until(() => next >= lengths.length,
-            reason: 'the client receives every line once, in order and '
-                'whole: it read $next of ${lengths.length} (seed $seed)'));
-        await (server as DrainableConnection).drained.timeout(
-            const Duration(seconds: 2),
+        await watch.or(
+            _writeLines(server, Random(seed), 8 * 1024 * 1024, expected, seed));
+        final Future<void> drained = (server as DrainableConnection).drained;
+        await watch.or(_until(() => next >= expected.length,
+            reason: '$whole: it read $next of ${expected.length} '
+                '(seed $seed)'));
+        await drained.timeout(const Duration(seconds: 2),
             onTimeout: () => fail('once the client has read everything, the '
                 'connection is drained (seed $seed)'));
         watch.stop();
 
         expect(watch.failure, isNull, reason: watch.failure);
-        expect(misread, isNull,
-            reason: 'the client receives every line once, in order and '
-                'whole (seed $seed)');
+        expect(misread, isNull, reason: '$whole: $misread (seed $seed)');
+        expect(_unsent(server), 0,
+            reason: 'once the client has read everything, the connection is '
+                'drained (seed $seed)');
         expect(watch.waitingTurns, greaterThan(0),
             reason: 'precondition: bytes waited behind a paused transport');
         expect(server.metaData.isClosed, isFalse);
@@ -179,7 +180,9 @@ void main() {
         written.add(n.id!);
         await notificationManager.notify(n);
       }
-      final (_Client c, InboundConnection s) = await connect(webSocket: false);
+      final (_Client c, InboundConnection s) = await connect(
+          webSocket: false,
+          unprompted: 'precondition: the client has the @ prompt');
       client = c;
       server = s as InboundConnectionImpl;
       client.stopReading();
@@ -220,7 +223,8 @@ void main() {
       client.socket.destroy();
       await _until(() => server.metaData.isClosed,
           reason: 'precondition: the atServer saw the client close');
-      await replay.timeout(const Duration(seconds: 5));
+      await replay.timeout(const Duration(seconds: 5),
+          onTimeout: () => fail('the replay ends once the connection closes'));
 
       await heldReturnToZero();
     });
@@ -231,7 +235,8 @@ void main() {
       await holdBehindReplay(20, 10);
 
       client.read();
-      await replay.timeout(const Duration(seconds: 30));
+      await replay.timeout(const Duration(seconds: 10),
+          onTimeout: () => fail('the replay completes once the client reads'));
       expect(notificationManager.queuedPushes, greaterThan(0),
           reason: 'precondition: the held notifications are still being '
               'written');
@@ -248,7 +253,8 @@ void main() {
       await holdBehindReplay(20, 3);
 
       client.read();
-      await replay.timeout(const Duration(seconds: 30));
+      await replay.timeout(const Duration(seconds: 10),
+          onTimeout: () => fail('the replay completes once the client reads'));
       await notificationManager.monitorsIdle;
 
       await heldReturnToZero();
@@ -274,21 +280,21 @@ Future<void> _until(bool Function() condition,
 }
 
 /// Writes about [total] bytes of numbered lines of mixed sizes to
-/// [connection], recording each line's UTF-8 length without its newline in
-/// [lengths]. Some writes are awaited, some made in a burst, some from the
+/// [connection], recording each line's UTF-8 bytes without its newline in
+/// [expected]. Some writes are awaited, some made in a burst, some from the
 /// next turn, a microtask or drained's callback; once 2 MiB are waiting,
 /// it waits for them to drain or for a few milliseconds.
 Future<void> _writeLines(InboundConnection connection, Random random, int total,
-    List<int> lengths) async {
+    List<Uint8List> expected, int seed) async {
   final DrainableConnection drainable = connection as DrainableConnection;
   final List<Future<void>> writes = <Future<void>>[];
   int written = 0;
 
   void write(String body) {
-    final String line = '${lengths.length}:$body\n';
-    final int length = utf8.encode(line).length;
-    lengths.add(length - 1);
-    written += length;
+    final String line = '${expected.length}:$body\n';
+    final Uint8List bytes = utf8.encode(line);
+    expected.add(Uint8List.sublistView(bytes, 0, bytes.length - 1));
+    written += bytes.length;
     writes.add(connection.write(line));
   }
 
@@ -305,7 +311,9 @@ Future<void> _writeLines(InboundConnection connection, Random random, int total,
   while (written < total) {
     while (_unsent(connection) > 2 * 1024 * 1024) {
       if (random.nextBool()) {
-        await drainable.drained;
+        await drainable.drained.timeout(const Duration(seconds: 5),
+            onTimeout: () => fail('once the client has read what was waiting, '
+                'the connection is drained (seed $seed)'));
       } else {
         await Future<void>.delayed(
             Duration(milliseconds: 1 + random.nextInt(8)));
@@ -361,16 +369,24 @@ bool _takingWrites(InboundConnection c) => switch (c) {
       _ => throw ArgumentError.value(c),
     };
 
-/// Checks a connection at every event-loop turn, when no microtask is
-/// pending, that no bytes wait while its transport is taking writes.
+bool _same(Uint8List a, Uint8List b) {
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Checks a connection on every pass of the timer queue, when no microtask
+/// is pending, that no bytes wait while its transport is taking writes.
 class _Watch {
   _Watch(this.connection, this.seed) {
-    _timer = Timer.periodic(const Duration(milliseconds: 1), (_) => _check());
+    _next();
   }
 
   final InboundConnection connection;
   final int seed;
-  late final Timer _timer;
+  Timer? _timer;
   final Completer<void> _failed = Completer<void>();
 
   /// How many turns found bytes waiting behind a paused transport.
@@ -379,16 +395,21 @@ class _Watch {
   /// Why a check failed, once one has.
   String? failure;
 
+  // NOTE a zero-duration timer, so a check scheduled before a transport
+  // resumes runs before anything the resume schedules for a later turn.
+  void _next() => _timer = Timer(Duration.zero, _check);
+
   void _check() {
     final int unsent = _unsent(connection);
     if (unsent == 0) {
+      _next();
       return;
     }
     if (!_takingWrites(connection)) {
       waitingTurns++;
+      _next();
       return;
     }
-    _timer.cancel();
     failure = 'no bytes wait while the transport is taking writes: $unsent '
         'bytes were waiting (seed $seed)';
     _failed.completeError(TestFailure(failure));
@@ -397,7 +418,7 @@ class _Watch {
   /// Completes as [work] does, or fails as soon as a check does.
   Future<void> or(Future<void> work) => Future.any([work, _failed.future]);
 
-  void stop() => _timer.cancel();
+  void stop() => _timer?.cancel();
 }
 
 /// A client that reads its connection in bursts, pausing at random and
@@ -438,11 +459,11 @@ class _Client {
     }
   }
 
-  /// Starts reading in bursts after a first pause of half a second.
+  /// Starts reading in bursts after a first pause of over a second.
   void readInBursts(Random random) {
     _random = random;
     stopReading();
-    Timer(const Duration(milliseconds: 500), _nextBurst);
+    Timer(const Duration(milliseconds: 1200), _nextBurst);
   }
 
   void _nextBurst() {

@@ -362,8 +362,7 @@ void main() {
       expect(gated.monitorCount, 0);
       expect(thrown, isNull);
       await ended.future.timeout(const Duration(seconds: 5));
-      expect(
-          utf8.decode(received), allOf(contains('error:'), contains('AT0010')),
+      expect(utf8.decode(received), startsWith('error:AT0010-'),
           reason: 'monitor is refused with an internal server error');
     });
 

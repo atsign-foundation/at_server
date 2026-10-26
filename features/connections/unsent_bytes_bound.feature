@@ -98,7 +98,7 @@ Feature: A connection that leaves too many bytes unsent is closed
     And otherwise the live pushes are written, after the replay, once the client reads
 
   Scenario Outline: The bytes held for a replay are released however the replay ends
-    Given a client that runs monitor:<t> and has stopped reading
+    Given a client that runs monitor from an epoch and has stopped reading
     And live notifications its regex matches are held behind the replay
     When <ending>
     Then the bytes held for the connection return to zero
