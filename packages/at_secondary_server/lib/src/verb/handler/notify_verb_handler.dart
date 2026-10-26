@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/notification/notification_key_length.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -25,7 +27,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   /// Why a client's `messageType:text` notification is refused.
   static const textNotSupported = 'messageType:text is no longer supported';
-  final int _maxKeyLength = 255;
+
+  /// The longest notification id a notify may carry.
+  static const int maxIdLength = 36;
+
+  /// Why a notify whose id is longer than [maxIdLength] is refused.
+  static const idTooLong =
+      'notification id must have at most $maxIdLength characters';
 
   final NotificationManager notifMgr;
 
@@ -73,6 +81,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         verbParams[AtConstants.atSign] =
             verbParams[AtConstants.atSign]!.toAtsign();
       }
+      if (!atConnectionMetadata.isAuthenticated &&
+          !atConnectionMetadata.isPolAuthenticated) {
+        throw UnAuthenticatedException(
+            'Notify command cannot be executed without authentication');
+      }
+      _refuseOverlongId(verbParams);
       // When connection is authenticated, it indicates the sender side of the
       // the notification
       // If the currentAtSign and forAtSign are same, store the notification and return
@@ -83,12 +97,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       // When connection is polAuthenticated, it indicates the receiver side of the
       // the notification. Store the notification to the keystore.
-      else if (atConnectionMetadata.isPolAuthenticated) {
+      else {
         await _handlePolAuthenticatedConnection(
             currentAtSign, verbParams, atConnectionMetadata, response);
-      } else {
-        throw UnAuthenticatedException(
-            'Notify command cannot be executed without authentication');
       }
     } finally {
       processNotificationMutex.release();
@@ -153,32 +164,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
+    // When Operation is update, cache key only when TTR is set.
+    // Also, If operation is delete removed the cached key - irrespective of TTR value.
+    final OperationType operationType =
+        getOperationType(verbParams[AtConstants.operation]);
+    final bool caches = _cachedByRecipient(verbParams);
+    final String cachedNotificationKey =
+        '${AtConstants.cached}:${atNotificationBuilder.notification}';
+    // NOTE checked before the notification is stored, so one whose key
+    // cannot be cached is refused with nothing stored or pushed.
+    if (caches) {
+      refuseOverlongNotificationKey(atNotificationBuilder.notification!,
+          cached: true);
+    }
+
     // Store and send the notification
     await notifMgr.notify(n,
         ephemeral: isEphemeral(verbParams), reportReceived: true);
 
     // Everything after here is to do with auto-caching based on notifications
-    // First of all, caching is only relevant when ttr is set
-    // So - no ttr? we're done.
-    OperationType operationType =
-        getOperationType(verbParams[AtConstants.operation]);
-    // When Operation is update, cache key only when TTR is set.
-    // So if TTR is null,  do nothing.
-    // Also, If operation is delete removed the cached key - irrespective of TTR value.
-    // So, If operation is not delete and TTR is null, return.
-    if (operationType != OperationType.delete &&
-        (_getTimeToRefresh(verbParams[AtConstants.ttr]) == null)) {
+    if (!caches) {
       response.data = 'data:success';
       return;
-    }
-
-    // OK we have a ttr
-    // First of all, form a cached key
-    String cachedNotificationKey =
-        '${AtConstants.cached}:${atNotificationBuilder.notification}';
-    if (cachedNotificationKey.length > _maxKeyLength) {
-      throw InvalidAtKeyException(
-          'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
     }
     // Sender-asserted timestamps travel to the keystore explicitly, so the
     // cached key is stored with the origin's values. Passed on EVERY write
@@ -311,6 +318,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           ' reserved namespace ${sanitiseForLogging(reserved)}');
     }
     var keyToNotify = _getFullFormedAtKey(verbParams);
+    refuseOverlongNotificationKey(keyToNotify,
+        cached: _cachedByRecipient(verbParams));
     // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException
     bool isAuthorized = await _isAuthorizedToSendNotification(
@@ -390,14 +399,26 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return int.parse(arg);
   }
 
-  ///Sends the latest commitId to the StatsNotificationService
+  /// Sends the latest commitId to the StatsNotificationService, logging
+  /// rather than passing on any failure, since the notification has already
+  /// been answered.
   void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      AtSecondaryServerImpl.getInstance()
+      unawaited(AtSecondaryServerImpl.getInstance()
           .statsNotificationService
           .writeStatsToMonitor(
               latestCommitID: '$cachedKeyCommitId',
-              operationType: operationType);
+              operationType: operationType)
+          .catchError((Object e) => logger
+              .severe('$e while writing stats after a cached key changed')));
+    }
+  }
+
+  /// Refuses, with [InvalidSyntaxException], a notify whose id is longer
+  /// than [maxIdLength].
+  static void _refuseOverlongId(HashMap<String, String?> verbParams) {
+    if ((verbParams[AtConstants.id]?.length ?? 0) > maxIdLength) {
+      throw InvalidSyntaxException(idTooLong);
     }
   }
 
@@ -693,6 +714,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // At this point, has to return true for legacy reasons. See #1944
     return true;
   }
+
+  /// Whether the recipient caches a notification sent with [verbParams].
+  bool _cachedByRecipient(
+          HashMap<String, String?> verbParams) =>
+      cachedByRecipient(
+          hasTtr: verbParams[AtConstants.ttr] != null,
+          isDelete: getOperationType(verbParams[AtConstants.operation]) ==
+              OperationType.delete);
 
   String _getFullFormedAtKey(HashMap<String, String?> verbParam) {
     // In the notify regex, although, "public" and "forAtSign" are mutually exclusive

@@ -14,6 +14,10 @@ class AtSecondaryContext extends AtServerContext {
 
   int inboundConnectionLimit = AtSecondaryConfig.inbound_max_limit;
 
+  /// The most bytes an inbound connection may leave waiting for its client
+  /// to read, behind one write, before it is closed.
+  int inboundMaxUnsentBytes = AtSecondaryConfig.inbound_max_unsent_bytes;
+
   int outboundConnectionLimit = AtSecondaryConfig.outbound_max_limit;
 
   int unauthenticatedInboundIdleTimeMillis =

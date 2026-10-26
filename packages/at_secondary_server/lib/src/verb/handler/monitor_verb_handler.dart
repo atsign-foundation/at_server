@@ -5,20 +5,19 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:meta/meta.dart';
 
-class MonitorConfig {
-  RegExp regex = RegExp('.*');
-  StreamSubscription<AtNotification>? received;
-  StreamSubscription<AtNotification>? self;
-}
-
+/// Handles `monitor`: gives the connection one feed of live notifications,
+/// replacing any feed it had, after writing the stored ones an epoch asks
+/// for.
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
 
@@ -34,8 +33,21 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     return monitor;
   }
 
-  @visibleForTesting
-  Map<InboundConnection, MonitorConfig> configMap = {};
+  /// Runs `monitor`. When its replay fails, refuses it with that error and
+  /// then closes the connection.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    try {
+      await super.process(command, atConnection);
+    } on _ReplayFailed catch (failed) {
+      final Object error = failed.error;
+      await GlobalExceptionHandler.getInstance().handle(
+          error is Exception ? error : InternalServerError(error.toString()),
+          stackTrace: failed.stackTrace,
+          atConnection: atConnection);
+      await atConnection.close();
+    }
+  }
 
   @override
   Future<void> processVerb(
@@ -46,172 +58,365 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Failed to execute verb. monitor requires authentication');
     }
-    if (!configMap.containsKey(atConnection)) {
-      configMap[atConnection] = MonitorConfig();
-    }
-
-    MonitorConfig mc = configMap[atConnection]!;
     // If regex is not provided by user, set regex to ".*" to match all the possibilities
     // else set regex to the value given by the user.
+    final RegExp regex;
     try {
-      mc.regex = RegExp(verbParams[AtConstants.regex] ?? '.*');
+      regex = RegExp(verbParams[AtConstants.regex] ?? '.*');
     } catch (e) {
       throw InvalidSyntaxException(
           'Invalid regex: ${verbParams[AtConstants.regex]}');
     }
-    final selfNotificationsParam =
-        verbParams[AtConstants.monitorSelfNotifications];
-    mc.received = notifMgr.received.stream.listen((n) =>
-        notifMgr.recordLivePush(
-            n,
-            processAtNotification(atConnection, n).then((bool pushed) => pushed
-                ? atConnection.metaData as InboundConnectionMetadata
-                : null)));
-    if (selfNotificationsParam == AtConstants.monitorSelfNotifications) {
-      mc.self = notifMgr.self.stream
-          .listen((n) => processAtNotification(atConnection, n));
+    final String? epoch = verbParams[AtConstants.epochMilliseconds];
+    final int? sinceMillis = epoch == null ? null : int.parse(epoch);
+
+    final _MonitorFeed feed = _MonitorFeed(this, atConnection, regex,
+        withSelf: verbParams[AtConstants.monitorSelfNotifications] ==
+            AtConstants.monitorSelfNotifications);
+    final MonitorSink? previous = notifMgr.addMonitor(feed);
+    feed._replaced = previous;
+    final AtConnectionMetaData metaData = atConnection.metaData;
+    if (previous == null && metaData is InboundConnectionMetadata) {
+      unawaited(
+          metaData.closed.then((_) => notifMgr.removeMonitor(atConnection)));
     }
-
-    if (verbParams.containsKey(AtConstants.epochMilliseconds) &&
-        verbParams[AtConstants.epochMilliseconds] != null) {
-      // Send notifications already in the data store
-
-      // set up values for the retain closure below
-      int sinceMillis = int.parse(verbParams[AtConstants.epochMilliseconds]!);
-      List<NotificationType> notifTypes = [NotificationType.received];
-      if (selfNotificationsParam == AtConstants.monitorSelfNotifications) {
-        notifTypes.add(NotificationType.self);
-      }
-      List<AtNotification> notifs = await notifMgr.getFilteredSorted(
-        retain: (n) {
-          // Filter expired
-          if (n.isExpired()) {
-            return false;
-          }
-
-          // Filter any before the provided epoch value
-          if ((n.notificationDateTime?.millisecondsSinceEpoch ?? 0) <=
-              sinceMillis) {
-            return false;
-          }
-
-          // Filter by notification type
-          // Must be either received or self (if the self flag was set)
-          if (!notifTypes.contains(n.type)) {
-            return false;
-          }
-
-          // Must match the regex
-          if (n.notification?.contains(mc.regex) != true) {
-            return false;
-          }
-
-          return true;
-        },
-        comparator: notifMgr.compareDateTime,
-      );
-      for (AtNotification n in notifs) {
-        await processAtNotification(atConnection, n);
-      }
+    try {
+      final List<AtNotification> backlog = sinceMillis == null
+          ? const <AtNotification>[]
+          : await notifMgr.getFilteredSorted(
+              retain: (AtNotification n) => feed.replays(n, sinceMillis),
+              comparator: notifMgr.compareDateTime);
+      await feed.open(backlog);
+    } catch (e, st) {
+      // NOTE ended here, not only by the close in process(): a batch runs
+      // monitor through processInternal, which leaves the connection open.
+      notifMgr.removeMonitor(atConnection, only: feed);
+      throw _ReplayFailed(e, st);
     }
     atConnection.isMonitor = true;
-    AtSecondaryServerImpl.getInstance()
-        .telemetry
-        .connectionMonitoring(atConnection);
-  }
-
-  /// - Checks if connection is authorized for this notif's key's namespace
-  /// - Checks if the notif's key matches the regex
-  /// - Writes the notification to the connection
-  Future<bool> _sendNotification(
-      AtConnection atConnection, AtNotification notification) async {
-    if (notification.isExpired()) {
-      logger.warning('Not delivering notification ${notification.id}'
-          ' (${notification.notification}) to session'
-          ' ${atConnection.metaData.sessionID} — it has expired');
-      return false;
-    }
-    if (!(await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
-        atKey: notification.notification))) {
-      // A dropped notification is indistinguishable from one that was never
-      // sent, so a receiver-side refusal presents as "the sender didn't
-      // send" and gets attributed to the wrong side. Name what was dropped
-      // and for whom, at a level an operator sees.
-      logger.warning('Not delivering notification'
-          ' ${notification.notification} to enrollment'
-          ' ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
-          ' — not authorized for that key');
-      return false;
-    }
-
-    if (!configMap.containsKey(atConnection)) {
-      logger.severe('_sendNotification: no connection config for connection'
-          ' ${atConnection.metaData.toString()}');
-      return false;
-    }
-
-    MonitorConfig mc = configMap[atConnection]!;
-    var fromAtSign = notification.fromAtSign?.replaceAll('@', '');
-    try {
-      if (notification.notification!.contains(mc.regex) ||
-          (fromAtSign != null && fromAtSign.contains(mc.regex))) {
-        if (logger.isLoggable('finest')) {
-          logger.finest('${notification.notification} vs ${mc.regex} : true');
-        }
-        await atConnection.write('notification:'
-            ' ${jsonEncode(notification.mapForClient)}\n');
-        return true;
-      } else {
-        if (logger.isLoggable('finest')) {
-          logger.finest('${notification.notification} vs ${mc.regex} : false');
-        }
-      }
-    } catch (e) {
-      logger.severe('$e while delivering ${notification.notification}'
-          ' to client ${atConnection.metaData.sessionID}');
-    }
-    return false;
-  }
-
-  /// [processVerb] above registers this callback method with the notification
-  /// manager; all of the registered callbacks are called by the notification
-  /// manager when a notification needs to be handled. Here in the Monitor, we
-  /// transform the data into format which AtClients should understand, then
-  /// call [_checkAndSend]
-  Future<bool> processAtNotification(
-      AtConnection atConnection, AtNotification atNotification) async {
-    try {
-      // If connection is invalid, cancel subscriptions and remove the config
-      if (atConnection.isInValid()) {
-        if (configMap.containsKey(atConnection)) {
-          logger.info(
-              'Connection sessionID ${atConnection.metaData.sessionID} invalid, cancelling subscriptions');
-          MonitorConfig mc = configMap[atConnection]!;
-          if (mc.received != null) {
-            logger.info('Cancelling "received" subscription');
-            await mc.received!.cancel();
-            mc.received = null;
-          }
-          if (mc.self != null) {
-            logger.info('Cancelling "self" subscription');
-            await mc.self!.cancel();
-            mc.self = null;
-          }
-          configMap.remove(atConnection);
-          return false;
-        } else {
-          logger.info(
-              'Connection sessionID ${atConnection.metaData.sessionID} invalid, and no MonitorConfig available');
-        }
-      }
-
-      return await _sendNotification(atConnection, atNotification);
-    } catch (e, st) {
-      logger.severe('Unexpected exception $e in processAtNotification\n$st');
-      return false;
-    }
   }
 }
+
+/// A connection's feed of live notifications, written one at a time in the
+/// order they were queued, each authorized for the enrollment the
+/// connection stands on when it is written.
+///
+/// While the replay runs, a live push is held only when the feed's regex
+/// matches it, and is counted against the connection's unsent-bytes limit
+/// as the UTF-8 length of the exact line it would write.
+class _MonitorFeed implements MonitorSink {
+  _MonitorFeed(this._handler, this.connection, this._regex,
+      {required bool withSelf})
+      : _withSelf = withSelf;
+
+  final MonitorVerbHandler _handler;
+  final RegExp _regex;
+  final bool _withSelf;
+
+  /// The zone of the monitor connection the feed was created on, where it
+  /// drains, whichever connection queued the notification.
+  final Zone _zone = Zone.current;
+
+  /// Completes when the replay is done, releasing the live pushes.
+  final Completer<void> _opened = Completer<void>();
+
+  /// The sender and id of each notification the replay wrote, consulted only
+  /// by pushes queued during the replay.
+  final Set<(String?, String?)> _replayed = <(String?, String?)>{};
+
+  /// The feed this one replaced, until its pushes have settled; closed with
+  /// this one.
+  MonitorSink? _replaced;
+
+  final Queue<_Queued> _queued = Queue<_Queued>();
+  int _queuedDuringReplay = 0;
+  bool _draining = false;
+  Completer<void>? _idle;
+  int _droppedOnClose = 0;
+  bool _closed = false;
+
+  @override
+  final InboundConnection connection;
+
+  @override
+  int get queued => _queued.length;
+
+  @override
+  Future<void> get idle {
+    if (_isIdle) {
+      return Future<void>.value();
+    }
+    return (_idle ??= Completer<void>()).future;
+  }
+
+  @override
+  void push(AtNotification n, {LivePushReport? report}) {
+    if (!_takesType(n)) {
+      return;
+    }
+    final bool duringReplay = !_opened.isCompleted;
+    String? line;
+    int held = 0;
+    if (duringReplay) {
+      if (!_takes(n)) {
+        return;
+      }
+      line = _line(n);
+      if (connection case final DrainableConnection drainable) {
+        held = utf8Length(line);
+        if (!drainable.hold(held)) {
+          _dropped(n, _invalidReason);
+          return;
+        }
+      }
+      _queuedDuringReplay++;
+    }
+    _queued.add((
+      n: n,
+      duringReplay: duringReplay,
+      report: report,
+      slot: report?.expect() ?? -1,
+      line: line,
+      held: held,
+    ));
+    _drainSoon();
+  }
+
+  /// Whether `monitor:<sinceMillis>` replays [n] to this feed. Replay
+  /// matches the key alone; live delivery also matches the sender.
+  bool replays(AtNotification n, int sinceMillis) =>
+      !n.isExpired() &&
+      (n.notificationDateTime?.millisecondsSinceEpoch ?? 0) > sinceMillis &&
+      _takesType(n) &&
+      (n.notification?.contains(_regex) ?? false);
+
+  /// Writes [backlog] once the feed this one replaced has settled, then
+  /// releases the live pushes queued behind it. Each stored notification
+  /// waits until the connection has nothing waiting to be sent.
+  Future<void> open(List<AtNotification> backlog) async {
+    final InboundConnection connection = this.connection;
+    try {
+      await _replaced?.idle;
+      _replaced = null;
+      for (final AtNotification n in backlog) {
+        if (connection case final DrainableConnection drainable) {
+          await drainable.drained;
+        }
+        if (_closed || connection.isInValid()) {
+          break;
+        }
+        if (await _write(n) != null) {
+          _replayed.add((n.fromAtSign, n.id));
+        }
+      }
+    } finally {
+      _release();
+    }
+  }
+
+  @override
+  void close() {
+    _replaced?.close();
+    _replaced = null;
+    if (_closed) {
+      return;
+    }
+    _closed = true;
+    _release();
+  }
+
+  /// Releases the live pushes queued behind the replay, once.
+  void _release() {
+    if (_opened.isCompleted) {
+      return;
+    }
+    _opened.complete();
+    if (_queuedDuringReplay == 0) {
+      _replayed.clear();
+    }
+    _drainSoon();
+    _settleIdle();
+  }
+
+  bool get _isIdle => _opened.isCompleted && !_draining && _queued.isEmpty;
+
+  void _settleIdle() {
+    if (!_isIdle) {
+      return;
+    }
+    final Completer<void>? idle = _idle;
+    _idle = null;
+    idle?.complete();
+  }
+
+  // NOTE drained from a microtask in the feed's own zone, so outside a replay
+  // the regex runs in this feed's own turn, and nothing the drain does lands
+  // on the connection that queued the notification.
+  void _drainSoon() {
+    if (_draining || !_opened.isCompleted || _queued.isEmpty) {
+      return;
+    }
+    _draining = true;
+    _zone.scheduleMicrotask(() => unawaited(_drain()));
+  }
+
+  /// Settles the queued notifications one at a time, in order. A failure
+  /// delivering one is logged at severe, and the drain goes on to the next.
+  Future<void> _drain() async {
+    try {
+      while (_queued.isNotEmpty) {
+        final _Queued q = _queued.removeFirst();
+        LivePush? written;
+        try {
+          if (connection case final DrainableConnection drainable
+              when q.held > 0) {
+            drainable.release(q.held);
+          }
+          if (_wanted(q)) {
+            written = await _write(q.n, line: q.line);
+          }
+        } catch (e, st) {
+          _handler.logger.severe('Unexpected exception $e while pushing'
+              ' notification ${q.n.id} to ${_describeConnection()}\n$st');
+        }
+        if (q.duringReplay && --_queuedDuringReplay == 0) {
+          _replayed.clear();
+        }
+        q.report?.settle(q.slot, written);
+      }
+    } finally {
+      _draining = false;
+      if (_closed && _droppedOnClose > 0) {
+        _handler.logger.warning('Dropped $_droppedOnClose queued'
+            ' notification${_droppedOnClose == 1 ? '' : 's'} for'
+            ' ${_describeConnection()}: its monitor feed has ended');
+        _droppedOnClose = 0;
+      }
+      _settleIdle();
+    }
+  }
+
+  /// Whether [q] is one this feed writes, counting it as dropped instead
+  /// once the feed has ended.
+  bool _wanted(_Queued q) {
+    if (!_takes(q.n) || _replayed.contains((q.n.fromAtSign, q.n.id))) {
+      return false;
+    }
+    if (_closed) {
+      _droppedOnClose++;
+      return false;
+    }
+    return true;
+  }
+
+  bool _takesType(AtNotification n) =>
+      n.type == NotificationType.received ||
+      (_withSelf && n.type == NotificationType.self);
+
+  bool _takes(AtNotification n) =>
+      _takesType(n) &&
+      ((n.notification?.contains(_regex) ?? false) ||
+          (n.fromAtSign?.replaceAll('@', '').contains(_regex) ?? false));
+
+  /// Writes [n], as [line] when given, if the connection may have it,
+  /// returning the push, or null after logging why it was not written.
+  Future<LivePush?> _write(AtNotification n, {String? line}) async {
+    final InboundConnectionMetadata metaData =
+        connection.metaData as InboundConnectionMetadata;
+    if (_closed || connection.isInValid()) {
+      _dropped(n, _invalidReason);
+      return null;
+    }
+    if (n.isExpired()) {
+      _dropped(n, 'it has expired');
+      return null;
+    }
+    LivePush push;
+    do {
+      if (!metaData.isAuthenticated) {
+        _dropped(n, 'the connection is not authenticated');
+        return null;
+      }
+      // NOTE read in the same step as isAuthorized reads them, so the push is
+      // reported as the enrollment that authorized it.
+      push = (enrollmentId: metaData.enrollmentId, authType: metaData.authType);
+      final bool authorized;
+      try {
+        authorized =
+            await _handler.isAuthorized(metaData, atKey: n.notification);
+      } catch (e) {
+        _handler.logger.severe('$e while looking up the enrollment for'
+            ' notification ${n.id}'
+            ' (${sanitiseForLogging(n.notification ?? '')}) to'
+            ' ${_describeConnection()}');
+        return null;
+      }
+      if (!authorized) {
+        _dropped(n, 'not authorized for that key');
+        return null;
+      }
+      if (_closed || connection.isInValid()) {
+        _dropped(n, _invalidReason);
+        return null;
+      }
+      // NOTE authorized again whenever the connection re-authenticated
+      // during the lookup: a push is written only for the enrollment the
+      // connection stands on when it is written.
+    } while (!metaData.isAuthenticated ||
+        metaData.enrollmentId != push.enrollmentId ||
+        metaData.authType != push.authType);
+    try {
+      await connection.write(line ?? _line(n));
+      return push;
+    } catch (e) {
+      _handler.logger.severe('$e while delivering notification ${n.id}'
+          ' (${sanitiseForLogging(n.notification ?? '')}) to'
+          ' ${_describeConnection()}');
+      return null;
+    }
+  }
+
+  String _line(AtNotification n) =>
+      'notification: ${jsonEncode(n.mapForClient)}\n';
+
+  String get _invalidReason => _closed || connection.metaData.isClosed
+      ? 'the connection is closed'
+      : 'the connection is idle or stale';
+
+  void _dropped(AtNotification n, String why) {
+    // NOTE at warning: a dropped push is otherwise indistinguishable from one
+    // that was never sent.
+    _handler.logger.warning('Not delivering notification ${n.id}'
+        ' (${sanitiseForLogging(n.notification ?? '')}) to'
+        ' ${_describeConnection()}: $why');
+  }
+
+  String _describeConnection() {
+    final AtConnectionMetaData metaData = connection.metaData;
+    return metaData is InboundConnectionMetadata
+        ? describeInboundConnection(metaData)
+        : 'session ${metaData.sessionID}';
+  }
+}
+
+/// A `monitor` whose replay failed with [error].
+final class _ReplayFailed implements Exception {
+  _ReplayFailed(this.error, this.stackTrace);
+
+  final Object error;
+  final StackTrace stackTrace;
+}
+
+/// A notification queued on a feed, with the report slot it settles, and the
+/// line and byte count held for it during a replay.
+typedef _Queued = ({
+  AtNotification n,
+  bool duringReplay,
+  LivePushReport? report,
+  int slot,
+  String? line,
+  int held,
+});
 
 extension MapForClient on AtNotification {
   Map<String, dynamic> get mapForClient => {

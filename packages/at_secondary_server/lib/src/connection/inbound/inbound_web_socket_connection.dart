@@ -1,20 +1,27 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
+import 'package:at_commons/at_commons.dart' show ConnectionInvalidException;
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:meta/meta.dart';
 
 import 'connection_util.dart';
 
-class InboundWebSocketConnection implements InboundConnection {
+/// An inbound connection carried over a WebSocket, one text frame per write.
+class InboundWebSocketConnection
+    implements InboundConnection, DrainableConnection {
   WebSocket ws;
+
+  /// The socket [ws] runs over.
+  final Socket socket;
 
   AtSignLogger logger = AtSignLogger('InboundWebSocketConnection');
 
@@ -33,7 +40,10 @@ class InboundWebSocketConnection implements InboundConnection {
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
 
-  InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
+  late final InboundWriteQueue<String> _writes;
+
+  InboundWebSocketConnection(
+      this.ws, this.socket, String? sessionId, this.owningPool) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.timestamp()
@@ -46,6 +56,8 @@ class InboundWebSocketConnection implements InboundConnection {
 
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
+    _writes = InboundWriteQueue<String>(
+        maxUnsentBytes: secondaryContext.inboundMaxUnsentBytes);
 
     if (logger.isLoggable('info')) {
       logger.info(
@@ -54,11 +66,9 @@ class InboundWebSocketConnection implements InboundConnection {
 
     ws.done.then((doneValue) {
       logger.info('ws.done called. Calling this.close()');
-      metaData.markCloseReason(InboundConnectionCloseReason.clientClosed);
       close();
     }, onError: (error, stackTrace) {
       logger.info('ws.done.onError called with $error. Calling this.close()');
-      metaData.markCloseReason(InboundConnectionCloseReason.socketError);
       close();
     });
   }
@@ -90,6 +100,27 @@ class InboundWebSocketConnection implements InboundConnection {
   }
 
   @override
+  Future<void> get drained => _writes.drained;
+
+  @override
+  bool hold(int length) => _writes.hold(length,
+      connection: this, logger: logger, closeAtLimit: _closeUnread);
+
+  @override
+  void release(int length) => _writes.release(length);
+
+  /// Marks the connection stale once its WebSocket has stopped taking
+  /// writes.
+  void _failed(Object error) {
+    logger.info('WebSocket stopped taking writes: $error');
+    metaData.isStale = true;
+  }
+
+  /// How many bytes are waiting for the client to read.
+  @visibleForTesting
+  int get unsentBytes => _writes.unsentBytes;
+
+  @override
   Future<void> close() async {
     // Some defensive code just in case we accidentally call close multiple times
     if (metaData.isClosed) {
@@ -104,26 +135,46 @@ class InboundWebSocketConnection implements InboundConnection {
         logger.info(logger.getAtConnectionLogMessage(
             metaData, 'closing WebSocket (readyState ${ws.readyState})'));
       }
-      try {
+      _writes.close();
+      final Future<void>? transport = _writes.transport;
+      if (transport == null) {
         await ws.close();
-      } catch (e) {
-        logger.severe('ws.close() exception: $e');
+      } else {
+        // NOTE ws.close() throws while the write queue is bound, so it waits
+        // until the queue's end has reached the WebSocket.
+        unawaited(transport.then((_) => ws.close()).catchError(
+            (Object e) => logger.severe('ws.close() exception: $e')));
       }
-      if (logger.isLoggable('info')) {
-        logger.info(logger.getAtConnectionLogMessage(
-            metaData, 'Closed WebSocket (readyState ${ws.readyState})'));
-      }
-    } catch (_) {
-      // Ignore exception on a connection close
+    } catch (e) {
+      logger.severe('ws.close() exception: $e');
       metaData.isStale = true;
-    } finally {
-      AtSecondaryServerImpl.getInstance().telemetry.connectionClosed(this);
     }
+  }
+
+  /// Closes the connection and destroys its socket at once, sending no close
+  /// frame, for a client that has stopped reading.
+  Future<void> _closeUnread() async {
+    if (metaData.isClosed) {
+      return;
+    }
+    metaData.isClosed = true;
+    if (logger.isLoggable('info')) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'destroying the socket of a WebSocket'));
+    }
+    _writes.close();
+    socket.destroy();
   }
 
   @override
   Future<void> write(String data) async {
-    ws.add(data);
+    if (isInValid()) {
+      throw ConnectionInvalidException('Connection is invalid');
+    }
+    _writes.bindOnce(ws.addStream, onFailed: _failed, onEnded: close);
+    await _writes.write(data, utf8Length(data),
+        connection: this, logger: logger, closeAtLimit: _closeUnread);
+    metaData.lastAccessed = DateTime.timestamp();
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${sanitiseForLogging(data)}'));

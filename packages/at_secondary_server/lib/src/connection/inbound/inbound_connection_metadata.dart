@@ -1,14 +1,10 @@
-import 'dart:convert';
-import 'dart:math';
+import 'dart:async';
 
 import 'package:at_commons/atsign.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// Metadata information for [InboundConnection]
 class InboundConnectionMetadata extends AtConnectionMetaData {
-  static final Random _random = Random.secure();
-
   /// fromSelf will be true iff 'from' has been executed with the atSign of this atServer
   bool self = false;
 
@@ -37,35 +33,22 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// A unique identifier generated for a client's APKAM enroll request
   String? enrollmentId;
-  String? enrollmentAppName;
-  String? enrollmentDeviceName;
 
-  final String connectionId = _newConnectionId();
+  final Completer<void> _closed = Completer<void>();
 
-  InboundConnectionCloseReason? _closeReason;
+  /// Completes once the connection is marked closed.
+  Future<void> get closed => _closed.future;
 
-  bool telemetryAnnounced = false;
-
-  InboundConnectionCloseReason? get closeReason => _closeReason;
-
-  void markCloseReason(InboundConnectionCloseReason reason) {
-    _closeReason ??= reason;
-  }
-
-  void markInvalid() {
-    markCloseReason(isStale
-        ? InboundConnectionCloseReason.stale
-        : InboundConnectionCloseReason.idleTimeout);
+  @override
+  set isClosed(bool isClosed) {
+    super.isClosed = isClosed;
+    if (isClosed && !_closed.isCompleted) {
+      _closed.complete();
+    }
   }
 
   @override
   String toString() {
     return 'InboundConnectionMetadata{self: $self, from: $from, fromAtSign: $fromAtSign, toAtSign: $toAtSign, clientId: $clientId, appName: $appName, appVersion: $appVersion, platform: $platform, enrollmentId: $enrollmentId}';
-  }
-
-  static String _newConnectionId() {
-    final List<int> bytes =
-        List<int>.generate(16, (int _) => _random.nextInt(256));
-    return base64Url.encode(bytes).replaceAll('=', '');
   }
 }

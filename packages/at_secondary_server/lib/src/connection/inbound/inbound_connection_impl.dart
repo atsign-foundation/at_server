@@ -1,20 +1,24 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart'
+    show AtIOException, ConnectionInvalidException;
 import 'package:at_secondary/src/connection/base_connection.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_write_queue.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:meta/meta.dart';
 
 import 'connection_util.dart';
 import 'dummy_inbound_connection.dart';
 
 class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
-    implements InboundConnection {
+    implements InboundConnection, DrainableConnection {
   @override
   bool? isMonitor = false;
 
@@ -26,6 +30,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
+
+  late final InboundWriteQueue<List<int>> _writes;
 
   InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
       : super(socket) {
@@ -41,6 +47,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
+    _writes = InboundWriteQueue<List<int>>(
+        maxUnsentBytes: secondaryContext.inboundMaxUnsentBytes);
 
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
@@ -54,8 +62,6 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     socket.done.onError((error, stackTrace) {
       logger
           .info('socket.done.onError called with $error. Calling this.close()');
-      (metaData as InboundConnectionMetadata)
-          .markCloseReason(InboundConnectionCloseReason.socketError);
       close();
     });
   }
@@ -116,19 +122,56 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
             ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
             ')'));
       }
+      _writes.close();
       underlying.destroy();
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
     } finally {
       metaData.isClosed = true;
-      AtSecondaryServerImpl.getInstance().telemetry.connectionClosed(this);
     }
   }
 
   @override
+  Future<void> get drained => _writes.drained;
+
+  @override
+  bool hold(int length) => _writes.hold(length,
+      connection: this, logger: logger, closeAtLimit: close);
+
+  @override
+  void release(int length) => _writes.release(length);
+
+  /// Marks the connection stale once its socket has stopped taking writes.
+  void _failed(Object error) {
+    logger.info('Socket stopped taking writes: $error');
+    metaData.isStale = true;
+  }
+
+  /// How many bytes are waiting for the client to read.
+  @visibleForTesting
+  int get unsentBytes => _writes.unsentBytes;
+
+  /// How many bytes are held for the client before they are written.
+  @visibleForTesting
+  int get heldBytes => _writes.heldBytes;
+
+  @override
   Future<void> write(String data) async {
-    await super.write(data);
+    if (isInValid()) {
+      throw ConnectionInvalidException('Connection is invalid');
+    }
+    try {
+      _writes.bindOnce(underlying.addStream, onFailed: _failed, onEnded: close);
+    } catch (e) {
+      metaData.isStale = true;
+      logger.severe('write caught ${e.toString()}');
+      throw AtIOException(e.toString());
+    }
+    final List<int> bytes = utf8.encode(data);
+    await _writes.write(bytes, bytes.length,
+        connection: this, logger: logger, closeAtLimit: close);
+    metaData.lastAccessed = DateTime.timestamp();
     if (metaData is InboundConnectionMetadata) {
       if (logger.isLoggable('info')) {
         logger.info(logger.getAtConnectionLogMessage(

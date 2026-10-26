@@ -80,4 +80,19 @@ void main() {
     expect(inboundConn1Written, true);
     expect(inboundConn2Written, false);
   });
+
+  test(
+      'Given a stats service that was never scheduled, when stats are written, then nothing is written and nothing is thrown',
+      () async {
+    final InboundConnection monitor = MockInboundConnection();
+    when(() => monitor.isMonitor).thenReturn(true);
+    when(() => monitor.write(any())).thenAnswer((_) async {});
+    atServer.inboundConnectionManager.pool = MockInboundConnectionPool();
+    mockInboundConnection1 = monitor;
+    final StatsNotificationService off = StatsNotificationService();
+
+    await off.writeStatsToMonitor(latestCommitID: '7', operationType: 'update');
+
+    verifyNever(() => monitor.write(any()));
+  });
 }

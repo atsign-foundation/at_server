@@ -4,10 +4,14 @@ import 'dart:math' show min;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
+import 'package:at_secondary/src/notification/notification_key_length.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/reserved_namespace.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
+import 'package:at_server_spec/at_server_spec.dart'
+    show AtConnectionMetaData, InboundConnection;
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
 
@@ -24,7 +28,8 @@ class NotificationManager {
   @visibleForTesting
   NotifyConnectionsPool get notifyConnectionsPool => _notifyConnectionsPool;
 
-  final AtServerTelemetry? telemetry;
+  /// Where what becomes of notifications is reported.
+  final NotificationTelemetry telemetry;
 
   final AtSignLogger logger = AtSignLogger(' NotificationManager ');
 
@@ -35,9 +40,6 @@ class NotificationManager {
   @visibleForTesting
   Map<Atsign, PerAtSignNotifSender> senders = {};
 
-  final StreamController<AtNotification> received =
-      StreamController.broadcast();
-  final StreamController<AtNotification> self = StreamController.broadcast();
   @visibleForTesting
   final StreamController<AtNotification> sent = StreamController.broadcast();
 
@@ -54,21 +56,38 @@ class NotificationManager {
 
   Timer? _ephemeralSweep;
 
+  /// How long a notification.received report waits for its live pushes.
   @visibleForTesting
   static Duration livePushTimeout = const Duration(seconds: 10);
 
-  final Map<String, List<Future<InboundConnectionMetadata?>>> _livePushes =
-      <String, List<Future<InboundConnectionMetadata?>>>{};
+  /// Each monitor connection's one feed.
+  final Map<InboundConnection, MonitorSink> _monitors = {};
 
+  /// notification.received reports still waiting for their pushes.
+  final Set<LivePushReport> _pendingReports = {};
+
+  /// The zone the manager was created in, where its reports wait and are
+  /// sent, rather than in the zone of the connection that delivered the
+  /// notification.
+  final Zone _zone = Zone.current;
+
+  /// Telemetry is off unless [telemetry] is given.
   NotificationManager(
       this.atSign, this._notifStore, this._notifyConnectionsPool,
-      {this.telemetry});
+      {NotificationTelemetry? telemetry})
+      : telemetry = telemetry ?? NotificationTelemetry();
 
   Future<void> close() async {
     if (_closed) {
       return;
     }
     _closed = true;
+    for (final MonitorSink sink in _monitors.values.toList()) {
+      sink.close();
+    }
+    _monitors.clear();
+    await Future.wait(
+        [for (final LivePushReport report in _pendingReports) report.done]);
     _ephemeralSweep?.cancel();
     _ephemeral.clear();
     _explicitExpiry.clear();
@@ -77,15 +96,54 @@ class NotificationManager {
       await s.close();
     }
 
-    await received.close();
-    await self.close();
     await sent.close();
   }
 
+  /// Makes [sink] its connection's only monitor feed and returns the feed it
+  /// replaces, which still writes what it had already queued.
+  MonitorSink? addMonitor(MonitorSink sink) {
+    if (closed) {
+      throw StateError('Closed');
+    }
+    final MonitorSink? previous = _monitors[sink.connection];
+    _monitors[sink.connection] = sink;
+    return previous;
+  }
+
+  /// Ends [connection]'s monitor feed, if it has one and, when [only] is
+  /// given, that feed is [only].
+  void removeMonitor(InboundConnection connection, {MonitorSink? only}) {
+    final MonitorSink? current = _monitors[connection];
+    if (current == null || (only != null && !identical(current, only))) {
+      return;
+    }
+    _monitors.remove(connection);
+    current.close();
+  }
+
+  /// How many connections have a monitor feed.
+  @visibleForTesting
+  int get monitorCount => _monitors.length;
+
+  /// How many notifications wait in the monitor feeds.
+  @visibleForTesting
+  int get queuedPushes => _monitors.values
+      .fold(0, (int sum, MonitorSink sink) => sum + sink.queued);
+
+  /// How many notification.received reports have not been sent yet.
+  @visibleForTesting
+  int get pendingReportCount => _pendingReports.length;
+
+  /// Completes once every monitor feed has settled what it was handed.
+  @visibleForTesting
+  Future<void> get monitorsIdle =>
+      Future.wait([for (final MonitorSink sink in _monitors.values) sink.idle]);
+
   /// Enqueue notification to send to either another atSign, or ourselves
   ///
-  /// Note that this does not persist the notification
-  void enqueue(AtNotification n) {
+  /// Note that this does not persist the notification. A received
+  /// notification is reported when [report] is true.
+  void enqueue(AtNotification n, {bool report = false}) {
     if (closed) {
       throw StateError('Closed');
     }
@@ -121,7 +179,7 @@ class NotificationManager {
 
       case NotificationType.received:
         // We have received from another atSign
-        received.add(n);
+        _pushToMonitors(n, report: report ? _startReport(n) : null);
         break;
       case NotificationType.self:
         if ((n.toAtSign ?? atSign) != atSign) {
@@ -131,7 +189,7 @@ class NotificationManager {
           throw StateError(s);
         }
         // We are sending this notification to ourselves (other clients)
-        self.add(n);
+        _pushToMonitors(n);
         break;
       case null:
         throw InvalidSyntaxException('Notification type is required');
@@ -169,20 +227,31 @@ class NotificationManager {
       _explicitExpiry.add(n.id!);
     }
 
-    if (reportReceived) {
-      _reportReceived(n);
-    }
-
     // Queue it for delivery
-    enqueue(n);
+    enqueue(n, report: reportReceived);
   }
 
-  void recordLivePush(
-    AtNotification n,
-    Future<InboundConnectionMetadata?> push,
-  ) {
-    _livePushes[n.id]
-        ?.add(push.timeout(livePushTimeout, onTimeout: () => null));
+  // NOTE the list of feeds is taken synchronously, so each notification goes
+  // to each connection's one feed exactly once.
+  void _pushToMonitors(AtNotification n, {LivePushReport? report}) {
+    for (final MonitorSink sink in _monitors.values.toList()) {
+      final int counted = report?.counted ?? 0;
+      try {
+        sink.push(n, report: report);
+      } catch (e, st) {
+        // NOTE one feed's failure neither stops the rest nor reaches the
+        // sender, since the notification is already held.
+        final AtConnectionMetaData metaData = sink.connection.metaData;
+        final String who = metaData is InboundConnectionMetadata
+            ? describeInboundConnection(metaData)
+            : 'session ${metaData.sessionID}';
+        logger.severe('$e while handing notification ${n.id}'
+            ' (${sanitiseForLogging(n.notification ?? '')}) to the monitor'
+            ' feed of $who\n$st');
+        report?.abandon(counted);
+      }
+    }
+    report?.seal();
   }
 
   // NOTE no notification for another atSign, which is what a sent one is,
@@ -509,18 +578,19 @@ class NotificationManager {
     return commandBody;
   }
 
-  void _reportReceived(AtNotification n) {
-    final AtServerTelemetry? telemetry = this.telemetry;
-    final String? id = n.id;
-    if (telemetry == null || !telemetry.isEnabled || id == null) {
-      return;
+  /// A report on [n]'s live pushes, sent once the feeds have settled them
+  /// or [livePushTimeout] has passed; null while telemetry is off.
+  LivePushReport? _startReport(AtNotification n) {
+    if (!telemetry.isEnabled) {
+      return null;
     }
-    _livePushes[id] = <Future<InboundConnectionMetadata?>>[];
-    Timer.run(() async {
-      final List<InboundConnectionMetadata?> pushes = await Future.wait(
-          _livePushes.remove(id) ?? <Future<InboundConnectionMetadata?>>[]);
-      telemetry.notificationReceived(n, pushedTo: pushes.nonNulls.toList());
-    });
+    late final LivePushReport report;
+    report = _zone.run(() => LivePushReport((List<LivePush> written) {
+          _pendingReports.remove(report);
+          telemetry.received(n, pushedTo: written);
+        }, timeout: livePushTimeout, about: 'notification ${n.id}'));
+    _pendingReports.add(report);
+    return report;
   }
 }
 
@@ -571,6 +641,22 @@ class PerAtSignNotifSender {
       return;
     }
 
+    final int keyLength = notificationKeyLength(n.notification ?? '',
+        cached: notificationCachedByRecipient(n));
+    if (keyLength > maxNotificationKeyLength) {
+      logger.severe('Not sending notification ${n.id}: its key would be'
+          ' $keyLength characters long where $atSign holds it, over the'
+          ' limit of $maxNotificationKeyLength');
+      n.notificationStatus = NotificationStatus.errored;
+      notifMgr.telemetry.settled(n);
+      try {
+        await notifMgr.put(n.id, n);
+      } catch (e) {
+        logger.warning('Exception $e while setting status errored on ${n.id}');
+      }
+      return;
+    }
+
     // We keep trying until either
     // (1) successful delivery, or
     // (2) atSign no longer in directory
@@ -590,7 +676,7 @@ class PerAtSignNotifSender {
         if (n.isExpired()) {
           logger.info('notification ${n.id} has expired - will not deliver');
           n.notificationStatus = NotificationStatus.expired;
-          notifMgr.telemetry?.notificationExpired(n);
+          notifMgr.telemetry.settled(n);
           try {
             await notifMgr.put(n.id, n);
           } catch (e) {
@@ -617,7 +703,7 @@ class PerAtSignNotifSender {
         // if response was data:success - great, we're done!
         if (notifyResponse == 'data:success') {
           n.notificationStatus = NotificationStatus.delivered;
-          notifMgr.telemetry?.notificationDelivered(n);
+          notifMgr.telemetry.settled(n);
           if (logger.isLoggable('info')) {
             logger.info('Delivered ${n.id} (${n.notification})');
           }
@@ -638,7 +724,7 @@ class PerAtSignNotifSender {
         } on SecondaryNotFoundException catch (_) {
           logger.warning('no such atSign $atSign - giving up on ${n.id}');
           n.notificationStatus = NotificationStatus.errored;
-          notifMgr.telemetry?.notificationError(n);
+          notifMgr.telemetry.settled(n);
           await notifMgr.put(n.id, n);
           return;
         }

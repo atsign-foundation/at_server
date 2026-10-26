@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundClient;
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_server_spec/at_server_spec.dart' show InboundConnection;
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -33,8 +39,11 @@ void main() async {
   }
 
   group('Test delivery to correct streams', () {
-    test('Test delivery to self stream with toAtSign', () async {
+    test('Test delivery of a self notification to monitors with toAtSign',
+        () async {
       var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
       var sent = (AtNotificationBuilder()
             ..id = 'abcde'
             ..type = NotificationType.self
@@ -42,23 +51,22 @@ void main() async {
             ..fromAtSign = alice
             ..notification = 'verify_delivery_to_self$alice')
           .build();
-      var rcvdFuture = nm.self.stream.first;
       nm.enqueue(sent);
-      var rcvd = await rcvdFuture;
-      expect(rcvd, sent);
+      expect(monitor.pushed, [sent]);
     });
-    test('Test delivery to self stream without toAtSign', () async {
+    test('Test delivery of a self notification to monitors without toAtSign',
+        () async {
       var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
       var sent = (AtNotificationBuilder()
             ..id = 'abcde'
             ..type = NotificationType.self
             ..fromAtSign = alice
             ..notification = 'verify_delivery_to_self_without_to$alice')
           .build();
-      var rcvdFuture = nm.self.stream.first;
       nm.enqueue(sent);
-      var rcvd = await rcvdFuture;
-      expect(rcvd, sent);
+      expect(monitor.pushed, [sent]);
     });
     test('Test delivery to self stream with mismatched toAtSign', () async {
       var nm = makeMgr();
@@ -130,7 +138,58 @@ void main() async {
           .build();
       expect(() => nm.enqueue(sent), throwsA(isA<StateError>()));
     });
-    test('Test delivery to received stream', () async {});
+    test('Test delivery of a received notification to monitors', () async {
+      var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
+      var received = (AtNotificationBuilder()
+            ..id = 'abcde'
+            ..type = NotificationType.received
+            ..toAtSign = alice
+            ..fromAtSign = '@bob'
+            ..notification = '$alice:verify_delivery_to_monitors@bob')
+          .build();
+      nm.enqueue(received);
+      expect(monitor.pushed, [received]);
+    });
+
+    test(
+        'Given a feed that throws, when a received notification is queued, then the feeds after it still get it and one severe line names it and its connection',
+        () async {
+      final NotificationManager nm = makeMgr();
+      final RecordingMonitorSink before = RecordingMonitorSink();
+      final RecordingMonitorSink after = RecordingMonitorSink();
+      nm.addMonitor(before);
+      nm.addMonitor(_ThrowingSink(
+          DummyInboundConnection()..metadata.sessionID = 'broken-session'));
+      nm.addMonitor(after);
+      final Level prior = nm.logger.logger.level;
+      nm.logger.level = 'warning';
+      final List<String> severe = <String>[];
+      final StreamSubscription<LogRecord> logs = nm.logger.logger.onRecord
+          .where((LogRecord r) => r.level == Level.SEVERE)
+          .listen((LogRecord r) => severe.add(r.message));
+      addTearDown(() async {
+        await logs.cancel();
+        nm.logger.logger.level = prior;
+      });
+      final AtNotification received = (AtNotificationBuilder()
+            ..id = 'n1'
+            ..type = NotificationType.received
+            ..toAtSign = alice
+            ..fromAtSign = '@bob'
+            ..notification = '$alice:phone.wavi@bob')
+          .build();
+
+      nm.enqueue(received);
+
+      expect(before.pushed, [received]);
+      expect(after.pushed, [received]);
+      expect(
+          severe.single,
+          allOf(contains('feed broke'), contains('notification n1'),
+              contains('$alice:phone.wavi@bob'), contains('broken-session')));
+    });
   });
 
   group('Test states and guards', () {
@@ -138,12 +197,25 @@ void main() async {
       var nm = makeMgr();
       expect(nm.closed, false);
       expect(nm.senders, isEmpty);
-      expect(nm.self.isClosed, false);
-      expect(nm.self.isPaused, false);
-      expect(nm.received.isClosed, false);
-      expect(nm.received.isPaused, false);
+      expect(nm.monitorCount, 0);
       expect(nm.sent.isClosed, false);
       expect(nm.sent.isPaused, false);
+    });
+
+    test(
+        'Given a newer feed for a connection, when removing only the older one, then the newer one stays',
+        () {
+      var nm = makeMgr();
+      var connection = DummyInboundConnection();
+      var older = RecordingMonitorSink(connection);
+      var newer = RecordingMonitorSink(connection);
+      nm.addMonitor(older);
+      nm.addMonitor(newer);
+
+      nm.removeMonitor(connection, only: older);
+
+      expect(nm.monitorCount, 1);
+      expect(newer.closed, false);
     });
 
     test('Verify notify closed guard', () async {
@@ -197,8 +269,75 @@ void main() async {
           reason: 'send() kept retrying after the manager was closed');
     });
 
+    test(
+        'Given a notification the recipient\'s atServer refuses, when it is retried until it expires, then later notifications to that atSign wait behind it and it ends expired',
+        () async {
+      final Duration savedInitialDelay = PerAtSignNotifSender.initialDelay;
+      final Duration savedMaxDelay = PerAtSignNotifSender.maxDelay;
+      PerAtSignNotifSender.initialDelay = const Duration(milliseconds: 5);
+      PerAtSignNotifSender.maxDelay = const Duration(milliseconds: 20);
+      addTearDown(() {
+        PerAtSignNotifSender.initialDelay = savedInitialDelay;
+        PerAtSignNotifSender.maxDelay = savedMaxDelay;
+      });
+      final NotificationManager nm = makeMgr();
+      addTearDown(nm.close);
+      final MockSecondaryAddressFinder addressFinder =
+          MockSecondaryAddressFinder();
+      when(() => addressFinder.findSecondary(bob)).thenAnswer(
+          (_) async => at_lookup.SecondaryAddress('bob.example.com', 1234));
+      when(() => nm.notifyConnectionsPool.secondaryAddressFinder)
+          .thenReturn(addressFinder);
+      final MockOutboundClient client = MockOutboundClient();
+      when(() => nm.notifyConnectionsPool.getOutboundClient(bob))
+          .thenAnswer((_) async => client);
+      when(() => client.usePeerFeature(any())).thenAnswer((_) async => false);
+      final List<(String, DateTime)> attempts = <(String, DateTime)>[];
+      when(() => client.notify(any())).thenAnswer((Invocation i) async {
+        final String body = i.positionalArguments[0] as String;
+        final String key = body.contains('refused') ? 'refused' : 'later';
+        attempts.add((key, DateTime.now()));
+        return key == 'refused'
+            ? 'error:AT0003-Exception: notification id must have at most 36'
+                ' characters'
+            : 'data:success';
+      });
+      AtNotification sent(String key, {int? ttl}) => (AtNotificationBuilder()
+            ..id = key
+            ..type = NotificationType.sent
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:$key$alice'
+            ..ttl = ttl)
+          .build();
+      final AtNotification refused = sent('refused', ttl: 300);
+
+      await nm.notify(refused);
+      await nm.notify(sent('later'));
+      for (int i = 0;
+          i < 300 && !attempts.any(((String, DateTime) a) => a.$1 == 'later');
+          i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      final List<DateTime> refusals = [
+        for (final (String key, DateTime at) in attempts)
+          if (key == 'refused') at
+      ];
+      final DateTime laterAt =
+          attempts.firstWhere(((String, DateTime) a) => a.$1 == 'later').$2;
+      expect(refusals.length, greaterThan(1),
+          reason: 'a refused notification is retried');
+      expect(laterAt.isBefore(refused.expiresAt!), isFalse,
+          reason: 'the later one is not sent until the refused one expires');
+      expect(laterAt.isBefore(refusals.last), isFalse);
+      expect(refused.notificationStatus, NotificationStatus.expired);
+    });
+
     test('Verify close', () async {
       var nm = makeMgr();
+      var monitor = RecordingMonitorSink();
+      nm.addMonitor(monitor);
       await nm.notify((AtNotificationBuilder()
             ..id = 'abcde'
             ..type = NotificationType.sent
@@ -208,8 +347,10 @@ void main() async {
           .build());
       await nm.close();
       expect(nm.closed, true);
-      expect(nm.self.isClosed, true);
-      expect(nm.received.isClosed, true);
+      expect(monitor.closed, true);
+      expect(nm.monitorCount, 0);
+      expect(() => nm.addMonitor(RecordingMonitorSink()),
+          throwsA(isA<StateError>()));
       expect(nm.sent.isClosed, true);
     });
   });
@@ -329,4 +470,25 @@ void main() async {
       testNotificationMetaData(immutable: true);
     });
   });
+}
+
+/// A monitor feed whose push throws.
+class _ThrowingSink implements MonitorSink {
+  _ThrowingSink(this.connection);
+
+  @override
+  final InboundConnection connection;
+
+  @override
+  void push(AtNotification n, {LivePushReport? report}) =>
+      throw StateError('feed broke');
+
+  @override
+  Future<void> get idle => Future<void>.value();
+
+  @override
+  int get queued => 0;
+
+  @override
+  void close() {}
 }

@@ -1,34 +1,75 @@
 # 3.20.0
 - feat: an atServer whose telemetry is on tells its collector what becomes of
   notifications. For one it sends to another atSign: `notification.delivered`
-  when the recipient's atServer accepts it, `notification.expired` when it
-  expires before it is delivered, and `notification.error` when the recipient
-  atSign does not exist, each naming the recipient (`atsign.notification.to`).
+  when the recipient's atServer answers `data:success`, which it also does
+  for one it drops, `notification.expired` when it expires before it is
+  delivered, and `notification.error` when the recipient atSign does not
+  exist, each naming the recipient (`atsign.notification.to`).
   `notification.received` when another atServer delivers one, naming the
-  sender (`atsign.notification.from`) and, once the pushes to the `monitor`
-  connections open at that moment have finished, how many it was pushed to
-  (`atsign.notification.push_count`) and, for each, the connection's id,
-  enrollment and auth type (`atsign.notification.pushed_to`).
-  Every event carries the notification's id (`atsign.notification.ids`),
-  which is the same on the sending and the receiving atServer.
+  sender (`atsign.notification.from`) and the devices it was pushed to live:
+  the enrollment id of each (`atsign.notification.pushed_to`), once per
+  enrollment, and how many (`atsign.notification.push_count`), once those
+  pushes are written or after 10 seconds. A connection authenticated with
+  `cram:` is not counted.
+  Every event carries the notification's id (`atsign.notification.ids`). The
+  sender chooses the id, so a collector matches events on sender, recipient
+  and id together.
 
-- feat: an atServer whose telemetry is on tells its collector about the
-  connections its own clients make. `connection.authenticated` when a
-  connection proves who it is, with the connection's id
-  (`atsign.connection.id`), transport (`atsign.connection.transport`), auth
-  type (`atsign.connection.auth_type`) and, for APKAM, the enrollment it
-  proved (`atsign.enrollment.id`) with that enrollment's approved app and
-  device names (`atsign.enrollment.app_name`, `atsign.enrollment.device_name`).
-  `connection.monitoring` when it starts receiving notifications as they
-  arrive, and `connection.closed` with why it closed
-  (`atsign.connection.close_reason`). Closes at shutdown are left to
-  `lifecycle.stopped`. Nothing a client says about itself, such as its app
-  version, platform or SDK version, is sent; apps report those in their own
-  telemetry.
+- fix: a `notify` whose id is longer than 36 characters is refused with
+  AT0003, whether the atSign's own client or another atServer sends it.
+  A sending atServer retries a refused notification until it expires, 15
+  minutes by default and at most 8 days when its client set `ttln`, and
+  holds back its later notifications to the same atSign until then.
+
+- fix: running `monitor` again on a connection replaces its feed, with the
+  latest regex and `selfNotifications` flag, instead of sending each later
+  notification once more. Notifications reach a monitor connection in the
+  order they arrive, and only while it is authenticated. A notification not
+  written to a monitor is logged with the connection: one warning each, or
+  one warning counting them when the feed ends with them still queued. A
+  `monitor:<epoch>` whose stored notifications cannot be read is refused
+  with that error and the connection is closed, so the client can
+  reconnect and run it again.
+
+- fix: a connection whose client leaves more than 16 MiB waiting to be read
+  is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`
+  in config.yaml sets the limit, and the atServer refuses to start if it is
+  below 1 MiB or not an integer. One large notification or response is
+  always sent whole, and a `monitor` replay waits for the client to read
+  rather than queuing its whole backlog. A client that stops reading
+  during that replay is closed at the limit too, counting the live
+  notifications held back for it.
+
+- fix: a WebSocket connection closed at the unsent-bytes limit releases its
+  socket at once, rather than once its client reads again. The atServer no
+  longer negotiates WebSocket compression: a client that offers
+  `permessage-deflate` is sent uncompressed frames.
+
+- fix: a WebSocket connection running `monitor` is no longer closed as
+  idle while notifications are being written to it.
 
 - fix: telemetry events the collector never gets, because it rejects a batch
   or the buffer overflows, are logged as one warning per failure counting
   them by event name, not one warning per event.
+
+- fix: with stats notifications turned off
+  (`notification.statsNotificationJobTimeInterval` below zero), a change
+  made by the atSign's own client is answered once, with no AT0010 after
+  it, and another atServer's notification that changes a cached key no
+  longer closes that atServer's connection.
+
+- fix: another atServer's notification with `ttr` whose cached key would be
+  longer than 255 characters is refused with AT0016 before it is stored or
+  pushed to monitors, rather than after. A sending atServer retries a
+  refused notification until it expires, 15 minutes by default and at most
+  8 days when its client set `ttln`, and holds back its later notifications
+  to the same atSign until then.
+
+- fix: a `notify` or `notify:all` from the atSign's own client whose key is
+  longer than 255 characters, counting `cached:` when it has a `ttr` or is
+  a delete, is refused with AT0016, and nothing is stored or sent. A
+  notification already queued with such a key is not sent: it is marked
+  errored, and later notifications to that atSign no longer wait behind it.
 
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
