@@ -1,4 +1,18 @@
-# 3.19.1
+# 3.20.0
+- ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
+  `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
+  Without a ttl an OTP still lives 5 minutes, or the maximum if that is
+  shorter. A maximum of 0 or less means the default, and one above a year is
+  cut to a year.
+
+- ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
+  OTPs are live (env `maxLiveOtps`, default 10; 0 or less means the default).
+  The count is for the atSign as a whole, whichever enrollment issued them,
+  and the SPP is not counted.
+  An OTP issued with `ttl:0` before this release never expires, so it counts
+  until a full-privilege connection finds it with `otp:list` and deletes it
+  with `otp:delete`.
+
 - ⚠️ BREAKING: a `batch:` may carry only `lookup`, `llookup`, `plookup`,
   `notify`, `update` (`update:meta` included) and `delete`. A batch carrying
   anything else, an unknown verb or an entry that is not a command included,
@@ -106,25 +120,16 @@
   notification already queued with such a key is not sent: it is marked
   errored, and later notifications to that atSign no longer wait behind it.
 
+- fix: an `enroll:request` presenting an OTP may ask only for namespaces the
+  OTP's own namespaces cover, by the same rules as `otp:list`. One asking for
+  more is refused with AT0009, and the OTP is spent. The SPP, and an OTP
+  issued over CRAM or before this release, do not limit the request.
+
 # 3.19.0
 - ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
   full privilege: a CRAM connection, or an enrollment with `*:rw` and
   `__manage:rw`. An enrollment holding `__manage` alone could set it before;
   it is now refused with AT0009.
-
-- ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
-  `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
-  Without a ttl an OTP still lives 5 minutes, or the maximum if that is
-  shorter. A maximum of 0 or less means the default, and one above a year is
-  cut to a year.
-
-- ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
-  OTPs are live (env `maxLiveOtps`, default 10; 0 or less means the default).
-  The count is for the atSign as a whole, whichever enrollment issued them,
-  and the SPP is not counted.
-  An OTP issued with `ttl:0` before this release never expires, so it counts
-  until a full-privilege connection finds it with `otp:list` and deletes it
-  with `otp:delete`.
 
 - feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
   `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
@@ -138,11 +143,6 @@
 - feat: an OTP records the namespaces of the enrollment that issued it. An OTP
   issued before this, or over a CRAM connection, carries none, and only a
   full-privilege connection can list or delete it.
-
-- fix: an `enroll:request` presenting an OTP may ask only for namespaces the
-  OTP's own namespaces cover, by the same rules as `otp:list`. One asking for
-  more is refused with AT0009, and the OTP is spent. The SPP, and an OTP
-  issued over CRAM or before this release, do not limit the request.
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 
