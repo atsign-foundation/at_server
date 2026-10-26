@@ -10,6 +10,10 @@
   fails: a command that fails without an error code is answered AT0011, and
   one that hits an internal error AT0010.
 
+- fix: an update of a key whose name starts with `meta`, such as
+  `update:metadata.wavi@alice v`, is stored; it was refused as an invalid
+  command.
+
 - feat: an atServer holds at most `connection.http_max_limit` HTTP connections
   at once, 50 by default; a connection beyond that is closed without an
   answer, and 0 or less holds none. Atsign Protocol connections are not

@@ -22,7 +22,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith('update:') && !command.startsWith('update:meta');
+      command.startsWith('update:') && !command.startsWith('update:meta:');
 
   @override
   Verb getVerb() {
