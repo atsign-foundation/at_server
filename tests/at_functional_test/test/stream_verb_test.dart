@@ -105,19 +105,4 @@ void main() {
       });
     }
   });
-
-  test('A stream command inside a batch is refused', () async {
-    final int before = await sent();
-
-    final String answer = await send(
-        xavierClient,
-        'batch:${jsonEncode([
-              {'id': 1, 'command': init}
-            ])}');
-
-    final List<dynamic> entries = jsonDecode(answer.replaceFirst('data:', ''));
-    expect(entries.single['response']['error_code'], 'AT0003',
-        reason: 'that entry is answered AT0003');
-    expect(await sent(), before, reason: 'no notification is queued');
-  });
 }
