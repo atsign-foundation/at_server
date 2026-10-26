@@ -21,7 +21,9 @@ Feature: A connection that leaves too many bytes unsent is closed
   connection's socket is destroyed in that same close, as a TLS
   connection's is; no close frame is sent, since the client is not
   reading. A replay waiting for the queue to empty is released when the
-  connection closes. The warning is logged once per connection.
+  connection closes. The warning is logged once per connection. A
+  transport that starts taking writes again is handed what is waiting
+  within the same turn.
   Replay: nothing is stored or spent; a client resumes from its own
   watermark with monitor:<epoch>, and each replayed notification is
   authorized again for the enrollment the connection stands on.
@@ -65,6 +67,18 @@ Feature: A connection that leaves too many bytes unsent is closed
     When the bytes waiting stay under the limit
     Then the connection stays open and every notification is written
 
+  Scenario Outline: A client that reads in bursts receives every byte written to it
+    Given a <transport> connection whose client reads in bursts and pauses at random, sometimes for over a second
+    When the atServer writes numbered lines of mixed sizes to it, staying under the limit
+    Then the client receives every line once, in order and whole
+    And whenever the connection's transport is taking writes, no bytes are left waiting to be sent
+    And once the client has read everything, the connection is drained
+
+    Examples:
+      | transport |
+      | TLS       |
+      | WebSocket |
+
   Scenario: One write larger than the limit onto an empty queue is taken
     Given a monitor connection with nothing waiting to be sent
     When a notification whose line is larger than the limit is written
@@ -82,6 +96,18 @@ Feature: A connection that leaves too many bytes unsent is closed
     And only the live pushes its regex matches are held, counted toward the limit with the bytes waiting
     And once those pass the limit, the atServer closes the connection and logs one warning
     And otherwise the live pushes are written, after the replay, once the client reads
+
+  Scenario Outline: The bytes held for a replay are released however the replay ends
+    Given a client that runs monitor:<t> and has stopped reading
+    And live notifications its regex matches are held behind the replay
+    When <ending>
+    Then the bytes held for the connection return to zero
+
+    Examples:
+      | ending                                                                                        |
+      | the client closes the connection                                                              |
+      | the client reads, and runs monitor again while the held notifications are still being written |
+      | the client reads and the replay completes                                                     |
 
   Scenario: Stats notifications count toward the limit
     Given a monitor connection whose client has stopped reading, with bytes waiting close to the limit
