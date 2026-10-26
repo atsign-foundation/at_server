@@ -308,17 +308,27 @@ void main() {
     });
 
     test(
-        'Given a connection with a feed, when its monitor:<t> replay fails, then the connection is closed and leaves the pool',
+        'A replay that fails with an error the atServer did not expect closes the connection',
         () async {
-      final ServerSocket listener =
-          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-      final Future<Socket> accepted = listener.first;
-      final Socket client =
-          await Socket.connect(InternetAddress.loopbackIPv4, listener.port);
+      const String certs =
+          '../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs';
+      final SecureServerSocket listener = await SecureServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+          SecurityContext()
+            ..useCertificateChain('$certs/fullchain.pem')
+            ..usePrivateKey('$certs/privkey.pem'));
+      final Future<SecureSocket> accepted = listener.first;
+      final SecureSocket client = await SecureSocket.connect(
+          InternetAddress.loopbackIPv4, listener.port,
+          onBadCertificate: (_) => true);
       addTearDown(client.destroy);
-      final Socket serverSide = await accepted;
+      final SecureSocket serverSide = await accepted;
       await listener.close();
-      client.listen((_) {}, onError: (Object _) {});
+      final List<int> received = <int>[];
+      final Completer<void> ended = Completer<void>();
+      client.listen(received.addAll,
+          onDone: ended.complete, onError: (Object _) {});
       atServer.inboundConnectionManager =
           InboundConnectionManager(serverAtSign: alice, poolSize: 3);
       final InboundConnection connection = atServer.inboundConnectionManager
@@ -351,6 +361,9 @@ void main() {
       expect(atServer.inboundConnectionManager.pool.getCurrentSize(), 0);
       expect(gated.monitorCount, 0);
       expect(thrown, isNull);
+      await ended.future.timeout(const Duration(seconds: 5));
+      expect(utf8.decode(received), allOf(contains('error:'), contains('AT0010')),
+          reason: 'monitor is refused with an internal server error');
     });
 
     test(
