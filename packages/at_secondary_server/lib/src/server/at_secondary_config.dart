@@ -787,6 +787,52 @@ class AtSecondaryConfig {
     }
   }
 
+  static int? _otpMaxTtlInMinutes;
+
+  /// Overrides the configured maximum ttl for `otp:get`; null restores it.
+  static set otpMaxTtlInMinutes(int? value) {
+    _otpMaxTtlInMinutes = value;
+  }
+
+  /// The most otpMaxTtlInMinutes can be: one year. A larger value is cut to
+  /// it, because Duration(minutes:) would overflow to a negative ttl, which
+  /// the keystore reads as "never expires", or reach a date DateTime can't
+  /// hold.
+  static const int otpMaxTtlCeilingInMinutes = 365 * 24 * 60;
+
+  /// The longest ttl `otp:get` accepts, in minutes. A value of 0 or less
+  /// falls back to the default: as the cap on an OTP issued without a ttl it
+  /// would be 0, which the keystore reads as "never expires". A value above
+  /// [otpMaxTtlCeilingInMinutes] is cut to it.
+  static int get otpMaxTtlInMinutes {
+    final int? configured = _otpMaxTtlInMinutes ??
+        _getIntEnvVar('otpMaxTtlInMinutes') ??
+        getNullableIntFromYaml(['otp', 'maxTtlInMinutes']);
+    if (configured == null || configured <= 0) {
+      return 60;
+    }
+    return configured < otpMaxTtlCeilingInMinutes
+        ? configured
+        : otpMaxTtlCeilingInMinutes;
+  }
+
+  static int? _maxLiveOtps;
+
+  /// Overrides the configured maximum number of live OTPs; null restores it.
+  static set maxLiveOtps(int? value) {
+    _maxLiveOtps = value;
+  }
+
+  /// The most OTPs that may be live at once; `otp:get` is refused beyond it.
+  /// A value of 0 or less falls back to the default, as for
+  /// [otpMaxTtlInMinutes].
+  static int get maxLiveOtps {
+    final int? configured = _maxLiveOtps ??
+        _getIntEnvVar('maxLiveOtps') ??
+        getNullableIntFromYaml(['otp', 'maxLive']);
+    return (configured != null && configured > 0) ? configured : 10;
+  }
+
   // The stream subscribers listen on for config:set updates.
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (!_streamListeners.containsKey(configName)) {

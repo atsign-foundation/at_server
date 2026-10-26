@@ -222,3 +222,14 @@ enrollment:
   # If the duration between the last received invalid OTP and the current date-time
   # exceeds the delayIntervalThreshold, trigger a reset to the default value.
   delayIntervalThreshold: 55
+
+# OTP (otp:get) limits
+otp:
+  # The longest ttl otp:get accepts, in minutes; a longer ttl, or ttl:0, is refused.
+  # Default value is 60 minutes. A value of 0 or less means the default, and
+  # a value above one year (525600) is cut to one year. NoPorts asks for
+  # 60-minute OTPs when issuing keys, so a lower value refuses them.
+  maxTtlInMinutes: 60
+  # The most OTPs that may be live at once; otp:get is refused beyond it.
+  # Default value is 10. A value of 0 or less means the default.
+  maxLive: 10
