@@ -91,6 +91,27 @@ void main() {
       expect(await footprint(), before);
     });
 
+    for (final (String what, String command) in [
+      ('with a ttr', 'notify:all:ttr:100000:@bob:${'k' * 238}.wavi@alice:v'),
+      ('that deletes', 'notify:all:delete:@bob:${'k' * 238}.wavi@alice'),
+    ]) {
+      test(
+          'when it sends notify:all $what to @bob whose key has 254 characters, then it is refused with AT0016 counting cached: and nothing is stored',
+          () async {
+        final Connection client = aliceClient();
+        final List<Object?> before = await footprint();
+
+        await send(command, client);
+
+        expect(client.writes, [
+          'error:AT0016-Invalid key : notification key length 261 is greater'
+              ' than 255 chars\n@alice@'
+        ]);
+        expect(await footprint(), before);
+        expect(await sentTo('@bob'), isEmpty);
+      });
+    }
+
     test(
         'when it sends a notify to @bob whose key has 255 characters and no ttr, and one with a ttr whose key has 248, then both are accepted for @bob',
         () async {
@@ -156,13 +177,15 @@ void main() {
       await telemetry.shutdown();
     });
 
-    AtNotification queued(String id, String key, {int? ttr}) =>
+    AtNotification queued(String id, String key,
+            {int? ttr, OperationType? opType}) =>
         (AtNotificationBuilder()
               ..id = id
               ..type = NotificationType.sent
               ..fromAtSign = alice
               ..toAtSign = '@bob'
               ..notification = '@bob:$key@alice'
+              ..opType = opType
               ..atMetaData = (AtMetaData()..ttr = ttr))
             .build();
 
@@ -193,6 +216,33 @@ void main() {
           .firstNamed('atsign.atserver.notification.error')
           .timeout(const Duration(seconds: 2));
       expect(error.attributes['atsign.notification.ids'], ['too-long']);
+    });
+
+    test(
+        'when the sender reaches one with a ttr and a delete whose keys have 249 characters, then neither is sent and both are marked errored, counting cached:',
+        () async {
+      final AtNotification ttrTooLong =
+          queued('ttr-too-long', keyName(249), ttr: 100000);
+      final AtNotification deleteTooLong =
+          queued('delete-too-long', keyName(249), opType: OperationType.delete);
+      final AtNotification uncached = queued('uncached', keyName(249));
+
+      await nm.notify(ttrTooLong);
+      await nm.notify(deleteTooLong);
+      await nm.notify(uncached);
+      for (int i = 0; i < 100 && attempted.isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      expect(attempted, hasLength(1),
+          reason: 'control: the same key without cached: is sent');
+      expect(uncached.notificationStatus, NotificationStatus.delivered);
+      expect(ttrTooLong.notificationStatus, NotificationStatus.errored);
+      expect(deleteTooLong.notificationStatus, NotificationStatus.errored);
+      expect(severe, [
+        allOf(contains('ttr-too-long'), contains('256')),
+        allOf(contains('delete-too-long'), contains('256')),
+      ]);
     });
   });
 }
