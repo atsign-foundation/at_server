@@ -1,4 +1,4 @@
-## 2.2.1
+## 2.3.0
 
 - feat: the atDirectory answers HTTP on its Atsign Protocol port to a client
   that negotiates `http/1.1` by ALPN, as on its HTTPS port. A client that
@@ -15,6 +15,9 @@
 - fix: an HTTP request whose path does not decode is answered 400, and one
   the atDirectory cannot answer 500.
 - fix: the atDirectory keeps answering when a connection fails.
+
+## 2.2.1
+
  - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
 - build: `at_utils` 3.5.0. In a log message, control characters other than a
   line feed, bidirectional formatting characters, and line and paragraph
