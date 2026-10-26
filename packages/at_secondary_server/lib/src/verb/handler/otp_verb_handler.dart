@@ -5,11 +5,13 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
+import 'package:mutex/mutex.dart';
 import 'package:uuid/uuid.dart';
 
 import 'abstract_verb_handler.dart';
@@ -31,6 +33,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
 
   static final otpNamespace = '__otp';
 
+  /// Held while `otp:get` counts the live OTPs and stores a new one. Static,
+  /// so it is shared by every OtpVerbHandler.
+  static final Mutex _issueLock = Mutex();
+
   @override
   Future<void> processVerb(
       Response response,
@@ -51,14 +57,20 @@ class OtpVerbHandler extends AbstractVerbHandler {
               'otp:get requires access to the __manage namespace');
         }
         String otp = generateOTP();
-        // Extract the ttl from the verb parameters if supplied, or use the default value.
-        int otpTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
-            defaultOtpExpiry.inMilliseconds;
-        await savePasscode(otp,
-            ttl: otpTtl,
-            isSpp: false,
-            namespaces: await _enrollmentNamespaces(
-                atConnection.metaData as InboundConnectionMetadata));
+        // The ttl from the verb parameters, within the configured maximum.
+        int otpTtl = _otpTtl(verbParams[AtConstants.ttl]);
+        final Map<String, String>? namespaces = await _enrollmentNamespaces(
+            atConnection.metaData as InboundConnectionMetadata);
+        // NOTE the count and the put share one lock, so concurrent otp:gets
+        // can't all pass the check and overshoot the maximum.
+        await _issueLock.protect(() async {
+          if (await _liveOtpCount() >= AtSecondaryConfig.maxLiveOtps) {
+            throw AtThrottleLimitExceeded('otp:get refused: '
+                '${AtSecondaryConfig.maxLiveOtps} OTPs are already live');
+          }
+          await savePasscode(otp,
+              ttl: otpTtl, isSpp: false, namespaces: namespaces);
+        });
         response.data = otp;
         break;
       case 'put':
@@ -115,6 +127,25 @@ class OtpVerbHandler extends AbstractVerbHandler {
     }
   }
 
+  /// The ttl, in milliseconds, for an OTP that `otp:get` issues: [requested]
+  /// if given, otherwise [defaultOtpExpiry], cut to the maximum when that is
+  /// shorter. A [requested] ttl that is 0 (the keystore's "never expires"),
+  /// too large to parse, or above AtSecondaryConfig.otpMaxTtlInMinutes is
+  /// refused.
+  int _otpTtl(String? requested) {
+    final int maxTtl =
+        Duration(minutes: AtSecondaryConfig.otpMaxTtlInMinutes).inMilliseconds;
+    if (requested == null) {
+      return min(defaultOtpExpiry.inMilliseconds, maxTtl);
+    }
+    final int? ttl = int.tryParse(requested);
+    if (ttl == null || ttl <= 0 || ttl > maxTtl) {
+      throw IllegalArgumentException(
+          'otp:get ttl must be between 1 and $maxTtl milliseconds');
+    }
+    return ttl;
+  }
+
   /// This function generates a UUID and converts it into a 6-character alpha-numeric string.
   ///
   /// The process involves converting the UUID to a hashcode, then transforming the hashcode
@@ -159,6 +190,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
   static String _passcodeFromKey(String key) =>
       key.substring('private:'.length, key.lastIndexOf('.$otpNamespace'));
 
+  /// Matches the key of every OTP record, and the current SPP's, for [atSign].
+  static String _otpKeyRegex(String atSign) =>
+      '^private:[^:@]+\\.$otpNamespace${RegExp.escape(atSign)}\$';
+
   /// Stores [passcode]. An OTP's value also records [namespaces], the grants
   /// of the enrollment that issued it. The SPP's value stays the bare
   /// passcode, which isPasscodeValid compares.
@@ -187,9 +222,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
     final String atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     final String sppKey = passcodeKey('spp', isSpp: true);
     final String legacySppKey = 'private:spp$atSign';
-    final List<String> keys = await (await keyStore.getKeys(
-            regex: '^private:[^:@]+\\.$otpNamespace${RegExp.escape(atSign)}\$'))
-        .toList();
+    final List<String> keys =
+        await (await keyStore.getKeys(regex: _otpKeyRegex(atSign))).toList();
     // NOTE isPasscodeValid falls back to the legacy SPP key only when the
     // current one is absent, so list does the same.
     if (!keys.contains(sppKey)) {
@@ -223,6 +257,22 @@ class OtpVerbHandler extends AbstractVerbHandler {
       });
     }
     return passcodes;
+  }
+
+  /// The number of live OTPs, which `otp:get` holds to
+  /// AtSecondaryConfig.maxLiveOtps. The SPP is not counted.
+  Future<int> _liveOtpCount() async {
+    final String atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    final String sppKey = passcodeKey('spp', isSpp: true);
+    final List<String> keys =
+        await (await keyStore.getKeys(regex: _otpKeyRegex(atSign))).toList();
+    int count = 0;
+    for (final String key in keys) {
+      if (key != sppKey && SecondaryUtil.isActiveKey(await _getOrNull(key))) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /// Removes [passcode], or the SPP when [passcode] is `spp` in any case,
@@ -308,7 +358,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// is neither is read as a namespace-less OTP, so only a full-privilege
   /// connection can list or delete it, under [keyPasscode] when given: the
   /// passcode its key names, which `otp:delete` takes.
-  @visibleForTesting
   static ({String passcode, Map<String, String>? namespaces}) readOtp(
       String data,
       {String? keyPasscode}) {
@@ -336,24 +385,36 @@ class OtpVerbHandler extends AbstractVerbHandler {
       namespaces != null && namespaces.isNotEmpty && covers(scope, namespaces);
 
   /// Whether [held] is a superset of [wanted]: each namespace held with at
-  /// least the same letters ("rw" covers "r"). `*` covers any other
-  /// namespace, while `*` and `__manage` must be held literally, as in
+  /// least the same letters ("rw" covers "r"). A held namespace covers itself
+  /// and every namespace ending in "." followed by it, as access resolves
+  /// (`wavi` covers `x.wavi`), and `*` covers any namespace. A namespace is
+  /// covered when `*` or any held namespace it ends with grants its letters.
+  /// `*` and `__manage` themselves must be held literally, as in
   /// EnrollVerbHandler.verifyNoEscalation. Namespaces are folded with
   /// [canonicalAtKey], as the keystore folds key names.
-  @visibleForTesting
   static bool covers(Map<String, String> held, Map<String, String> wanted) {
     final Map<String, String> heldFolded = held.map(
         (namespace, access) => MapEntry(canonicalAtKey(namespace), access));
+    bool grants(String? access, String letters) =>
+        access != null && letters.split('').every(access.split('').contains);
     for (final entry in wanted.entries) {
       final String namespace = canonicalAtKey(entry.key);
-      String? access = heldFolded[namespace];
       final bool isSpecial = namespace == EnrollmentConstants.allNamespaces ||
           namespace == EnrollmentConstants.enrollManageNamespace;
-      if (access == null && !isSpecial) {
-        access = heldFolded[EnrollmentConstants.allNamespaces];
+      if (isSpecial) {
+        if (!grants(heldFolded[namespace], entry.value)) {
+          return false;
+        }
+        continue;
       }
-      if (access == null ||
-          !entry.value.split('').every(access.split('').contains)) {
+      // NOTE any match grants, * included even beside a narrower explicit
+      // grant, so the answer does not depend on the order of [held].
+      final bool covered =
+          grants(heldFolded[EnrollmentConstants.allNamespaces], entry.value) ||
+              heldFolded.entries.any((h) =>
+                  '.$namespace'.endsWith('.${h.key}') &&
+                  grants(h.value, entry.value));
+      if (!covered) {
         return false;
       }
     }

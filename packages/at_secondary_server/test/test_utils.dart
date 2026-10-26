@@ -37,6 +37,8 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
+import 'test_storage.dart';
+
 class MockAtCommitLog extends Mock implements AtCommitLog {}
 
 class MockAtAccessLog extends Mock implements AtAccessLog {}
@@ -252,7 +254,7 @@ Function() get socketOnDoneFn => _currentSocketListener.onDone;
 Function(Exception e, StackTrace st) get socketOnErrorFn =>
     _currentSocketListener.onError;
 
-String storageDir = '${Directory.current.path}/unit_test_storage';
+String storageDir = testStoragePath('unit_test_storage');
 AtCommitLog atCommitLog = MockAtCommitLog();
 AtAccessLog atAccessLog = MockAtAccessLog();
 

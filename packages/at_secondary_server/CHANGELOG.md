@@ -1,4 +1,24 @@
-# 3.20.0
+# 3.19.1
+- feat: an atServer holds at most `connection.http_max_limit` HTTP connections
+  at once, 50 by default; a connection beyond that is closed without an
+  answer, and 0 or less holds none. Atsign Protocol connections are not
+  affected.
+
+- feat: an HTTP connection with no request in progress is closed within 10
+  seconds of its TLS handshake completing or its last answer, and one whose
+  answer is not fully sent within 30 seconds of its request is closed then.
+
+- fix: an HTTP `GET` whose path or query does not decode is answered 400, and
+  one the atServer fails to answer, an unreadable record among them, is
+  answered 500.
+
+- fix: an error the HTTP server raises is logged.
+
+- fix: stopping the atServer closes its HTTP connections.
+
+- test: when `AT_UNIT_TEST_STORAGE_DIR` is set, the unit tests keep their
+  storage under it rather than under the package.
+
 - feat: an atServer whose telemetry is on tells its collector what becomes of
   notifications. For one it sends to another atSign: `notification.delivered`
   when the recipient's atServer answers `data:success`, which it also does
@@ -77,6 +97,20 @@
   `__manage:rw`. An enrollment holding `__manage` alone could set it before;
   it is now refused with AT0009.
 
+- ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
+  `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
+  Without a ttl an OTP still lives 5 minutes, or the maximum if that is
+  shorter. A maximum of 0 or less means the default, and one above a year is
+  cut to a year.
+
+- ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
+  OTPs are live (env `maxLiveOtps`, default 10; 0 or less means the default).
+  The count is for the atSign as a whole, whichever enrollment issued them,
+  and the SPP is not counted.
+  An OTP issued with `ttl:0` before this release never expires, so it counts
+  until a full-privilege connection finds it with `otp:list` and deletes it
+  with `otp:delete`.
+
 - feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
   `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
   them all; an enrollment holding `__manage` sees only the OTPs whose
@@ -89,6 +123,11 @@
 - feat: an OTP records the namespaces of the enrollment that issued it. An OTP
   issued before this, or over a CRAM connection, carries none, and only a
   full-privilege connection can list or delete it.
+
+- fix: an `enroll:request` presenting an OTP may ask only for namespaces the
+  OTP's own namespaces cover, by the same rules as `otp:list`. One asking for
+  more is refused with AT0009, and the OTP is spent. The SPP, and an OTP
+  issued over CRAM or before this release, do not limit the request.
 
 - feat: `info` lists `otp.list` and `otp.delete` as Beta.
 

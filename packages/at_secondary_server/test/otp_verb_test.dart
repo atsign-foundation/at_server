@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
@@ -110,21 +111,16 @@ void main() {
       assert(RegExp('\\d').hasMatch(response.data!));
     });
 
-    test('A test to verify same OTP is not returned', () async {
+    test('A test to verify same OTP is not returned', () {
+      // NOTE generateOTP directly: 1000 live OTPs through otp:get would be far
+      // over the live-OTP cap, and each otp:get counts the live ones.
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       Set<String> otpSet = {};
       for (int i = 1; i <= 1000; i++) {
-        Response response = Response();
-        HashMap<String, String?> verbParams =
-            getVerbParam(VerbSyntax.otp, 'otp:get');
-        inboundConnection.metaData.isAuthenticated = true;
-        inboundConnection.metaData.authType = AuthType.cram;
-        OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
-        await otpVerbHandler.processVerb(
-            response, verbParams, inboundConnection);
-        expect(response.data, isNotNull);
-        expect(response.data!.length, 6);
-        assert(RegExp('\\d').hasMatch(response.data!));
-        bool isUnique = otpSet.add(response.data!);
+        String otp = otpVerbHandler.generateOTP();
+        expect(otp.length, 6);
+        assert(RegExp('\\d').hasMatch(otp));
+        bool isUnique = otpSet.add(otp);
         expect(isUnique, true);
       }
       expect(otpSet.length, 1000);
@@ -678,6 +674,25 @@ void main() {
       expect(OtpVerbHandler.covers({'*': 'rw'}, {'__MANAGE': 'rw'}), false);
     });
 
+    test('covers matches a held namespace by suffix, as access resolves', () {
+      expect(OtpVerbHandler.covers({'wavi': 'rw'}, {'x.wavi': 'rw'}), true);
+      expect(OtpVerbHandler.covers({'wavi': 'rw'}, {'xwavi': 'rw'}), false);
+      expect(OtpVerbHandler.covers({'x.wavi': 'rw'}, {'wavi': 'r'}), false);
+      expect(OtpVerbHandler.covers({'wavi': 'r'}, {'x.wavi': 'rw'}), false);
+      expect(
+          OtpVerbHandler.covers({'*': 'rw', 'wavi': 'r'}, {'x.wavi': 'rw'}),
+          true);
+      // NOTE the same grants in either order give the same answer.
+      expect(
+          OtpVerbHandler.covers(
+              {'wavi': 'r', 'x.wavi': 'rw'}, {'y.x.wavi': 'rw'}),
+          true);
+      expect(
+          OtpVerbHandler.covers(
+              {'x.wavi': 'rw', 'wavi': 'r'}, {'y.x.wavi': 'rw'}),
+          true);
+    });
+
     test('readOtp reads a malformed record as a namespace-less OTP', () {
       expect(OtpVerbHandler.readOtp('{oops'),
           (passcode: '{oops', namespaces: null));
@@ -719,6 +734,202 @@ void main() {
           run('otp:list'), throwsA(isA<UnAuthenticatedException>()));
       await expectLater(
           run('otp:delete:ABC123'), throwsA(isA<UnAuthenticatedException>()));
+    });
+  });
+
+  group('A group of tests related to the otp:get ttl limit', () {
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      AtSecondaryConfig.otpMaxTtlInMinutes = 1;
+    });
+    tearDown(() async {
+      AtSecondaryConfig.otpMaxTtlInMinutes = null;
+      await verbTestsTearDown();
+    });
+
+    Future<String> issue(String command) async {
+      Response response = Response();
+      await OtpVerbHandler(keyValueStore).processVerb(
+          response, getVerbParam(VerbSyntax.otp, command), inboundConnection);
+      return response.data!;
+    }
+
+    Future<int?> storedTtl(String otp) async => (await keyValueStore
+            .get('private:$otp.${OtpVerbHandler.otpNamespace}$atSign'))
+        ?.metaData
+        ?.ttl;
+
+    test('otp:get accepts a ttl equal to the maximum', () async {
+      String otp = await issue('otp:get:ttl:60000');
+      expect(await storedTtl(otp), 60000);
+    });
+
+    test('otp:get refuses a ttl above the maximum, and stores nothing',
+        () async {
+      await expectLater(
+          issue('otp:get:ttl:60001'), throwsA(isA<IllegalArgumentException>()));
+      expect(await OtpVerbHandler(keyValueStore).listPasscodes(), isEmpty);
+    });
+
+    test('otp:get refuses ttl:0, which would never expire', () async {
+      await expectLater(
+          issue('otp:get:ttl:0'), throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test('otp:get refuses a ttl too large to parse', () async {
+      // NOTE a maximum above the 5-minute default, so a silent fallback to
+      // the default would be accepted and this test would fail.
+      AtSecondaryConfig.otpMaxTtlInMinutes = 10;
+      await expectLater(issue('otp:get:ttl:99999999999999999999'),
+          throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test('otp:get without a ttl is cut to a shorter maximum', () async {
+      String otp = await issue('otp:get');
+      expect(await storedTtl(otp), 60000);
+    });
+
+    test('otp:get without a ttl keeps the default under a longer maximum',
+        () async {
+      AtSecondaryConfig.otpMaxTtlInMinutes = null;
+      String otp = await issue('otp:get');
+      expect(
+          await storedTtl(otp), OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
+    });
+
+    test('a maximum of 0 or less falls back to 60 minutes', () {
+      AtSecondaryConfig.otpMaxTtlInMinutes = 0;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 60);
+      AtSecondaryConfig.otpMaxTtlInMinutes = -5;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 60);
+    });
+
+    test('a maximum above one year is cut to one year, so it cannot overflow',
+        () async {
+      // NOTE 2^63-1 minutes overflowed Duration(minutes:) to a negative ttl:
+      // an OTP issued without a ttl never expired, and every ttl was refused.
+      AtSecondaryConfig.otpMaxTtlInMinutes = 9223372036854775807;
+      expect(AtSecondaryConfig.otpMaxTtlInMinutes, 525600);
+      String otp = await issue('otp:get');
+      expect(
+          await storedTtl(otp), OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
+      otp = await issue('otp:get:ttl:300000');
+      expect(await storedTtl(otp), 300000);
+    });
+  });
+
+  group('A group of tests related to the live-OTP limit', () {
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      AtSecondaryConfig.maxLiveOtps = 2;
+    });
+    tearDown(() async {
+      AtSecondaryConfig.maxLiveOtps = null;
+      await verbTestsTearDown();
+    });
+
+    Future<String> issue(String command) async {
+      Response response = Response();
+      await OtpVerbHandler(keyValueStore).processVerb(
+          response, getVerbParam(VerbSyntax.otp, command), inboundConnection);
+      return response.data!;
+    }
+
+    Future<int> liveCount() async =>
+        (await OtpVerbHandler(keyValueStore).listPasscodes()).length;
+
+    Future<void> useEnrollment(
+        String id, Map<String, String> namespaces) async {
+      inboundConnection.metaData.enrollmentId = id;
+      inboundConnection.metaData.authType = AuthType.apkam;
+      await keyValueStore.put(
+          '$id.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(
+                EnrollDataStoreValue('sid', 'app', 'device', 'apkam-key')
+                  ..namespaces = namespaces
+                  ..approval = EnrollApproval(EnrollmentStatus.approved.name)));
+    }
+
+    test('otp:get is refused once the maximum is live, and stores nothing',
+        () async {
+      await issue('otp:get');
+      await issue('otp:get');
+      await expectLater(
+          issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
+      expect(await liveCount(), 2);
+    });
+
+    test('the SPP does not count toward the maximum', () async {
+      await issue('otp:put:abc123');
+      await issue('otp:get');
+      await issue('otp:get');
+      expect(await liveCount(), 3);
+    });
+
+    test('an expired OTP does not count toward the maximum', () async {
+      await issue('otp:get:ttl:1');
+      await Future.delayed(Duration(milliseconds: 10));
+      await issue('otp:get');
+      await issue('otp:get');
+      expect(await liveCount(), 2);
+    });
+
+    test('otp:delete frees a place', () async {
+      String first = await issue('otp:get');
+      await issue('otp:get');
+      await issue('otp:delete:$first');
+      await issue('otp:get');
+      expect(await liveCount(), 2);
+    });
+
+    test('concurrent otp:gets never exceed the maximum', () async {
+      int refused = 0;
+      await Future.wait(List.generate(5, (_) async {
+        try {
+          await issue('otp:get');
+        } on AtThrottleLimitExceeded {
+          refused++;
+        }
+      }));
+      expect(refused, 3);
+      expect(await liveCount(), 2);
+    });
+
+    test('a maximum of 0 or less falls back to 10', () {
+      AtSecondaryConfig.maxLiveOtps = 0;
+      expect(AtSecondaryConfig.maxLiveOtps, 10);
+      AtSecondaryConfig.maxLiveOtps = -1;
+      expect(AtSecondaryConfig.maxLiveOtps, 10);
+    });
+
+    test('the maximum is shared by every issuer, full privilege included',
+        () async {
+      await useEnrollment('first', {'app_1': 'rw', '__manage': 'rw'});
+      await issue('otp:get');
+      await useEnrollment('second', {'app_2': 'rw', '__manage': 'rw'});
+      await issue('otp:get');
+      // NOTE "second" has issued one OTP, but "first"'s counts against it too.
+      await expectLater(
+          issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
+      inboundConnection.metaData.enrollmentId = null;
+      inboundConnection.metaData.authType = AuthType.cram;
+      await expectLater(
+          issue('otp:get'), throwsA(isA<AtThrottleLimitExceeded>()));
+      expect(await liveCount(), 2);
+    });
+
+    test('a refused ttl is answered before the live-OTP cap is checked',
+        () async {
+      await issue('otp:get');
+      await issue('otp:get');
+      // NOTE the cap of 2 is full, but the ttl is refused first.
+      await expectLater(
+          issue('otp:get:ttl:0'), throwsA(isA<IllegalArgumentException>()));
     });
   });
 
