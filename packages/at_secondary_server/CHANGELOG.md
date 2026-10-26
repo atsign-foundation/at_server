@@ -1,4 +1,15 @@
 # 3.19.1
+- ⚠️ BREAKING: a `batch:` may carry only `lookup`, `llookup`, `plookup`,
+  `notify`, `update` (`update:meta` included) and `delete`. A batch carrying
+  anything else, an unknown verb or an entry that is not a command included,
+  is refused whole with AT0003, naming that entry's position, and none of it
+  runs. The atClient's sync batches carry only `update`, `update:meta` and
+  `delete`, so they are unaffected.
+
+- fix: a `batch:` answers every entry it runs, and runs the rest after one
+  fails: a command that fails without an error code is answered AT0011, and
+  one that hits an internal error AT0010.
+
 - feat: an atServer holds at most `connection.http_max_limit` HTTP connections
   at once, 50 by default; a connection beyond that is closed without an
   answer, and 0 or less holds none. Atsign Protocol connections are not
