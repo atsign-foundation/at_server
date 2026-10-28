@@ -1,10 +1,19 @@
-FROM atsigncompany/secondary:canary
+FROM atsigncompany/secondary:canary AS canary
+
+# Prod reports the canary's own version, without the +c<tag> suffix the canary
+# build adds. The canary image has no shell, so the edit happens in this stage.
+FROM --platform=$BUILDPLATFORM debian:stable-20261005-slim@sha256:eb593cf2c358cacef45ca0a424bbc7d30cfa3466265fc2662b9466a0ca6ba1c5 AS version
+COPY --from=canary /atsign/pubspec.yaml /pubspec.yaml
+RUN \
+  sed -i -E 's/^(version:[^+]*)\+.*/\1/' /pubspec.yaml && \
+  grep -E '^version: [0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' /pubspec.yaml
+
+FROM canary
 ENV HOMEDIR=/atsign
-# Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/secondary \
 ## -f tools/build_secondary/Dockerfile.canary_to_prod .
-COPY --chown=1024:1024 ./packages/at_secondary_server/pubspec.yaml $HOMEDIR/
+COPY --from=version --chown=1024:1024 /pubspec.yaml $HOMEDIR/
 WORKDIR /atsign
 USER atsign
 

@@ -1,9 +1,18 @@
-FROM atsigncompany/virtualenv:canary
-# Context for this Dockerfile needs to be at_server repo root
+FROM atsigncompany/virtualenv:canary AS canary
+
+# vip reports the canary's own version, without the +c<tag> suffix the canary
+# build adds
+FROM --platform=$BUILDPLATFORM debian:stable-20261005-slim@sha256:eb593cf2c358cacef45ca0a424bbc7d30cfa3466265fc2662b9466a0ca6ba1c5 AS version
+COPY --from=canary /atsign/secondary/pubspec.yaml /pubspec.yaml
+RUN \
+  sed -i -E 's/^(version:[^+]*)\+.*/\1/' /pubspec.yaml && \
+  grep -E '^version: [0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' /pubspec.yaml
+
+FROM canary
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/virtualenv:vip \
 ## -f tools/build_virtual_environment/ve/Dockerfile.canary_to_vip .
-COPY --chown=1024:1024 ./packages/at_secondary_server/pubspec.yaml /atsign/secondary/
+COPY --from=version --chown=1024:1024 /pubspec.yaml /atsign/secondary/
 USER root
 EXPOSE 64 443 6379 9001
 
