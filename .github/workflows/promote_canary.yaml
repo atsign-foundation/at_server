@@ -10,8 +10,25 @@ permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  # Add layer to canary secondary image with prod pubspec.yaml
+  # The release this run promotes, read from the p tag it runs on. Each job
+  # below promotes the canary the tag names: p3.19.0 promotes c3.19.0.
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Read the release from the p tag
+        id: release
+        run: |
+          if [[ ! "${GITHUB_REF}" =~ ^refs/tags/p([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::promote_canary runs on a p<major>.<minor>.<patch> tag, not ${GITHUB_REF}"
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+  # Promote the release's canary secondary image to prod
   deploy_canary_secondary_to_prod_image:
+    needs: [release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,6 +79,7 @@ jobs:
           provenance: false # need right type of image spec for Shepherd
           file: tools/build_secondary/Dockerfile.canary_to_prod
           context: .
+          build-args: VERSION=${{ needs.release.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
@@ -94,8 +112,9 @@ jobs:
       registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
       registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # Add layer to canary virtualenv image with prod pubspec.yaml
+  # Promote the release's canary virtualenv image to vip
   deploy_canary_virtualenv_to_prod_image:
+    needs: [release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -146,6 +165,7 @@ jobs:
           push: true
           file: tools/build_virtual_environment/ve/Dockerfile.canary_to_vip
           context: .
+          build-args: VERSION=${{ needs.release.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: |
@@ -180,6 +200,7 @@ jobs:
 
   get_canary_sboms:
     name: Get the Canary SBOMs
+    needs: [release]
     runs-on: ubuntu-latest
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
@@ -189,11 +210,10 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Get latest canary tag
+      - name: Get the canary's SBOM
+        env:
+          CANARY: c${{ needs.release.outputs.version }}
         run: |
-          CANARY=$(git tag --sort=-version:refname -l c*.*.* | head -1)
           echo ${CANARY}
           mkdir sboms
           cd sboms

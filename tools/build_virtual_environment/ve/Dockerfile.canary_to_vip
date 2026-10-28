@@ -1,16 +1,23 @@
-FROM atsigncompany/virtualenv:canary AS canary
+# VERSION is the release being promoted, such as 3.19.0
+ARG VERSION
+FROM atsigncompany/virtualenv:canary-c${VERSION} AS canary
 
-# vip reports the canary's own version, without the +c<tag> suffix the canary
-# build adds
+# vip reports the canary's version without the +c<tag> suffix the canary build
+# adds
 FROM --platform=$BUILDPLATFORM debian:stable-20261005-slim@sha256:eb593cf2c358cacef45ca0a424bbc7d30cfa3466265fc2662b9466a0ca6ba1c5 AS version
+ARG VERSION
 COPY --from=canary /atsign/secondary/pubspec.yaml /pubspec.yaml
 RUN \
-  sed -i -E 's/^(version:[^+]*)\+.*/\1/' /pubspec.yaml && \
-  grep -E '^version: [0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' /pubspec.yaml
+  if ! grep -Fqx "version: ${VERSION}+c${VERSION}" /pubspec.yaml; then \
+    echo "Expected version: ${VERSION}+c${VERSION}, found $(grep '^version:' /pubspec.yaml)" ; \
+    exit 1 ; \
+  fi && \
+  sed -i "0,/^version:/ s/^version:.*/version: ${VERSION}/" /pubspec.yaml && \
+  grep '^version:' /pubspec.yaml
 
 FROM canary
 # If building manually then (from the repo root):
-## sudo docker build -t atsigncompany/virtualenv:vip \
+## docker buildx build --build-arg VERSION=3.19.0 -t atsigncompany/virtualenv:vip \
 ## -f tools/build_virtual_environment/ve/Dockerfile.canary_to_vip .
 COPY --from=version --chown=1024:1024 /pubspec.yaml /atsign/secondary/
 USER root
