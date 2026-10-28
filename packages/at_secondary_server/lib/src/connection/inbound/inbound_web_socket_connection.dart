@@ -120,6 +120,10 @@ class InboundWebSocketConnection
   @visibleForTesting
   int get unsentBytes => _writes.unsentBytes;
 
+  /// Whether the transport is taking writes now.
+  @visibleForTesting
+  bool get transportTakingWrites => _writes.takingWrites;
+
   @override
   Future<void> close() async {
     // Some defensive code just in case we accidentally call close multiple times

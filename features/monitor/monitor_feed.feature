@@ -104,6 +104,12 @@ Feature: A connection has at most one monitor feed
     Then monitor is refused with the store's error
     And the atServer closes the connection
 
+  Scenario: A replay that fails with an error the atServer did not expect closes the connection
+    Given reading the notification store throws an error the atServer did not expect
+    When a client runs monitor:<t>
+    Then monitor is refused with an internal server error
+    And the atServer closes the connection
+
   Scenario: A notification the client did not ask for causes no enrollment lookup
     Given a connection running monitor with regex wavi as an enrollment holding only buzz
     When a notification for phone.other is queued
