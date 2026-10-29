@@ -1,17 +1,14 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
-import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
-import 'package:crypton/crypton.dart';
-import 'package:encrypt/encrypt.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
+/// Scenarios: features/enrollment/keys_verb_own_encryption_keys.feature
 void main() {
   OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
   OutboundConnectionFactory secondAtSignConnection =
@@ -35,6 +32,16 @@ void main() {
         at_demos.encryptionPublicKeyMap[firstAtSign]!)
   };
 
+  String privateKeyOf(String id) =>
+      '$id.default_enc_private_key.__manage$firstAtSign';
+  String selfKeyOf(String id) =>
+      '$id.default_self_enc_key.__manage$firstAtSign';
+
+  /// The error code in [response], written plain or as JSON.
+  String? errorCodeOf(String response) => response.startsWith('error:')
+      ? RegExp(r'AT\d{4}').firstMatch(response)?.group(0)
+      : null;
+
   setUp(() async {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
@@ -42,299 +49,129 @@ void main() {
         firstAtSign, firstAtSignHost, firstAtSignPort);
   });
 
-  group('A group of tests to verify keys verb test', () {
-    test(
-        'check keys verb put operation - enroll request on authenticated connection',
-        () async {
-      await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.cram);
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${mintApkamKeys().publicKey}"}';
+  /// Enrols over an OTP from a CRAM-authenticated first connection, approves
+  /// it there, which stores its two keys, and authenticates the second
+  /// connection as it. Returns the enrollment's id and the first
+  /// connection's own enrollment id.
+  Future<(String, String)> approvedEnrollment() async {
+    await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
+    final String firstResponse = (await firstAtSignConnection.sendRequestToServer(
+            'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${mintApkamKeys().publicKey}"}'))
+        .replaceFirst('data:', '');
+    final String firstEnrollmentId = jsonDecode(firstResponse)['enrollmentId'];
+    final String otp =
+        (await firstAtSignConnection.sendRequestToServer('otp:get'))
+            .replaceFirst('data:', '')
+            .trim();
 
-      String enrollResponse =
-          await firstAtSignConnection.sendRequestToServer(enrollRequest);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-      expect(enrollmentId, isNotEmpty);
-      expect(enrollJsonMap['status'], 'approved');
-      var encryptionPublicKey = encryptionPublicKeyMap[firstAtSign];
+    final ApkamKeys keys = mintApkamKeys();
+    final String enrollResponse = (await secondAtSignConnection.sendRequestToServer(
+            'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${keys.publicKey}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}'))
+        .replaceFirst('data:', '');
+    final String enrollmentId = jsonDecode(enrollResponse)['enrollmentId'];
 
-      //1. put encryption public key
-      var keysPutPublicEncryptionKeyCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollmentId $encryptionPublicKey';
-      String publicKeyPutResponse = await firstAtSignConnection
-          .sendRequestToServer(keysPutPublicEncryptionKeyCommand);
-      expect(publicKeyPutResponse, 'data:-1');
+    final String approveResponse = (await firstAtSignConnection.sendRequestToServer(
+            'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+        .replaceFirst('data:', '');
+    expect(jsonDecode(approveResponse)['status'], 'approved');
 
-      //2. put self symmetric key which is encrypted with encryption public key
-      var aesKey = AES(Key.fromSecureRandom(32)).key.base64;
-      var rsaPublicKey = RSAPublicKey.fromString(encryptionPublicKey!);
-      var encryptedAESKey = rsaPublicKey.encrypt(aesKey);
-      var selfSymmetricKeyCommand =
-          'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$enrollmentId:keyName:myAESkey $encryptedAESKey';
-      String selfKeyPutResponse = await firstAtSignConnection
-          .sendRequestToServer(selfSymmetricKeyCommand);
-      expect(selfKeyPutResponse, 'data:-1');
+    await secondAtSignConnection.authenticateConnection(
+        authType: AuthType.apkam,
+        enrollmentId: enrollmentId,
+        privateKey: keys.privateKey);
+    return (enrollmentId, firstEnrollmentId);
+  }
 
-      //3. put encryption private key which is encrypted with self symmetric key
-      var rsaPrivateKey = encryptionPrivateKeyMap[firstAtSign];
-      var encryptedPrivateKey = Encrypter(AES(Key.fromBase64(aesKey)))
-          .encrypt(rsaPrivateKey!, iv: IV(Uint8List(16)))
-          .base64;
-      var privateKeyCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:myAESkey:keyName:myPrivateKey $encryptedPrivateKey';
-      String privateKeyPutResponse =
-          await firstAtSignConnection.sendRequestToServer(privateKeyCommand);
-      expect(privateKeyPutResponse, 'data:-1');
+  group('An enrollment reads its own encryption key by keyName', () {
+    test('encryption private key', () async {
+      final (String e, _) = await approvedEnrollment();
 
-      //4. test keys:get:public
-      var getPublicKeysResponse =
-          await firstAtSignConnection.sendRequestToServer('keys:get:public');
-      getPublicKeysResponse = getPublicKeysResponse.replaceFirst('data:', '');
-      var getPublicKeysResponseJson = jsonDecode(getPublicKeysResponse);
-      expect(getPublicKeysResponseJson.length, greaterThanOrEqualTo(1));
+      final String response = await secondAtSignConnection
+          .sendRequestToServer('keys:get:keyName:${privateKeyOf(e)}');
 
-      // 5. test keys:get:publicKey value
-      var publicKeyGetCommand =
-          'keys:get:keyName:public:encryption_$enrollmentId.__public_keys.__global$firstAtSign';
-      String getPublicKeyResponse =
-          await firstAtSignConnection.sendRequestToServer(publicKeyGetCommand);
-      getPublicKeyResponse = getPublicKeyResponse.replaceFirst('data:', '');
-      var getPublicKeyResponseJson = jsonDecode(getPublicKeyResponse);
-
-      expect(getPublicKeyResponseJson['value'], encryptionPublicKey);
-      expect(getPublicKeyResponseJson['keyType'], 'rsa2048');
-      expect(getPublicKeyResponseJson['enrollmentId'], enrollmentId);
-
-      //6. test keys:get:self
-      var getSelfKeysResponse =
-          await firstAtSignConnection.sendRequestToServer('keys:get:self');
-      getSelfKeysResponse = getSelfKeysResponse.replaceFirst('data:', '');
-      var getSelfKeysResponseJson = jsonDecode(getSelfKeysResponse);
-      expect(getSelfKeysResponseJson.length, greaterThanOrEqualTo(1));
-
-      // 7. test keys:get:selfKey value
-      var selfKeyGetCommand =
-          'keys:get:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtSign';
-      String getselfKeyResponse =
-          await firstAtSignConnection.sendRequestToServer(selfKeyGetCommand);
-      getselfKeyResponse = getselfKeyResponse.replaceFirst('data:', '');
-      var getselfKeyResponseJson = jsonDecode(getselfKeyResponse);
-
-      expect(getselfKeyResponseJson['value'], encryptedAESKey);
-      expect(getselfKeyResponseJson['keyType'], 'aes256');
-      expect(getselfKeyResponseJson['enrollmentId'], enrollmentId);
-      expect(getselfKeyResponseJson['encryptionKeyName'],
-          'encryption_$enrollmentId');
-
-      //8. test keys:get:private
-      String getPrivateKeysResponse =
-          await firstAtSignConnection.sendRequestToServer('keys:get:private');
-      getPrivateKeysResponse = getPrivateKeysResponse.replaceFirst('data:', '');
-      var getPrivateKeysResponseJson = jsonDecode(getPrivateKeysResponse);
-      expect(getPrivateKeysResponseJson.length, greaterThanOrEqualTo(1));
-
-      // 9. test keys:get:private:key
-      String privateKeyGetCommand =
-          'keys:get:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtSign';
-      String getprivateKeyResponse =
-          await firstAtSignConnection.sendRequestToServer(privateKeyGetCommand);
-      getprivateKeyResponse = getprivateKeyResponse.replaceFirst('data:', '');
-      var getprivateKeyResponseJson = jsonDecode(getprivateKeyResponse);
-
-      expect(getprivateKeyResponseJson['value'], encryptedPrivateKey);
-      expect(getprivateKeyResponseJson['keyType'], 'aes');
-      expect(getprivateKeyResponseJson['enrollmentId'], enrollmentId);
-      expect(getprivateKeyResponseJson['encryptionKeyName'], 'myAESkey');
-
-      // delete the public key and check if it is deleted
-      String deletePublicKeyResponse =
-          await firstAtSignConnection.sendRequestToServer(
-              'keys:delete:keyName:public:encryption_$enrollmentId.__public_keys.__global$firstAtSign');
-      expect(deletePublicKeyResponse, 'data:-1');
-
-      // delete the private key and check if it is deleted
-      String deletePrivateKeyResponse =
-          await firstAtSignConnection.sendRequestToServer(
-              'keys:delete:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtSign');
-      expect(deletePrivateKeyResponse, 'data:-1');
-
-      // delete the self key and check if it is deleted
-      var deleteSelfKeyResponse = await firstAtSignConnection.sendRequestToServer(
-          'keys:delete:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtSign');
-      expect(deleteSelfKeyResponse, 'data:-1');
+      expect(jsonDecode(response.replaceFirst('data:', ''))['value'],
+          apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']);
     });
 
-    test(
-        'check keys verb put operation - enroll request on a second authenticated connection using otp',
-        () async {
-      await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.cram);
+    test('self encryption key', () async {
+      final (String e, _) = await approvedEnrollment();
 
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${mintApkamKeys().publicKey}"}';
-      String enrollResponse =
-          await firstAtSignConnection.sendRequestToServer(enrollRequest);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'approved');
+      final String response = await secondAtSignConnection
+          .sendRequestToServer('keys:get:keyName:${selfKeyOf(e)}');
 
-      var otpRequest = 'otp:get';
-      String otpResponse =
-          await firstAtSignConnection.sendRequestToServer(otpRequest);
-      otpResponse = otpResponse.replaceFirst('data:', '');
-      otpResponse = otpResponse.trim();
-
-      //send second enroll request with otp
-      ApkamKeys secondKeys = mintApkamKeys();
-      var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${secondKeys.publicKey}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
-      String secondEnrollResponse =
-          await secondAtSignConnection.sendRequestToServer(secondEnrollRequest);
-      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
-      var enrollJson = jsonDecode(secondEnrollResponse);
-      expect(enrollJson['enrollmentId'], isNotEmpty);
-      expect(enrollJson['status'], 'pending');
-      var secondEnrollId = enrollJson['enrollmentId'];
-
-      // connect to the first client to approve the enroll request
-      var approveResponse = await firstAtSignConnection.sendRequestToServer(
-          'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
-      approveResponse = approveResponse.replaceFirst('data:', '');
-      var approveJson = jsonDecode(approveResponse);
-      expect(approveJson['status'], 'approved');
-      expect(approveJson['enrollmentId'], secondEnrollId);
-
-      // connect to the second client to do an apkam
-      await secondAtSignConnection.authenticateConnection(
-          authType: AuthType.apkam,
-          enrollmentId: secondEnrollId,
-          privateKey: secondKeys.privateKey);
-      var encryptionPublicKey = encryptionPublicKeyMap[firstAtSign];
-
-      //1. put encryption public key
-      var keysPutPublicEncryptionKeyCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$secondEnrollId $encryptionPublicKey';
-      String publicKeyPutResponse = await secondAtSignConnection
-          .sendRequestToServer(keysPutPublicEncryptionKeyCommand);
-      expect(publicKeyPutResponse, 'data:-1');
-
-      //2. put self symmetric key which is encrypted with encryption public key
-      var aesKey = AES(Key.fromSecureRandom(32)).key.base64;
-
-      var rsaPublicKey = RSAPublicKey.fromString(encryptionPublicKey!);
-      var encryptedAESKey = rsaPublicKey.encrypt(aesKey);
-      var selfSymmetricKeyCommand =
-          'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$secondEnrollId:keyName:myAESkey $encryptedAESKey';
-      var selfKeyPutResponse = await secondAtSignConnection
-          .sendRequestToServer(selfSymmetricKeyCommand);
-      expect(selfKeyPutResponse, 'data:-1');
-
-      //3. put encryption private key which is encrypted with self symmetric key
-      var rsaPrivateKey = encryptionPrivateKeyMap[firstAtSign];
-      var encryptedPrivateKey = Encrypter(AES(Key.fromBase64(aesKey)))
-          .encrypt(rsaPrivateKey!, iv: IV(Uint8List(16)))
-          .base64;
-      var privateKeyCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:myAESkey:keyName:myPrivateKey $encryptedPrivateKey';
-      String privateKeyPutResponse =
-          await secondAtSignConnection.sendRequestToServer(privateKeyCommand);
-      expect(privateKeyPutResponse, 'data:-1');
-
-      //4. test keys:get:public
-      String getPublicKeysResponse =
-          await secondAtSignConnection.sendRequestToServer('keys:get:public');
-      getPublicKeysResponse = getPublicKeysResponse.replaceFirst('data:', '');
-      var getPublicKeysResponseJson = jsonDecode(getPublicKeysResponse);
-      expect(getPublicKeysResponseJson.length, greaterThanOrEqualTo(1));
-
-      // 5. test keys:get:publicKey value
-      var publicKeyGetCommand =
-          'keys:get:keyName:public:encryption_$secondEnrollId.__public_keys.__global$firstAtSign';
-      String getPublicKeyResponse =
-          await secondAtSignConnection.sendRequestToServer(publicKeyGetCommand);
-      getPublicKeyResponse = getPublicKeyResponse.replaceFirst('data:', '');
-      var getPublicKeyResponseJson = jsonDecode(getPublicKeyResponse);
-
-      expect(getPublicKeyResponseJson['value'], encryptionPublicKey);
-      expect(getPublicKeyResponseJson['keyType'], 'rsa2048');
-      expect(getPublicKeyResponseJson['enrollmentId'], secondEnrollId);
-
-      //6. test keys:get:self
-      String getSelfKeysResponse =
-          await secondAtSignConnection.sendRequestToServer('keys:get:self');
-      getSelfKeysResponse = getSelfKeysResponse.replaceFirst('data:', '');
-      var getSelfKeysResponseJson = jsonDecode(getSelfKeysResponse);
-      expect(getSelfKeysResponseJson.length, greaterThanOrEqualTo(1));
-
-      // 7. test keys:get:selfKey value
-      var selfKeyGetCommand =
-          'keys:get:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtSign';
-      String getselfKeyResponse =
-          await secondAtSignConnection.sendRequestToServer(selfKeyGetCommand);
-      getselfKeyResponse = getselfKeyResponse.replaceFirst('data:', '');
-      var getselfKeyResponseJson = jsonDecode(getselfKeyResponse);
-
-      expect(getselfKeyResponseJson['value'], encryptedAESKey);
-      expect(getselfKeyResponseJson['keyType'], 'aes256');
-      expect(getselfKeyResponseJson['enrollmentId'], secondEnrollId);
-      expect(getselfKeyResponseJson['encryptionKeyName'],
-          'encryption_$secondEnrollId');
-
-      //8. test keys:get:private
-      var getPrivateKeysResponse =
-          await secondAtSignConnection.sendRequestToServer('keys:get:private');
-      getPrivateKeysResponse = getPrivateKeysResponse.replaceFirst('data:', '');
-      var getPrivateKeysResponseJson = jsonDecode(getPrivateKeysResponse);
-      expect(getPrivateKeysResponseJson.length, greaterThanOrEqualTo(1));
-
-      // 9. test keys:get:private key value
-      var privateKeyGetCommand =
-          'keys:get:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtSign';
-      String getprivateKeyResponse = await secondAtSignConnection
-          .sendRequestToServer(privateKeyGetCommand);
-      getprivateKeyResponse = getprivateKeyResponse.replaceFirst('data:', '');
-      var getprivateKeyResponseJson = jsonDecode(getprivateKeyResponse);
-
-      expect(getprivateKeyResponseJson['value'], encryptedPrivateKey);
-      expect(getprivateKeyResponseJson['keyType'], 'aes');
-      expect(getprivateKeyResponseJson['enrollmentId'], secondEnrollId);
-      expect(getprivateKeyResponseJson['encryptionKeyName'], 'myAESkey');
-
-      // delete the public key and check if it is deleted
-      var deletePublicKeyResponse =
-          await secondAtSignConnection.sendRequestToServer(
-              'keys:delete:keyName:public:encryption_$secondEnrollId.__public_keys.__global$firstAtSign');
-      expect(deletePublicKeyResponse, 'data:-1');
-
-      // delete the private key and check if it is deleted
-      var deletePrivateKeyResponse =
-          await secondAtSignConnection.sendRequestToServer(
-              'keys:delete:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtSign');
-      expect(deletePrivateKeyResponse, 'data:-1');
-
-      // delete the self key and check if it is deleted
-      var deleteSelfKeyResponse = await secondAtSignConnection.sendRequestToServer(
-          'keys:delete:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtSign');
-      expect(deleteSelfKeyResponse, 'data:-1');
+      expect(jsonDecode(response.replaceFirst('data:', ''))['value'],
+          apkamEncryptedKeysMap['encryptedSelfEncKey']);
     });
+  });
 
-    test('check keys verb get operation - without authentication', () async {
-      var getResponse =
-          await firstAtSignConnection.sendRequestToServer('keys:get:self');
-      expect(getResponse,
-          'error:AT0401-Exception: Command cannot be executed without auth');
-    });
+  test(
+      'Every other keys: request is refused before the store is read or '
+      'written', () async {
+    final (String e, String f) = await approvedEnrollment();
+    final List<String> requests = [
+      'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$e planted',
+      'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$e:keyName:myAESkey planted',
+      'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:myAESkey:keyName:myPrivateKey planted',
+      'keys:put:public:namespace:app:keyName:__nskey planted',
+      'keys:delete:keyName:${privateKeyOf(e)}',
+      'keys:get:private',
+      'keys:get:self',
+      'keys:get:public',
+      'keys:get:keyName:${privateKeyOf(f)}',
+      'keys:get:keyName:privatekey:at_secret',
+      'keys:get:self:keyName:${selfKeyOf(e)}',
+      'keys:get:namespace:__global:keyName:${selfKeyOf(e)}',
+      'keys:get:keyName:${privateKeyOf(e)} planted',
+    ];
+    for (final String request in requests) {
+      expect(
+          errorCodeOf(
+              await secondAtSignConnection.sendRequestToServer(request)),
+          'AT0009',
+          reason: request);
+    }
 
-    test('check keys verb put operation - without authentication', () async {
-      var putCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_12344444 testPublicKeyValue';
-      var putResponse =
-          await firstAtSignConnection.sendRequestToServer(putCommand);
-      expect(putResponse,
-          'error:AT0401-Exception: Command cannot be executed without auth');
-    });
+    for (final String key in [
+      'public:encryption_$e.__public_keys.__global$firstAtSign',
+      'public:__nskey.__public_keys.app$firstAtSign',
+    ]) {
+      expect(
+          errorCodeOf(
+              await firstAtSignConnection.sendRequestToServer('llookup:$key')),
+          'AT0015',
+          reason: '$key is not stored');
+    }
+    final String stillThere = await secondAtSignConnection
+        .sendRequestToServer('keys:get:keyName:${privateKeyOf(e)}');
+    expect(jsonDecode(stillThere.replaceFirst('data:', ''))['value'],
+        apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey'],
+        reason: 'the refused keys:delete deleted nothing');
+  });
+
+  test('A connection carrying no enrollment id is refused', () async {
+    await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
+
+    final String response = await firstAtSignConnection
+        .sendRequestToServer('keys:get:keyName:${selfKeyOf(Uuid().v4())}');
+
+    expect(response, startsWith('error:'));
+    expect(response,
+        contains('Keys verb cannot be accessed without an enrollmentId'));
+  });
+
+  test('check keys verb get operation - without authentication', () async {
+    var getResponse =
+        await firstAtSignConnection.sendRequestToServer('keys:get:self');
+    expect(getResponse,
+        'error:AT0401-Exception: Command cannot be executed without auth');
+  });
+
+  test('check keys verb put operation - without authentication', () async {
+    var putCommand =
+        'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_12344444 testPublicKeyValue';
+    var putResponse =
+        await firstAtSignConnection.sendRequestToServer(putCommand);
+    expect(putResponse,
+        'error:AT0401-Exception: Command cannot be executed without auth');
   });
 }

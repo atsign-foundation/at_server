@@ -90,10 +90,14 @@ void main() {
               'connection carrying none has nowhere to look');
 
       asRoot();
-      final r = await run(handler, 'keys:get:self');
+      final String rootId = etu.primaryEnId;
+      await keyValueStore.put(enMgr.keyForSEK(rootId),
+          AtData()..data = jsonEncode({'value': 'root self key'}));
+      final r = await run(handler,
+          'keys:get:keyName:$rootId.default_self_enc_key.__manage$alice');
       expect(r.isError, isFalse, reason: r.errorMessage);
-      expect(jsonDecode(r.data!), isA<List>(),
-          reason: 'an enrollment holding __manage is admitted');
+      expect(jsonDecode(r.data!)['value'], 'root self key',
+          reason: 'an enrollment is admitted to its own encryption keys');
     });
   });
 

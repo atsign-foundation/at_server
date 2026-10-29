@@ -255,10 +255,6 @@ void main() {
     // 9. Assert that the scan verb does NOT return the key with __manage namespace
     // 10. Assert that the enroll:list verb returns the enrollment key
     // 11. Assert that the llookup verb on the enrollment key fails
-    // 12. Assert that the keys:get:self verb returns the default self encryption key
-    // 13. Assert that the keys:get:private verb returns the default encryption private key
-    // 14. Assert that the keys:get:selfKeyName verb returns the default self encryption key
-    // 15. Assert that the keys:get:privateKeyName verb returns the default encryption private key
     test('enroll request on CRAM authenticated connection and encryption keys',
         () async {
       await firstAtSignConnection.authenticateConnection(
@@ -422,12 +418,18 @@ void main() {
           enrollmentId: secondEnrollId,
           privateKey: secondKeys.privateKey);
 
-      // keys:get:self should return default self encryption key
-      var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
-      String selfKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:self');
-      expect(selfKeyResponse.contains(selfKey), true);
+      // keys: answers the enrollment's own two keys by name, and lists none
+      for (final String listing in [
+        'keys:get:self',
+        'keys:get:private',
+        'keys:get:public'
+      ]) {
+        expect(await socketConnection2.sendRequestToServer(listing),
+            contains('AT0009'),
+            reason: listing);
+      }
 
+      var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
       String selfKeyGetResponse = await socketConnection2
           .sendRequestToServer('keys:get:keyName:$selfKey');
       selfKeyGetResponse = selfKeyGetResponse.replaceFirst('data:', '');
@@ -436,12 +438,8 @@ void main() {
           apkamEncryptedKeysMap['encryptedSelfEncKey']);
       expect(selfKeyResponseJson['iv'], selfEncryptionKeyIV);
 
-      // keys:get:private should return private encryption key
       var privateKey =
           '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
-      String privateKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:private');
-      expect(privateKeyResponse.contains(privateKey), true);
       String privateKeyGetResponse = await socketConnection2
           .sendRequestToServer('keys:get:keyName:$privateKey');
       privateKeyGetResponse = privateKeyGetResponse.replaceFirst('data:', '');

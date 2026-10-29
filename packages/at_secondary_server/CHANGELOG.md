@@ -1,4 +1,12 @@
 # 3.20.0
+- ⚠️ BREAKING: `keys:` answers only an enrollment's own two encryption
+  keys, `keys:get:keyName:<enrollmentId>.default_enc_private_key.__manage@<atSign>`
+  and `keys:get:keyName:<enrollmentId>.default_self_enc_key.__manage@<atSign>`,
+  on a connection authenticated as that enrollment. Every other `keys:`
+  request is refused with AT0009: `keys:put`, `keys:delete`, the
+  `keys:get:private`, `keys:get:self` and `keys:get:public` listings, and a
+  `keys:get` of any other key.
+
 - ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
   `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
   Without a ttl an OTP still lives 5 minutes, or the maximum if that is

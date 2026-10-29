@@ -1320,8 +1320,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Stores the encrypted default encryption private key and the encrypted
-  /// self encryption key against the enrollment's `__manage` keys, which an
-  /// approving app reads to convey the keys to a new enrolling app.
+  /// self encryption key, as enroll:approve carries them, under the
+  /// enrollment's `__manage` keys. The enrollment itself reads them with
+  /// `keys:get` on a connection authenticated as it.
   ///
   /// Both expire at [expiresAt], the moment the approval ends the
   /// enrollment, or never when it is null.

@@ -10,7 +10,6 @@ import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -938,24 +937,6 @@ void main() {
         release.complete();
         await held;
       }
-    });
-
-    test(
-        'a keys:delete of B\'s _apsk waits for an enrollment write in '
-        'progress, and then removes it', () async {
-      await put(b, jsonEncode({...k1AndK2, 'enrollmentId': b}));
-      final Completer<void> release = Completer<void>();
-      final Future<void> held = enMgr.serialiseMutation(() => release.future);
-      connectAs(b);
-      final Future<void> deleting = KeysVerbHandler(keyValueStore, enMgr, alice)
-          .process('keys:delete:keyName:${apskKey(b)}', inboundConnection);
-      await Future.delayed(Duration(milliseconds: 50));
-      expect(await keyValueStore.exists(apskKey(b)), true,
-          reason: 'the keys:delete has not removed it while the lock is held');
-      release.complete();
-      await held;
-      await deleting;
-      expect(await keyValueStore.exists(apskKey(b)), false);
     });
 
     /// Sends an `enroll:link` for K1 and [removeK1] while an enrollment write
