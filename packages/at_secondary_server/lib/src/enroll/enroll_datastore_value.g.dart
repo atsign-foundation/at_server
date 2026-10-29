@@ -28,6 +28,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
           json['encryptedAPKAMSymmetricKey'] as String?
       ..apkamKeysExpiryDuration =
           Duration(milliseconds: json['apkamKeysExpiryInMillis'] ?? 0)
+      .._keyHolder = json['keyHolder'] == true
       ..metadata = (json['metadata'] as Map<String, dynamic>?)
       ..signingAlgo = json['signingAlgo'] as String?
       ..apsk = (json['apsk'] as Map<String, dynamic>?)
@@ -53,6 +54,7 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       'apkamKeysExpiryInMillis':
           instance.apkamKeysExpiryDuration.inMilliseconds,
       if (instance.metadata != null) 'metadata': instance.metadata,
+      if (instance.keyHolder) 'keyHolder': true,
       if (instance.signingAlgo != null) 'signingAlgo': instance.signingAlgo,
       if (instance.apsk != null) 'apsk': instance.apsk,
       if (instance.apskLegacy != null) 'apskLegacy': instance.apskLegacy,

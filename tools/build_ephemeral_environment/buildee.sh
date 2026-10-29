@@ -4,7 +4,7 @@
 # tree, rather than pulling the published atsigncompany/ephemeral image.
 #
 # runee.sh and docker-compose.yaml both name atsigncompany/ephemeral:latest,
-# which CI builds from the most recent release tag. Anyone testing a change to
+# which CI publishes for each production release. Anyone testing a change to
 # the atServer or the atDirectory needs an image built from the branch they are
 # on, and needs to be able to prove that is what they got.
 #

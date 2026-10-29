@@ -1,10 +1,26 @@
-FROM atsigncompany/secondary:canary
+# VERSION is the release being promoted, such as 3.19.0
+ARG VERSION
+FROM atsigncompany/secondary:canary-c${VERSION} AS canary
+
+# Prod reports the canary's version without the +c<tag> suffix the canary build
+# adds. The canary image has no shell, so the edit happens in this stage.
+FROM --platform=$BUILDPLATFORM debian:stable-20261020-slim@sha256:a717a33469731894e77e912ea7d714e27c2dc38ee6554fd1a3102e92999cfc66 AS version
+ARG VERSION
+COPY --from=canary /atsign/pubspec.yaml /pubspec.yaml
+RUN \
+  if ! grep -Fqx "version: ${VERSION}+c${VERSION}" /pubspec.yaml; then \
+    echo "Expected version: ${VERSION}+c${VERSION}, found $(grep '^version:' /pubspec.yaml)" ; \
+    exit 1 ; \
+  fi && \
+  sed -i "0,/^version:/ s/^version:.*/version: ${VERSION}/" /pubspec.yaml && \
+  grep '^version:' /pubspec.yaml
+
+FROM canary
 ENV HOMEDIR=/atsign
-# Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
-## sudo docker build -t atsigncompany/secondary \
+## docker buildx build --build-arg VERSION=3.19.0 -t atsigncompany/secondary \
 ## -f tools/build_secondary/Dockerfile.canary_to_prod .
-COPY --chown=1024:1024 ./packages/at_secondary_server/pubspec.yaml $HOMEDIR/
+COPY --from=version --chown=1024:1024 /pubspec.yaml $HOMEDIR/
 WORKDIR /atsign
 USER atsign
 

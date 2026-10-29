@@ -33,6 +33,10 @@ class EnrollmentRevocationEvent {
   /// revoking that one; null when [enrollmentId] is what the operator named.
   final String? cascadedFrom;
 
+  /// [enrollmentId]'s `keyHolder` mark at that moment, read off its record;
+  /// null for an event recorded before the mark existed.
+  final bool? keyHolder;
+
   EnrollmentRevocationEvent({
     required this.type,
     required this.enrollmentId,
@@ -40,6 +44,7 @@ class EnrollmentRevocationEvent {
     required this.namespaces,
     required this.byEnrollmentId,
     required this.cascadedFrom,
+    required this.keyHolder,
   });
 
   /// Throws [FormatException] on anything it cannot read as an event,
@@ -69,6 +74,7 @@ class EnrollmentRevocationEvent {
           <String, String>{},
       byEnrollmentId: json['byEnrollmentId'] as String?,
       cascadedFrom: json['cascadedFrom'] as String?,
+      keyHolder: json['keyHolder'] is bool ? json['keyHolder'] as bool : null,
     );
   }
 
@@ -81,9 +87,11 @@ class EnrollmentRevocationEvent {
         'namespaces': namespaces,
         if (byEnrollmentId != null) 'byEnrollmentId': byEnrollmentId,
         if (cascadedFrom != null) 'cascadedFrom': cascadedFrom,
+        if (keyHolder != null) 'keyHolder': keyHolder,
       };
 
   @override
   String toString() => 'EnrollmentRevocationEvent(${type.name} $enrollmentId '
-      'at $at by $byEnrollmentId cascadedFrom $cascadedFrom)';
+      'at $at by $byEnrollmentId cascadedFrom $cascadedFrom '
+      'keyHolder $keyHolder)';
 }

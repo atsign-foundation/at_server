@@ -212,6 +212,22 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     });
   }
 
+  /// Runs [write], which stores [result], so that a write of this atSign's
+  /// namespace-key advertisement over a connection carrying an enrollment id
+  /// first marks that enrollment; see [EnrollmentManager.writeAsKeyHolder].
+  /// Any other write runs as it stands.
+  Future<T> markingKeyHolder<T>(UpdatePreProcessResult result,
+      InboundConnectionMetadata md, Future<T> Function() write) {
+    final String? enrollmentId = md.enrollmentId;
+    if (enrollmentId == null ||
+        !EnrollmentManager.isNamespaceKeyAdvertisement(result.atKey, atSign)) {
+      return write();
+    }
+    return AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .writeAsKeyHolder(enrollmentId, write);
+  }
+
   /// Queues the auto-notification for a write that has already succeeded,
   /// reading the metadata back so the notification carries what was stored,
   /// client-asserted timestamps included.

@@ -62,7 +62,8 @@ class ETU {
   }
 
   /// [apsk] is the client-composed signing-key value and [apskLegacy] the bare
-  /// RSA string a plain-legacy enrollment publishes instead.
+  /// RSA string a plain-legacy enrollment publishes instead; [metadata] is
+  /// the request's opaque metadata.
   Future<String> createPendingEnrollment(
       {required String appName,
       required String deviceName,
@@ -71,7 +72,8 @@ class ETU {
       Map<String, dynamic>? apsk,
       String? apskLegacy,
       String? apkamPublicKey,
-      String? signingAlgo}) async {
+      String? signingAlgo,
+      Map<String, dynamic>? metadata}) async {
     final EnrollParams ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
@@ -84,6 +86,7 @@ class ETU {
       ..apkamKeysExpiryDuration = apkamKeysExpiryDuration
       ..apsk = apsk
       ..apskLegacy = apskLegacy
+      ..metadata = metadata
       ..otp = await getOtp();
 
     final String enrollmentRequest = 'enroll:request:'

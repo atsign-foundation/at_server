@@ -195,6 +195,34 @@ void main() {
               'un-revoke landed');
     });
 
+    test('keyHolder round-trips under its at-rest name, and a record never '
+        'marked omits it', () {
+      // ⚠️ AT-REST PIN on the raw field name; frozen for stored records.
+      final marked = EnrollDataStoreValue('123', 'testclient', 'iphone', 'k')
+        ..markKeyHolder();
+      expect(marked.toJson()['keyHolder'], true);
+      expect(EnrollDataStoreValue.fromJson(marked.toJson()).keyHolder, isTrue);
+
+      final unmarked = EnrollDataStoreValue('123', 'testclient', 'iphone', 'k');
+      expect(unmarked.toJson().containsKey('keyHolder'), false);
+      expect(
+          EnrollDataStoreValue.fromJson(unmarked.toJson()).keyHolder, isFalse);
+    });
+
+    test('a key package in the metadata marks the record, and replacing the '
+        'metadata does not clear the mark', () {
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'k')
+        ..metadata = {
+          'keyPackage': {'kid': 'kp-1'}
+        };
+      expect(v.toJson()['keyHolder'], true);
+
+      v.metadata = {'note': 'no key package'};
+
+      expect(v.keyHolder, isTrue);
+      expect(EnrollDataStoreValue.fromJson(v.toJson()).keyHolder, isTrue);
+    });
+
     test('every record written carries recordVersion 1, and one written '
         'before the field reads as version 0', () {
       // ⚠️ AT-REST PIN on the raw field name and value: a later change to

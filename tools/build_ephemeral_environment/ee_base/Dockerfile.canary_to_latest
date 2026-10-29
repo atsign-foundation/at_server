@@ -1,0 +1,22 @@
+# VERSION is the release being promoted, such as 3.19.0
+ARG VERSION
+FROM atsigncompany/ephemeral:canary-c${VERSION} AS canary
+
+# latest reports the canary's version without the +c<tag> suffix the canary
+# build adds
+FROM --platform=$BUILDPLATFORM debian:stable-20261020-slim@sha256:a717a33469731894e77e912ea7d714e27c2dc38ee6554fd1a3102e92999cfc66 AS version
+ARG VERSION
+COPY --from=canary /atsign/secondary/pubspec.yaml /pubspec.yaml
+RUN \
+  if ! grep -Fqx "version: ${VERSION}+c${VERSION}" /pubspec.yaml; then \
+    echo "Expected version: ${VERSION}+c${VERSION}, found $(grep '^version:' /pubspec.yaml)" ; \
+    exit 1 ; \
+  fi && \
+  sed -i "0,/^version:/ s/^version:.*/version: ${VERSION}/" /pubspec.yaml && \
+  grep '^version:' /pubspec.yaml
+
+FROM canary
+# If building manually then (from the repo root):
+## docker buildx build --build-arg VERSION=3.19.0 -t atsigncompany/ephemeral \
+## -f tools/build_ephemeral_environment/ee_base/Dockerfile.canary_to_latest .
+COPY --from=version --chown=atsign:atsign /pubspec.yaml /atsign/secondary/

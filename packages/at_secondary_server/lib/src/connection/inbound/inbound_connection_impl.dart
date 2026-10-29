@@ -156,6 +156,10 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   @visibleForTesting
   int get heldBytes => _writes.heldBytes;
 
+  /// Whether the transport is taking writes now.
+  @visibleForTesting
+  bool get transportTakingWrites => _writes.takingWrites;
+
   @override
   Future<void> write(String data) async {
     if (isInValid()) {

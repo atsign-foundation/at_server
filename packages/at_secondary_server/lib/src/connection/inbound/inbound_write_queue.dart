@@ -60,6 +60,10 @@ class InboundWriteQueue<T> {
   /// How many bytes are held for the connection outside the queue.
   int get heldBytes => _heldBytes;
 
+  /// Whether the transport is bound and not paused, so a write is handed to
+  /// it at once.
+  bool get takingWrites => _out.hasListener && !_out.isPaused;
+
   /// What the transport's binding becomes once it ends, or null before the
   /// first [bindOnce].
   Future<void>? get transport => _transport;
