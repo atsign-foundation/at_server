@@ -971,10 +971,31 @@ class EnrollmentManager {
   ///
   /// An un-revoke withdraws a revocation here, so the value can move
   /// BACKWARDS: a client must ask whether it changed, not whether it grew.
-  Future<DateTime?> lastRevocationForNamespace(String namespace) async {
+  Future<DateTime?> lastRevocationForNamespace(String namespace) async =>
+      _lastRevocationIn(await revocationEvents(), namespace);
+
+  /// [lastRevocationForNamespace] as `lastRevokedAt`, and as
+  /// `lastKeyHolderRevokedAt` the same answer over only the revocations of
+  /// an enrollment marked `keyHolder`, or recorded before the mark existed;
+  /// both from one read of the history.
+  Future<({DateTime? lastRevokedAt, DateTime? lastKeyHolderRevokedAt})>
+      revocationMomentsForNamespace(String namespace) async {
+    final List<EnrollmentRevocationEvent> events = await revocationEvents();
+    return (
+      lastRevokedAt: _lastRevocationIn(events, namespace),
+      lastKeyHolderRevokedAt: _lastRevocationIn(
+          events.where((e) =>
+              e.type == EnrollmentRevocationEventType.unrevoked ||
+              e.keyHolder != false),
+          namespace),
+    );
+  }
+
+  DateTime? _lastRevocationIn(
+      Iterable<EnrollmentRevocationEvent> events, String namespace) {
     final Map<String, EnrollmentRevocationEvent> lastRevoke = {};
     final Map<String, DateTime> lastUnrevoke = {};
-    for (final event in await revocationEvents()) {
+    for (final event in events) {
       if (event.type == EnrollmentRevocationEventType.unrevoked) {
         final prev = lastUnrevoke[event.enrollmentId];
         if (prev == null || event.at.isAfter(prev)) {
@@ -1001,6 +1022,54 @@ class EnrollmentManager {
     }
     return latest;
   }
+
+  static const String _advertisementPrefix = 'public:__nskey.';
+
+  /// Whether [atKey] is [atSign]'s namespace-key advertisement,
+  /// `public:__nskey.<namespace>@<atSign>`.
+  static bool isNamespaceKeyAdvertisement(String atKey, String atSign) {
+    final String key = canonicalAtKey(atKey);
+    final String owner = canonicalAtKey(atSign);
+    return key.startsWith(_advertisementPrefix) &&
+        key.endsWith(owner) &&
+        key.length > _advertisementPrefix.length + owner.length;
+  }
+
+  /// Marks enrollment [enrollmentId] `keyHolder`, then runs [write], both
+  /// inside [serialiseMutation].
+  ///
+  /// Throws [UnAuthorizedException], and runs nothing, when [enrollmentId]
+  /// is not approved at that moment.
+  Future<T> writeAsKeyHolder<T>(
+          String enrollmentId, Future<T> Function() write) =>
+      serialiseMutation(() async {
+        final EnrollDataStoreValue value;
+        try {
+          value = await getEnrollmentById(enrollmentId);
+        } on KeyNotFoundException {
+          throw UnAuthorizedException(
+              'Enrollment $enrollmentId no longer exists');
+        }
+        final String? state = value.approval?.state;
+        if (state != EnrollmentStatus.approved.name) {
+          throw UnAuthorizedException(
+              'Enrollment $enrollmentId is $state, not approved');
+        }
+        if (!value.keyHolder) {
+          final AtData record =
+              (await keyStore.get(buildEnrollmentKey(enrollmentId)))!;
+          value.markKeyHolder();
+          record.data = jsonEncode(value.toJson());
+          final DateTime? storedExpiry = record.metaData?.expiresAt;
+          await _writeEnrollmentRecord(enrollmentId, record,
+              assertedTimestamps: storedExpiry == null
+                  ? null
+                  : AtAssertedTimestamps(expiresAt: storedExpiry));
+          logger.info('Enrollment $enrollmentId wrote a namespace-key '
+              'advertisement and is marked keyHolder');
+        }
+        return write();
+      });
 
   /// The at-rest key pattern for a revocation-history record, deliberately
   /// not built on [EnrollmentConstants.enrollmentKeyPattern].
@@ -1285,9 +1354,10 @@ class EnrollmentManager {
       EnrollmentRevocationEventType type =
           EnrollmentRevocationEventType.revoked}) async {
     final List<String> revoked = [];
-    // The grants each one held, captured before the write, because the event
-    // outlives the record they are stored on.
+    // The grants each one held, and its mark, captured before the write,
+    // because the event outlives the record they are stored on.
     final Map<String, Map<String, String>> grantsHeld = {};
+    final Map<String, bool> keyHolders = {};
     final Map<String, AtData> pending = {};
     for (final id in enrollmentIds) {
       final ek = buildEnrollmentKey(id);
@@ -1311,6 +1381,7 @@ class EnrollmentManager {
       value.approval!.state = EnrollmentStatus.revoked.name;
       pending[id] = atData;
       grantsHeld[id] = Map<String, String>.from(value.namespaces);
+      keyHolders[id] = value.keyHolder;
       atData.data = jsonEncode(value.toJson());
       revoked.add(id);
     }
@@ -1326,6 +1397,7 @@ class EnrollmentManager {
           namespaces: grantsHeld[id]!,
           byEnrollmentId: byEnrollmentId,
           cascadedFrom: cascadedFrom,
+          keyHolder: keyHolders[id]!,
         )
     ]);
 

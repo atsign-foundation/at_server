@@ -768,8 +768,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['status'] = newEnrollmentStatus.name;
 
     // The revocation history for the enrollment this command NAMED. Grants
-    // are read off the record BEFORE the write, and recorded on the un-revoke
-    // too.
+    // and the mark are read off the record BEFORE the write, and recorded on
+    // the un-revoke too.
     EnrollmentRevocationEvent? revocationEvent;
     if (operation == 'revoke' || operation == 'unrevoke') {
       revocationEvent = EnrollmentRevocationEvent(
@@ -781,6 +781,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         namespaces: Map<String, String>.from(enVal.namespaces),
         byEnrollmentId: callerId,
         cascadedFrom: null,
+        keyHolder: enVal.keyHolder,
       );
     }
     // A revoke records BEFORE its write and an un-revoke AFTER it.
@@ -1319,8 +1320,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Stores the encrypted default encryption private key and the encrypted
-  /// self encryption key against the enrollment's `__manage` keys, which an
-  /// approving app reads to convey the keys to a new enrolling app.
+  /// self encryption key, as enroll:approve carries them, under the
+  /// enrollment's `__manage` keys. The enrollment itself reads them with
+  /// `keys:get` on a connection authenticated as it.
   ///
   /// Both expire at [expiresAt], the moment the approval ends the
   /// enrollment, or never when it is null.
@@ -1545,7 +1547,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ///
   /// `lastRevokedAt` is present always, null when nothing holding the
   /// namespace has been revoked, and it can move BACKWARDS: compare it for
-  /// inequality rather than ordering it.
+  /// inequality rather than ordering it. `lastKeyHolderRevokedAt` is the same
+  /// over only the enrollments that may have held a namespace private; see
+  /// [EnrollmentManager.revocationMomentsForNamespace].
   Future<String> _fetchNamespaceInfo(
     EnrollmentManager enMgr,
     InboundConnection atConnection,
@@ -1555,9 +1559,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException('namespace is required for enroll:infons');
     }
     await _requireNamespaceAccess(enMgr, atConnection, namespace, 'infons');
-    final DateTime? lastRevokedAt =
-        await enMgr.lastRevocationForNamespace(namespace);
-    return jsonEncode({'lastRevokedAt': lastRevokedAt?.toIso8601String()});
+    final moments = await enMgr.revocationMomentsForNamespace(namespace);
+    return jsonEncode({
+      'lastRevokedAt': moments.lastRevokedAt?.toIso8601String(),
+      'lastKeyHolderRevokedAt':
+          moments.lastKeyHolderRevokedAt?.toIso8601String(),
+    });
   }
 
   /// The gate both namespace-scoped verbs sit behind: an APKAM-authenticated
@@ -1775,7 +1782,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           // NOTE not required when the request advertises a key package:
           // such a client never generates the symmetric key.
           if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty &&
-              enrollParams.metadata?['keyPackage'] == null) {
+              enrollParams.metadata?[EnrollDataStoreValue.keyPackageEntry] ==
+                  null) {
             throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }

@@ -1,4 +1,15 @@
 # 3.20.0
+- ⚠️ BREAKING: `keys:` answers only an enrollment's own two encryption
+  keys, `keys:get:keyName:<enrollmentId>.default_enc_private_key.__manage@<atSign>`
+  and `keys:get:keyName:<enrollmentId>.default_self_enc_key.__manage@<atSign>`,
+  on a connection authenticated as that enrollment. Every other `keys:`
+  request is refused with AT0009: `keys:put`, `keys:delete`, the
+  `keys:get:private`, `keys:get:self` and `keys:get:public` listings, and a
+  `keys:get` of any other key.
+
+- fix: `keys:` refuses a connection whose enrollment has no record, with
+  AT0009.
+
 - ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
   `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
   Without a ttl an OTP still lives 5 minutes, or the maximum if that is
@@ -12,6 +23,18 @@
   An OTP issued with `ttl:0` before this release never expires, so it counts
   until a full-privilege connection finds it with `otp:list` and deletes it
   with `otp:delete`.
+
+- feat: `enroll:infons:<namespace>` also answers `lastKeyHolderRevokedAt`,
+  the last revocation of an enrollment holding the namespace that may have
+  held a namespace private: its record has ever carried a key package, or a
+  connection authenticated as it has written a namespace-key advertisement,
+  `public:__nskey.<namespace>@<atSign>`. The mark is per enrollment: revoking
+  a marked enrollment moves `lastKeyHolderRevokedAt` for every namespace its
+  grants reach. Revocations from before this release count. It is always
+  present, null when nothing qualifies, and can move backwards;
+  `lastRevokedAt` is unchanged. `enroll:list` shows such an enrollment with
+  `keyHolder: true` to a caller that may approve it, and to the enrollment
+  itself.
 
 - feat: an atServer holds at most `connection.http_max_limit` HTTP connections
   at once, 50 by default; a connection beyond that is closed without an

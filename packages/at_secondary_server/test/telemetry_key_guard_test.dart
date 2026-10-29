@@ -115,9 +115,7 @@ void telemetryKeyGuardTests() {
   group('the signing key', () {
     test('is an Ed25519 seed stored as base64, never as JSON', () {
       expect(base64Decode(storedSecret), hasLength(32));
-      expect(() => jsonDecode(storedSecret), throwsFormatException,
-          reason: 'keys:get and keys:delete trust an enrollmentId field in '
-              'a JSON value');
+      expect(() => jsonDecode(storedSecret), throwsFormatException);
     });
 
     test('is reused across boots, and the public record names it', () async {
@@ -236,8 +234,8 @@ void telemetryKeyGuardTests() {
           KeysVerbHandler(keyValueStore, enMgr, alice)
               .process('keys:$operation:keyName:$secretKey', inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
-          reason: 'keys:$operation trusts an enrollmentId in a JSON value, '
-              'so only the guard on the name refuses it',
+          reason: 'keys: answers only the enrollment\'s own two encryption '
+              'keys, whatever a stored value names',
         );
       }
       expect((await keyValueStore.get(secretKey))!.data, planted);
@@ -475,17 +473,6 @@ void telemetryKeyGuardTests() {
         await expectUnchanged();
       });
     }
-
-    test('CONTROL: into __global still works', () async {
-      await bindEnrollment(<String, String>{'*': 'rw', '__manage': 'rw'});
-
-      await KeysVerbHandler(keyValueStore, enMgr, alice).process(
-          'keys:put:public:namespace:__global:keyType:rsa2048:'
-          'keyName:encryption_self value',
-          inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, startsWith('data:'));
-    });
   });
 
   group('the keystore', () {
