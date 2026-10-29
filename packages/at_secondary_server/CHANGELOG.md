@@ -28,11 +28,13 @@
   the last revocation of an enrollment holding the namespace that may have
   held a namespace private: its record has ever carried a key package, or a
   connection authenticated as it has written a namespace-key advertisement,
-  `public:__nskey.<namespace>@<atSign>`. Revocations from before this release
-  count. It is always present, null when nothing qualifies, and can move
-  backwards; `lastRevokedAt` is unchanged. `enroll:list` shows such an
-  enrollment with `keyHolder: true` to a caller that may approve it, and to
-  the enrollment itself.
+  `public:__nskey.<namespace>@<atSign>`. The mark is per enrollment: revoking
+  a marked enrollment moves `lastKeyHolderRevokedAt` for every namespace its
+  grants reach. Revocations from before this release count. It is always
+  present, null when nothing qualifies, and can move backwards;
+  `lastRevokedAt` is unchanged. `enroll:list` shows such an enrollment with
+  `keyHolder: true` to a caller that may approve it, and to the enrollment
+  itself.
 
 - feat: an atServer holds at most `connection.http_max_limit` HTTP connections
   at once, 50 by default; a connection beyond that is closed without an
