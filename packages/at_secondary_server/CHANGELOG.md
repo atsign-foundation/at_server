@@ -7,6 +7,9 @@
   `keys:get:private`, `keys:get:self` and `keys:get:public` listings, and a
   `keys:get` of any other key.
 
+- fix: `keys:` refuses a connection whose enrollment has no record, with
+  AT0009.
+
 - ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
   `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
   Without a ttl an OTP still lives 5 minutes, or the maximum if that is

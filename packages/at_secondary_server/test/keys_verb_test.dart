@@ -7,10 +7,15 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
+
+/// A keystore whose reads are recorded and stubbed per test.
+class _ReadRecordingStore extends Mock
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {}
 
 /// Scenarios: features/enrollment/keys_verb_own_encryption_keys.feature
 void main() {
@@ -151,6 +156,49 @@ void main() {
         throwsA(isA<AtEnrollmentException>().having((e) => e.message, 'message',
             'Keys verb cannot be accessed without an enrollmentId')));
     expect(await storedKeys(), before);
+  });
+
+  group('A connection whose enrollment record is missing', () {
+    late _ReadRecordingStore store;
+    late KeysVerbHandler handler;
+
+    setUp(() {
+      store = _ReadRecordingStore();
+      when(() => store.get(any())).thenAnswer((invocation) =>
+          keyValueStore.get(invocation.positionalArguments.single as String));
+      handler = KeysVerbHandler(store, enMgr, alice);
+    });
+
+    // NOTE processVerb, not process: process closes a connection whose
+    // enrollment has no record before any handler runs.
+    Future<Response> keysGet(String keyName) async {
+      final Response response = Response();
+      await handler.processVerb(response,
+          handler.parse('keys:get:keyName:$keyName'), inboundConnection);
+      return response;
+    }
+
+    test('is answered while its record is present', () async {
+      final e = await approvedAndConnected('e');
+
+      final Response response = await keysGet(selfKeyOf(e));
+
+      expect(jsonDecode(response.data!)['value'], storedSelfKey);
+      verify(() => store.get(enMgr.keyForSEK(e))).called(1);
+    });
+
+    test('is refused before the key is read', () async {
+      final e = await approvedAndConnected('e');
+      await keyValueStore.remove(enMgr.buildEnrollmentKey(e), skipCommit: true);
+      final List<String> before = await storedKeys();
+
+      await expectLater(
+          keysGet(selfKeyOf(e)), throwsA(isA<UnAuthorizedException>()));
+
+      verifyNever(() => store.get(any()));
+      expect(await storedKeys(), before,
+          reason: 'nothing is stored or deleted');
+    });
   });
 
   test('A legacy pkam: connection finds no encryption key', () async {

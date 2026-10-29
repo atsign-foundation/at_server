@@ -13,17 +13,24 @@ Feature: keys: answers only an enrollment's own two encryption keys
   naming any other key, another enrollment's included, and a keys:get that
   carries anything beside keyName, such as a visibility or a namespace. A
   connection carrying no enrollment id is refused with
-  "Keys verb cannot be accessed without an enrollmentId". A legacy pkam:
-  connection authenticates as the enrollment primary, which enroll:approve
-  never approved, so it has neither key and its keys:get finds nothing.
+  "Keys verb cannot be accessed without an enrollmentId". A connection
+  whose enrollment has no record is refused with AT0009 before the key is
+  read. A legacy pkam: connection authenticates as the enrollment primary,
+  which enroll:approve never approved, so it has neither key and its
+  keys:get finds nothing.
 
   Races: keys: writes nothing. A keys:get that arrives while
   enroll:approve is storing the keys finds each key or is told it does not
-  exist, and a repeated keys:get finds it once it is stored.
+  exist, and a repeated keys:get finds it once it is stored. Before any
+  verb handler runs, the atServer reads the connection's enrollment record
+  and closes a connection whose record is missing; keys: reads the record
+  again, so a record removed after that check is refused with AT0009
+  before the key is read.
   Replay: no challenge or nonce is involved, and a repeated keys:get
   answers the same value.
-  DoS: a refused request is answered without reading or writing the store;
-  an answered one reads the enrollment record and one key.
+  DoS: a request of any other form is refused without reading or writing
+  the store. A keys:get of either key reads the enrollment record, and an
+  answered one reads one key.
   Forgery: keys: writes nothing, and answers only the two keys
   enroll:approve stored for the enrollment the connection is authenticated
   as.
@@ -71,6 +78,19 @@ Feature: keys: answers only an enrollment's own two encryption keys
     When it sends keys:get:keyName:<E>.default_self_enc_key.__manage@alice
     Then it is refused with "Keys verb cannot be accessed without an enrollmentId"
     And nothing is stored, deleted or listed
+
+  @race
+  Scenario Outline: A connection whose enrollment record is missing is refused before the key is read
+    Given enrollment E was approved, and enroll:approve stored its two keys
+    And a connection is authenticated as E
+    And E's enrollment record <record>
+    When the keys: handler is given keys:get:keyName:<E>.default_self_enc_key.__manage@alice for E
+    Then <outcome>
+
+    Examples:
+      | record                 | outcome                                              |
+      | is present             | it gets the value enroll:approve stored              |
+      | has since been removed | it is refused with AT0009, and the key is never read |
 
   Scenario: A legacy pkam: connection finds no encryption key
     Given a legacy pkam: connection, which authenticates as the enrollment primary

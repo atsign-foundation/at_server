@@ -16,7 +16,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 /// on a connection authenticated as that enrollment.
 ///
 /// Every other `keys:` request is refused with [UnAuthorizedException]
-/// before the store is read or written.
+/// before the store is read or written. A request from a connection whose
+/// enrollment has no record is refused with it before the key is read.
 class KeysVerbHandler extends AbstractVerbHandler {
   static Keys keys = Keys();
 
@@ -63,18 +64,18 @@ class KeysVerbHandler extends AbstractVerbHandler {
           'default_self_enc_key');
     }
 
+    final EnrollDataStoreValue enrollment;
     try {
-      final EnrollDataStoreValue enrollment =
-          await AtSecondaryServerImpl.getInstance()
-              .enrollmentManager
-              .getEnrollmentById(enrollmentId);
-      if (enrollment.approval?.state != EnrollmentStatus.approved.name) {
-        throw AtEnrollmentException('Enrollment Id $enrollmentId is not '
-            'approved. current state: ${enrollment.approval?.state}');
-      }
+      enrollment = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .getEnrollmentById(enrollmentId);
     } on KeyNotFoundException {
-      logger.severe('Enrollment details not found for the enrollmentId: '
-          '$enrollmentId');
+      throw UnAuthorizedException('keys: answers nothing for enrollment '
+          '$enrollmentId, which has no record');
+    }
+    if (enrollment.approval?.state != EnrollmentStatus.approved.name) {
+      throw AtEnrollmentException('Enrollment Id $enrollmentId is not '
+          'approved. current state: ${enrollment.approval?.state}');
     }
 
     final AtData? value;
