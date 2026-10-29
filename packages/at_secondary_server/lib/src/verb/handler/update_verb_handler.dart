@@ -3,6 +3,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -68,14 +69,18 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
         return;
       }
 
-      var result = await keepingApskLinks(
+      var result = await markingKeyHolder(
           updatePreProcessResult,
-          () => keyStore.put(
-                updatePreProcessResult.atKey,
-                updatePreProcessResult.atData,
-                skipCommit: verbParams[WireParams.noCommit] != null,
-                assertedTimestamps: updatePreProcessResult.assertedTimestamps,
-              ));
+          atConnection.metaData as InboundConnectionMetadata,
+          () => keepingApskLinks(
+              updatePreProcessResult,
+              () => keyStore.put(
+                    updatePreProcessResult.atKey,
+                    updatePreProcessResult.atData,
+                    skipCommit: verbParams[WireParams.noCommit] != null,
+                    assertedTimestamps:
+                        updatePreProcessResult.assertedTimestamps,
+                  )));
       response.data = result?.toString();
 
       await super.notifyAfterStore(verbParams, updateParams,

@@ -22,7 +22,31 @@ class EnrollDataStoreValue {
   /// Opaque per-APKAM metadata the client stores, returned verbatim in
   /// `enroll:listns` responses. By convention the enrollment's APKAM-signed
   /// key package lives under `metadata['keyPackage']`.
-  Map<String, dynamic>? metadata;
+  ///
+  /// Setting a map holding that entry, null or not, sets [keyHolder].
+  Map<String, dynamic>? get metadata => _metadata;
+
+  set metadata(Map<String, dynamic>? value) {
+    _metadata = value;
+    if (value != null && value.containsKey(keyPackageEntry)) {
+      _keyHolder = true;
+    }
+  }
+
+  Map<String, dynamic>? _metadata;
+
+  /// The [metadata] entry an enrollment's key package lives under.
+  static const String keyPackageEntry = 'keyPackage';
+
+  /// Whether this enrollment may have held a namespace private: its record
+  /// has carried a key package, or [markKeyHolder] was called on it. Once
+  /// set, never cleared.
+  bool get keyHolder => _keyHolder;
+
+  bool _keyHolder = false;
+
+  /// Sets [keyHolder]; nothing clears it.
+  void markKeyHolder() => _keyHolder = true;
 
   /// The signing algorithm of [apkamPublicKey]: `rsa2048` (the legacy
   /// default) or `mldsa65`.
