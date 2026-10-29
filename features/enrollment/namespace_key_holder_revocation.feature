@@ -8,7 +8,8 @@ Feature: enroll:infons reports when an enrollment that may have held a namespace
   advertisement, public:__nskey.<namespace>@<atSign>, for any namespace.
   The first of either marks the enrollment's record, and nothing clears the
   mark. Each revocation event records the revoked enrollment's mark at that
-  moment.
+  moment. The mark is per enrollment, so a marked enrollment's revocation
+  counts for every namespace its grants reach.
 
   lastKeyHolderRevokedAt is derived as lastRevokedAt is, from only the
   revocation events whose mark is set and the events recorded before the
@@ -117,6 +118,18 @@ Feature: enroll:infons reports when an enrollment that may have held a namespace
     And E5 is revoked
     Then lastKeyHolderRevokedAt for "app" is null
     And lastRevokedAt for "app" is the moment of E5's revocation
+
+  Scenario Outline: The mark is per enrollment, so a revocation counts for every namespace its grants reach
+    Given <enrollment> has rw on "app" and on "other", and its record has never carried a key package
+    And <advertised>
+    When <enrollment> is revoked
+    Then lastKeyHolderRevokedAt for "other" is <moment>
+    And lastRevokedAt for "other" is the moment of that revocation
+
+    Examples:
+      | enrollment | advertised                                                      | moment                        |
+      | E4         | a connection authenticated as E4 wrote public:__nskey.app@alice | the moment of that revocation |
+      | E5         | no connection as E5 has written a namespace-key advertisement   | null                          |
 
   @race
   Scenario: A revoke that lands before an advertisement write is stored refuses the write

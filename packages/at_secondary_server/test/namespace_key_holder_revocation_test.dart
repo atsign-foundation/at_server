@@ -389,6 +389,38 @@ void main() {
     expect(await lastKeyHolderRevokedAt(), await revocationOf(e4));
   });
 
+  group(
+      'The mark is per enrollment, so a revocation counts for every namespace '
+      'its grants reach', () {
+    setUp(() async {
+      reader = await enrolled('otherreader', {'other': 'r'});
+    });
+
+    test(
+        'E4, after a connection authenticated as E4 wrote '
+        'public:__nskey.app@alice', () async {
+      final e4 = await enrolled('e4', {'app': 'rw', 'other': 'rw'});
+      connectAs(e4);
+      await writeAdvertisement('nskey-generation-1');
+
+      await revoke(e4);
+
+      final Map<String, dynamic> other = await infons('other');
+      expect(other['lastKeyHolderRevokedAt'], await revocationOf(e4));
+      expect(other['lastRevokedAt'], await revocationOf(e4));
+    });
+
+    test('E5, over whose connection nothing was advertised', () async {
+      final e5 = await enrolled('e5', {'app': 'rw', 'other': 'rw'});
+
+      await revoke(e5);
+
+      final Map<String, dynamic> other = await infons('other');
+      expect(other['lastKeyHolderRevokedAt'], isNull);
+      expect(other['lastRevokedAt'], await revocationOf(e5));
+    });
+  });
+
   test(
       'A revoke that lands before an advertisement write is stored refuses '
       'the write', () async {
