@@ -1823,7 +1823,10 @@ void main() {
       await Future.delayed(Duration(seconds: 3), () async {
         await expectLater(
             () => enrollmentAuthenticatedConnection.sendRequestToServer('scan'),
-            throwsA(predicate((dynamic e) => e is AtTimeoutException)));
+            throwsA(isA<ConnectionInvalidException>().having(
+                (e) => e.message,
+                'message',
+                'The connection went away before a response arrived')));
       });
 
       await enrollmentAuthenticatedConnection.close();
