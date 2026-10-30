@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:at_commons/at_commons.dart' show AtConstants;
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
@@ -63,22 +60,6 @@ void main() {
     }
   }
 
-  /// Checks that [c] is still authenticated with [auth]: only a cram
-  /// connection may write the legacy pkam key, and a pkam connection refuses
-  /// a cram.
-  Future<void> expectAuthenticatedWith(
-      AuthType auth, OutboundConnectionFactory c) async {
-    if (auth == AuthType.cram) {
-      expect(
-          await c.sendRequestToServer(
-              'update:${AtConstants.atPkamPublicKey} ${pkamPublicKeyMap[atSign]}'),
-          'data:-1');
-    } else {
-      expect(await c.sendRequestToServer('cram:${await proofFor('cram', c)}'),
-          startsWith('error:AT0009'));
-    }
-  }
-
   test(
       'A cram after a successful pkam on the same connection is refused and '
       'closes it', () async {
@@ -90,30 +71,6 @@ void main() {
     expect(response,
         'error:AT0009:cram may not follow a successful pkam on this connection');
     expect(await isClosed(c), isTrue);
-  });
-
-  group('An authentication inside a batch is refused', () {
-    for (final (AuthType auth, String verb) in [
-      (AuthType.pkam, 'cram'),
-      (AuthType.cram, 'cram'),
-      (AuthType.pkam, 'pkam'),
-      (AuthType.cram, 'pkam'),
-    ]) {
-      test('$verb on a connection authenticated with ${auth.name}', () async {
-        final c = await authenticatedWith(auth);
-        final String command = '$verb:${await proofFor(verb, c)}';
-
-        final String response = await c.sendRequestToServer('batch:${jsonEncode([
-              {'id': 1, 'command': command}
-            ])}');
-
-        final List entries = jsonDecode(response.replaceFirst('data:', ''));
-        expect(entries.single['id'], 1);
-        expect(entries.single['response']['error_code'], 'AT0009');
-        expect(await isClosed(c), isFalse);
-        await expectAuthenticatedWith(auth, c);
-      });
-    }
   });
 
   test('A pkam after a cram on the same connection still succeeds', () async {

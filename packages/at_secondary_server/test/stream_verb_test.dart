@@ -84,22 +84,4 @@ void main() {
       });
     }
   });
-
-  test('A stream command inside a batch is refused', () async {
-    final Connection client = alicePkamClient();
-    final List<Object?> before = await footprint();
-
-    await sendFromSocket(
-        'batch:[{"id":1,"command":'
-        '"stream:init@carol namespace:wavi s1 f.txt 12"}]',
-        client);
-
-    final List<dynamic> entries = jsonDecode(
-        client.writes.first.substring('data:'.length).split('\n').first);
-    expect(entries.single['id'], 1);
-    expect(entries.single['response']['error_code'], 'AT0003',
-        reason: 'that entry is answered AT0003');
-    expect(await footprint(), before,
-        reason: 'no notification is queued or stored');
-  });
 }

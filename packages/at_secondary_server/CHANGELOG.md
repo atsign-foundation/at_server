@@ -24,6 +24,20 @@
   until a full-privilege connection finds it with `otp:list` and deletes it
   with `otp:delete`.
 
+- ⚠️ BREAKING: a `batch:` may carry only `lookup`, `llookup`, `plookup`,
+  `notify`, `update` (`update:meta` included) and `delete`. A batch carrying
+  anything else, an unknown verb or an entry that is not a command included,
+  is refused whole with AT0003, naming that entry's position, and none of it
+  runs. The atClient's sync batches carry only `update`, `update:meta` and
+  `delete`, so they are unaffected.
+
+- fix: a `batch:` answers every entry it runs, and runs the rest after one
+  fails: a command that fails without an error code is answered AT0011, and
+  one that hits an internal error AT0010.
+
+- fix: an update of a key whose name starts with `meta`, such as
+  `update:metadata.wavi@alice v`, is stored; it was refused as an invalid
+  command.
 - feat: `enroll:infons:<namespace>` also answers `lastKeyHolderRevokedAt`,
   the last revocation of an enrollment holding the namespace that may have
   held a namespace private: its record has ever carried a key package, or a
