@@ -92,6 +92,7 @@ void main() async {
     when(() => mockManager.pool).thenReturn(mockPool);
     when(() => mockPool.remove(fakeConnection)).thenReturn(null);
     AtSecondaryServerImpl.getInstance().inboundConnectionManager = mockManager;
+    AtSecondaryServerImpl.getInstance().currentAtSign = '@alice'.toAtsign();
   });
 
   // testing InboundConnectionValidator.validate(), mainly focusing on what it throws and when
@@ -691,6 +692,11 @@ void main() async {
       expect(await dispatchedFor(['scan\n@exit\nfrom:@alice\n']), ['scan'],
           reason: '@exit closes the connection; anything queued behind it '
               'must not be dispatched');
+      expect(fakeConnection.closeCount, 1,
+          reason: '@exit closes the connection');
+      expect(fakeConnection.writes, isEmpty,
+          reason: 'nothing is written in reply to @exit, but the connection '
+              'saw ${fakeConnection.writes}');
     });
 
     test('a complete command is copied out of the buffer once', () {
