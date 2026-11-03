@@ -127,7 +127,7 @@ jobs:
         run: mkdir sboms
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atDirectory SBOM
-        uses: sbomify/github-action@8c7c788536683c75ad0e87876e75c743942038cc # v26.10.1
+        uses: sbomify/github-action@57ca9ba7de2232b073a3799bc8c0dc002e6777b9 # v26.10.2
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: "3hQHrn8mwK"
@@ -139,7 +139,7 @@ jobs:
           UPLOAD: true
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atServer SBOM
-        uses: sbomify/github-action@8c7c788536683c75ad0e87876e75c743942038cc # v26.10.1
+        uses: sbomify/github-action@57ca9ba7de2232b073a3799bc8c0dc002e6777b9 # v26.10.2
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: "wF66pn8rHZ"
