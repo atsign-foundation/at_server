@@ -33,10 +33,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   final String atSign;
 
-  /// Backing cache for [_updateProtectedKeys]. Handlers live for the whole
+  /// Backing cache for [_keysProtectedForUpdate]. Handlers live for the whole
   /// process (see DefaultVerbHandlerManager), so this is computed once per
   /// instance rather than on every update.
-  Set<String>? _updateProtectedKeysCache;
+  Set<String>? _keysProtectedForUpdateCache;
 
   AbstractUpdateVerbHandler(
     super.keyStore,
@@ -78,8 +78,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// Protected-key templates for the guard in [preProcessAndNotify], expanded
   /// for [atSign] and lowercased, minus
   /// [AtSecondaryConfig.encryptionPublicKeyTemplate] (delete-protected only).
-  Set<String> _updateProtectedKeys() {
-    return _updateProtectedKeysCache ??= hu
+  Set<String> get _keysProtectedForUpdate {
+    return _keysProtectedForUpdateCache ??= hu
         .expandProtectedKeyTemplates(
             AtSecondaryConfig.protectedKeys.where((template) =>
                 template != AtSecondaryConfig.encryptionPublicKeyTemplate),
@@ -104,7 +104,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     await super.processVerb(response, verbParams, atConnection);
 
     // Reject writes to protected keys this server exclusively manages (see
-    // [_updateProtectedKeys]). Compared bare, before the sharedWith/public:
+    // [_keysProtectedForUpdate]). Compared bare, before the sharedWith/public:
     // prefixing below, so `update:cached:public:signing_publickeys@bob` and
     // friends can't slip past a prefixed comparison.
     //
@@ -112,7 +112,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // `@alice:signing_publickeys@alice`. Refusing a key no client writes is
     // the safe side of that trade.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
-    if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {
+    if (_keysProtectedForUpdate.contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(
           'Cannot update protected key: \'$bareUpdateKey\'');
     }
