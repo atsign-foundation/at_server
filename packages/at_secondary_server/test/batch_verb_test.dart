@@ -161,6 +161,20 @@ void main() {
       ]);
       expect(await footprint(), before);
     });
+
+    test('when a batch is not valid JSON, then it is refused with AT0003',
+        () async {
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+
+      await expectLater(
+          batchHandler().processInternal(
+              'batch:[{"id":1,"command":"update:public:phone$alice 1"}',
+              inboundConnection),
+          throwsA(isA<InvalidSyntaxException>()));
+      expect(await keyValueStore.exists('public:phone$alice'), isFalse);
+    });
   });
 
   /// The response a batch entry carries for a command that answered
