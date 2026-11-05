@@ -973,6 +973,10 @@ void main() {
               'stale', DateTime.now().subtract(const Duration(seconds: 1))));
       expect(inboundConnection.lastWrittenData, isNull);
     });
+
+    tearDown(() async {
+      await verbTestsTearDown();
+    });
   });
 }
 

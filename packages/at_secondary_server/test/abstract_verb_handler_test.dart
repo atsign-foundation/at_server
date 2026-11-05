@@ -37,6 +37,7 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
     });
+    tearDown(() async => await verbTestsTearDown());
     test(
         'test isAuthorized command with namespace in atKey and namespace  passed with identical value',
         () async {

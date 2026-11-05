@@ -28,6 +28,7 @@ void main() {
   setUp(() async {
     await verbTestsSetUp();
   });
+  tearDown(() async => await verbTestsTearDown());
 
   AtCommitLog mockAtCommitLog = MockAtCommitLog();
   InboundConnectionPool mockInboundConnectionPool = MockInboundConnectionPool();
