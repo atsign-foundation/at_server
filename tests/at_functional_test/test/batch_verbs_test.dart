@@ -120,47 +120,47 @@ void main() {
           String row,
           Future<Object?> Function(OutboundConnectionFactory) entry
         ) in [
-      (AuthType.pkam, 'monitor', (_) async => {'id': 2, 'command': 'monitor'}),
+      (AuthType.pkam, 'monitor', (_) async => {'id': 9, 'command': 'monitor'}),
       (
         AuthType.pkam,
         'cram:<digest>',
-        (c) async => {'id': 2, 'command': 'cram:${await proofFor('cram', c)}'}
+        (c) async => {'id': 9, 'command': 'cram:${await proofFor('cram', c)}'}
       ),
       (
         AuthType.cram,
         'pkam:<digest>',
-        (c) async => {'id': 2, 'command': 'pkam:${await proofFor('pkam', c)}'}
+        (c) async => {'id': 9, 'command': 'pkam:${await proofFor('pkam', c)}'}
       ),
       (
         AuthType.pkam,
         'from:@alice',
-        (_) async => {'id': 2, 'command': 'from:$atSign'}
+        (_) async => {'id': 9, 'command': 'from:$atSign'}
       ),
       (
         AuthType.pkam,
         'notify:list',
-        (_) async => {'id': 2, 'command': 'notify:list'}
+        (_) async => {'id': 9, 'command': 'notify:list'}
       ),
       (
         AuthType.pkam,
         'notify:all:@bob:phone.wavi@alice:v',
-        (_) async => {'id': 2, 'command': 'notify:all:@bob:phone.wavi$atSign:v'}
+        (_) async => {'id': 9, 'command': 'notify:all:@bob:phone.wavi$atSign:v'}
       ),
       (
         AuthType.pkam,
         'batch:[{"id":1,"command":"noop:0"}]',
-        (_) async => {'id': 2, 'command': 'batch:[{"id":1,"command":"noop:0"}]'}
+        (_) async => {'id': 9, 'command': 'batch:[{"id":1,"command":"noop:0"}]'}
       ),
       (
         AuthType.pkam,
         'stream:init@carol namespace:wavi s1 f.txt 12',
         (_) async =>
-            {'id': 2, 'command': 'stream:init@carol namespace:wavi s1 f.txt 12'}
+            {'id': 9, 'command': 'stream:init@carol namespace:wavi s1 f.txt 12'}
       ),
       (
         AuthType.pkam,
-        '{"id":2}, an entry with no command',
-        (_) async => {'id': 2}
+        '{"id":9}, an entry with no command',
+        (_) async => {'id': 9}
       ),
     ]) {
       test('${auth.name}, $row', () async {
@@ -168,8 +168,10 @@ void main() {
         final String key = 'batch-${Uuid().v4()}';
         final Object? second = await entry(c);
 
+        // Ids differ from positions, so the refusal must name the position
+        // (2), not the refused entry's id (9).
         final String answer = await c.sendRequestToServer(batchOf([
-          {'id': 1, 'command': 'update:public:$key$atSign 1'},
+          {'id': 7, 'command': 'update:public:$key$atSign 1'},
           second
         ]));
 

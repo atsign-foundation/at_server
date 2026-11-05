@@ -39,77 +39,79 @@ void main() {
   }
 
   group('A batch carrying anything but the six is refused whole', () {
-    final Object update = {'id': 1, 'command': 'update:public:phone$alice 1'};
+    // Ids differ from positions, so the refusal must name the position (2),
+    // not the refused entry's id (9).
+    final Object update = {'id': 7, 'command': 'update:public:phone$alice 1'};
     for (final (AuthType auth, String row, List<Object?> entries) in [
       (
         AuthType.pkamLegacy,
         'monitor',
         [
-          {'id': 2, 'command': 'monitor'}
+          {'id': 9, 'command': 'monitor'}
         ]
       ),
       (
         AuthType.pkamLegacy,
         'cram:<digest>',
         [
-          {'id': 2, 'command': 'cram:abc'}
+          {'id': 9, 'command': 'cram:abc'}
         ]
       ),
       (
         AuthType.cram,
         'pkam:<digest>',
         [
-          {'id': 2, 'command': 'pkam:abc'}
+          {'id': 9, 'command': 'pkam:abc'}
         ]
       ),
       (
         AuthType.pkamLegacy,
         'from:@alice',
         [
-          {'id': 2, 'command': 'from:$alice'}
+          {'id': 9, 'command': 'from:$alice'}
         ]
       ),
       (
         AuthType.pkamLegacy,
         'notify:list',
         [
-          {'id': 2, 'command': 'notify:list'}
+          {'id': 9, 'command': 'notify:list'}
         ]
       ),
       (
         AuthType.pkamLegacy,
         'notify:all:@bob:phone.wavi@alice:v',
         [
-          {'id': 2, 'command': 'notify:all:@bob:phone.wavi$alice:v'}
+          {'id': 9, 'command': 'notify:all:@bob:phone.wavi$alice:v'}
         ]
       ),
       (
         AuthType.pkamLegacy,
         'batch:[{"id":1,"command":"noop:0"}]',
         [
-          {'id': 2, 'command': 'batch:[{"id":1,"command":"noop:0"}]'}
+          {'id': 9, 'command': 'batch:[{"id":1,"command":"noop:0"}]'}
         ]
       ),
       (
         AuthType.pkamLegacy,
         'stream:init@carol namespace:wavi s1 f.txt 12',
         [
-          {'id': 2, 'command': 'stream:init@carol namespace:wavi s1 f.txt 12'}
+          {'id': 9, 'command': 'stream:init@carol namespace:wavi s1 f.txt 12'}
         ]
       ),
       (
         AuthType.pkamLegacy,
-        '{"id":2}, an entry with no command',
+        '{"id":9}, an entry with no command',
         [
-          {'id': 2},
-          {'id': 2, 'command': 7},
-          {'id': 2, 'commmand': 'update:public:phone$alice 2'},
-          {'id': '2', 'command': 'update:public:phone$alice 2'},
+          {'id': 9},
+          {'id': 9, 'command': 7},
+          {'id': 9, 'commmand': 'update:public:phone$alice 2'},
+          {'id': '9', 'command': 'update:public:phone$alice 2'},
           5,
           'update:public:phone$alice 2',
           null,
           [
-            {'id': 2},
+            {'id': 9},
             {'id': 3, 'command': 'monitor'}
           ],
         ]
@@ -139,6 +141,26 @@ void main() {
         }
       });
     }
+
+    test('the refusal names the entry by its position, not its id', () async {
+      final Connection connection = client(AuthType.pkamLegacy);
+      final List<Object?> before = await footprint();
+
+      await send(
+          batchOf([
+            {'id': 7, 'command': 'update:public:phone$alice 1'},
+            {'id': 9, 'command': 'llookup:public:phone$alice'},
+            {'id': 1, 'command': 'monitor'},
+          ]),
+          connection);
+
+      expect(connection.writes, [
+        'error:AT0003-Invalid syntax : a batch may carry only lookup,'
+            ' llookup, plookup, notify, update and delete; entry 3 is'
+            ' not one\n$alice@'
+      ]);
+      expect(await footprint(), before);
+    });
   });
 
   /// The response a batch entry carries for a command that answered
