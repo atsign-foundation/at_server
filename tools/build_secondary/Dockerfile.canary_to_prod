@@ -4,7 +4,7 @@ FROM atsigncompany/secondary:canary-c${VERSION} AS canary
 
 # Prod reports the canary's version without the +c<tag> suffix the canary build
 # adds. The canary image has no shell, so the edit happens in this stage.
-FROM --platform=$BUILDPLATFORM debian:stable-20261020-slim@sha256:a717a33469731894e77e912ea7d714e27c2dc38ee6554fd1a3102e92999cfc66 AS version
+FROM --platform=$BUILDPLATFORM debian:stable-20261027-slim@sha256:13e0a2e78aa0554ad5ff66e4e260c6dbcdff807eb1f39d43b9fb0288aae88b04 AS version
 ARG VERSION
 COPY --from=canary /atsign/pubspec.yaml /pubspec.yaml
 RUN \
