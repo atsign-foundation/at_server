@@ -260,6 +260,35 @@ void main() {
     expect((await keyValueStore.get('public:phone$alice'))?.data, '1');
   });
 
+  test(
+      'A command in a batch that throws an Exception with no error code is'
+      ' answered AT0011, and the others still run', () async {
+    final Connection connection = client(AuthType.pkamLegacy);
+    const String throwing = 'update:public:throws@alice 1';
+    final BatchVerbHandler batch = BatchVerbHandler(keyValueStore,
+        _Throwing(verbs, throwing, () => Exception('a handler that throws')));
+
+    await batch.process(
+        batchOf([
+          {'id': 1, 'command': throwing},
+          {'id': 2, 'command': 'update:public:phone$alice 1'},
+        ]),
+        connection);
+
+    final List<dynamic> entries = entriesOf(connection);
+    expect(entries, hasLength(2));
+    expect(entries[0], {
+      'id': 1,
+      'response': {
+        'error_code': 'AT0011',
+        'error_message': 'Internal server exception'
+      }
+    });
+    expect(entries[1]['id'], 2);
+    expect(entries[1]['response']['data'], isNotNull);
+    expect((await keyValueStore.get('public:phone$alice'))?.data, '1');
+  });
+
   test('when a batch is not a list, then it is refused with AT0003', () async {
     final Connection connection = client(AuthType.cram);
 
@@ -272,25 +301,30 @@ void main() {
 }
 
 /// The atServer's verb handlers, but with [_command] run by a handler that
-/// throws a [StateError].
+/// throws what [_thrown] makes: a [StateError] unless told otherwise.
 class _Throwing implements VerbHandlerManager {
-  _Throwing(this._verbs, this._command);
+  _Throwing(this._verbs, this._command, [Object Function()? thrown])
+      : _thrown = thrown ?? (() => StateError('a handler that throws'));
 
   final VerbHandlerManager _verbs;
   final String _command;
+  final Object Function() _thrown;
 
   @override
-  VerbHandler? getVerbHandler(String command) =>
-      command == _command ? _ThrowingUpdate() : _verbs.getVerbHandler(command);
+  VerbHandler? getVerbHandler(String command) => command == _command
+      ? _ThrowingUpdate(_thrown)
+      : _verbs.getVerbHandler(command);
 }
 
 class _ThrowingUpdate extends UpdateVerbHandler {
-  _ThrowingUpdate()
+  _ThrowingUpdate(this._thrown)
       : super(keyValueStore, statsNotificationService, notificationManager,
             alice);
+
+  final Object Function() _thrown;
 
   @override
   Future<Response> processInternal(
           String command, InboundConnection atConnection) async =>
-      throw StateError('a handler that throws');
+      throw _thrown();
 }
