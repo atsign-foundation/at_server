@@ -47,7 +47,12 @@ class BatchVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var batchCommand = verbParams['json']!;
-    var batchJson = jsonDecode(batchCommand);
+    final Object? batchJson;
+    try {
+      batchJson = jsonDecode(batchCommand);
+    } on FormatException {
+      throw InvalidSyntaxException('a batch is a list of entries');
+    }
     if (batchJson is! List) {
       throw InvalidSyntaxException('a batch is a list of entries');
     }
