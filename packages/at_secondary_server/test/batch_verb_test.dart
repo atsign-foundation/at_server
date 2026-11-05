@@ -164,15 +164,12 @@ void main() {
 
     test('when a batch is not valid JSON, then it is refused with AT0003',
         () async {
-      inboundConnection.metadata
-        ..isAuthenticated = true
-        ..authType = AuthType.cram;
+      final Connection connection = client(AuthType.cram);
 
-      await expectLater(
-          batchHandler().processInternal(
-              'batch:[{"id":1,"command":"update:public:phone$alice 1"}',
-              inboundConnection),
-          throwsA(isA<InvalidSyntaxException>()));
+      await send('batch:[{"id":1,"command":"update:public:phone$alice 1"}',
+          connection);
+
+      expect(connection.writes.single, startsWith('error:AT0003'));
       expect(await keyValueStore.exists('public:phone$alice'), isFalse);
     });
   });
