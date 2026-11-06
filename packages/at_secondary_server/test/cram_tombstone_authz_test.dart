@@ -115,6 +115,27 @@ void main() {
               'replant what an owner deliberately destroyed');
     });
 
+    test(
+        'an owner connection deleting the secret under its name in upper '
+        'case plants the marker', () async {
+      await seedSecret();
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram
+        ..enrollmentId = null;
+
+      await deleteVerbHandler.processInternal(
+          'delete:${AtConstants.atCramSecret.toUpperCase()}',
+          inboundConnection);
+
+      expect(await keyValueStore.exists(AtConstants.atCramSecret), isFalse,
+          reason: 'the keystore folds the name, so the secret is gone');
+      expect(
+          await keyValueStore.exists(AtConstants.atCramSecretDeleted), isTrue,
+          reason: 'the delete compares the folded name, so the deletion '
+              'is recorded as for the canonical spelling');
+    });
+
     test('the marker keeps a later start from replanting', () async {
       await seedSecret();
       inboundConnection.metadata

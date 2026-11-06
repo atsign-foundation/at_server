@@ -1,3 +1,208 @@
+# 3.20.0
+- ⚠️ BREAKING: `keys:` answers only an enrollment's own two encryption
+  keys, `keys:get:keyName:<enrollmentId>.default_enc_private_key.__manage@<atSign>`
+  and `keys:get:keyName:<enrollmentId>.default_self_enc_key.__manage@<atSign>`,
+  on a connection authenticated as that enrollment. Every other `keys:`
+  request is refused with AT0009: `keys:put`, `keys:delete`, the
+  `keys:get:private`, `keys:get:self` and `keys:get:public` listings, and a
+  `keys:get` of any other key.
+
+- fix: `keys:` refuses a connection whose enrollment has no record, with
+  AT0009.
+
+- ⚠️ BREAKING: `otp:get` refuses `ttl:0`, which never expired, and a ttl above
+  `otp.maxTtlInMinutes` (env `otpMaxTtlInMinutes`, default 60), with AT0022.
+  Without a ttl an OTP still lives 5 minutes, or the maximum if that is
+  shorter. A maximum of 0 or less means the default, and one above a year is
+  cut to a year.
+
+- ⚠️ BREAKING: `otp:get` refuses a new OTP with AT0028 once `otp.maxLive`
+  OTPs are live (env `maxLiveOtps`, default 10; 0 or less means the default).
+  The count is for the atSign as a whole, whichever enrollment issued them,
+  and the SPP is not counted.
+  An OTP issued with `ttl:0` before this release never expires, so it counts
+  until a full-privilege connection finds it with `otp:list` and deletes it
+  with `otp:delete`.
+
+- ⚠️ BREAKING: a `batch:` may carry only `lookup`, `llookup`, `plookup`,
+  `notify`, `update` (`update:meta` included) and `delete`. A batch carrying
+  anything else, an unknown verb or an entry that is not a command included,
+  is refused whole with AT0003, naming that entry's position, and none of it
+  runs. The atClient's sync batches carry only `update`, `update:meta` and
+  `delete`, so they are unaffected.
+
+- fix: a `batch:` answers every entry it runs, and runs the rest after one
+  fails: a command that fails without an error code is answered AT0011, and
+  one that hits an internal error AT0010.
+
+- fix: an update of a key whose name starts with `meta`, such as
+  `update:metadata.wavi@alice v`, is stored; it was refused as an invalid
+  command.
+- feat: `enroll:infons:<namespace>` also answers `lastKeyHolderRevokedAt`,
+  the last revocation of an enrollment holding the namespace that may have
+  held a namespace private: its record has ever carried a key package, or a
+  connection authenticated as it has written a namespace-key advertisement,
+  `public:__nskey.<namespace>@<atSign>`. The mark is per enrollment: revoking
+  a marked enrollment moves `lastKeyHolderRevokedAt` for every namespace its
+  grants reach. Revocations from before this release count. It is always
+  present, null when nothing qualifies, and can move backwards;
+  `lastRevokedAt` is unchanged. `enroll:list` shows such an enrollment with
+  `keyHolder: true` to a caller that may approve it, and to the enrollment
+  itself.
+
+- feat: an atServer holds at most `connection.http_max_limit` HTTP connections
+  at once, 50 by default; a connection beyond that is closed without an
+  answer, and 0 or less holds none. Atsign Protocol connections are not
+  affected.
+
+- feat: an HTTP connection with no request in progress is closed within 10
+  seconds of its TLS handshake completing or its last answer, and one whose
+  answer is not fully sent within 30 seconds of its request is closed then.
+
+- fix: an HTTP `GET` whose path or query does not decode is answered 400, and
+  one the atServer fails to answer, an unreadable record among them, is
+  answered 500.
+
+- fix: an error the HTTP server raises is logged.
+
+- fix: stopping the atServer closes its HTTP connections.
+
+- test: when `AT_UNIT_TEST_STORAGE_DIR` is set, the unit tests keep their
+  storage under it rather than under the package.
+
+- test: unit tests cover delivery to a client that reads a TLS or WebSocket
+  connection in bursts, what a `monitor` replay holds back, and the close
+  after a replay fails.
+
+- feat: an atServer whose telemetry is on tells its collector what becomes of
+  notifications. For one it sends to another atSign: `notification.delivered`
+  when the recipient's atServer answers `data:success`, which it also does
+  for one it drops, `notification.expired` when it expires before it is
+  delivered, and `notification.error` when the recipient atSign does not
+  exist, each naming the recipient (`atsign.notification.to`).
+  `notification.received` when another atServer delivers one, naming the
+  sender (`atsign.notification.from`) and the devices it was pushed to live:
+  the enrollment id of each (`atsign.notification.pushed_to`), once per
+  enrollment, and how many (`atsign.notification.push_count`), once those
+  pushes are written or after 10 seconds. A connection authenticated with
+  `cram:` is not counted.
+  Every event carries the notification's id (`atsign.notification.ids`). The
+  sender chooses the id, so a collector matches events on sender, recipient
+  and id together.
+
+- fix: a `notify` whose id is longer than 36 characters is refused with
+  AT0003, whether the atSign's own client or another atServer sends it.
+  A sending atServer retries a refused notification until it expires, 15
+  minutes by default and at most 8 days when its client set `ttln`, and
+  holds back its later notifications to the same atSign until then.
+
+- fix: running `monitor` again on a connection replaces its feed, with the
+  latest regex and `selfNotifications` flag, instead of sending each later
+  notification once more. Notifications reach a monitor connection in the
+  order they arrive, and only while it is authenticated. A notification not
+  written to a monitor is logged with the connection: one warning each, or
+  one warning counting them when the feed ends with them still queued. A
+  `monitor:<epoch>` whose stored notifications cannot be read is refused
+  with that error and the connection is closed, so the client can
+  reconnect and run it again.
+
+- fix: a connection whose client leaves more than 16 MiB waiting to be read
+  is closed, with a warning naming it; `connection.inbound_max_unsent_bytes`
+  in config.yaml sets the limit, and the atServer refuses to start if it is
+  below 1 MiB or not an integer. One large notification or response is
+  always sent whole, and a `monitor` replay waits for the client to read
+  rather than queuing its whole backlog. A client that stops reading
+  during that replay is closed at the limit too, counting the live
+  notifications held back for it.
+
+- fix: a WebSocket connection closed at the unsent-bytes limit releases its
+  socket at once, rather than once its client reads again. The atServer no
+  longer negotiates WebSocket compression: a client that offers
+  `permessage-deflate` is sent uncompressed frames.
+
+- fix: a WebSocket connection running `monitor` is no longer closed as
+  idle while notifications are being written to it.
+
+- fix: telemetry events the collector never gets, because it rejects a batch
+  or the buffer overflows, are logged as one warning per failure counting
+  them by event name, not one warning per event.
+
+- fix: with stats notifications turned off
+  (`notification.statsNotificationJobTimeInterval` below zero), a change
+  made by the atSign's own client is answered once, with no AT0010 after
+  it, and another atServer's notification that changes a cached key no
+  longer closes that atServer's connection.
+
+- fix: another atServer's notification with `ttr` whose cached key would be
+  longer than 255 characters is refused with AT0016 before it is stored or
+  pushed to monitors, rather than after. A sending atServer retries a
+  refused notification until it expires, 15 minutes by default and at most
+  8 days when its client set `ttln`, and holds back its later notifications
+  to the same atSign until then.
+
+- fix: a `notify` or `notify:all` from the atSign's own client whose key is
+  longer than 255 characters, counting `cached:` when it has a `ttr` or is
+  a delete, is refused with AT0016, and nothing is stored or sent. A
+  notification already queued with such a key is not sent: it is marked
+  errored, and later notifications to that atSign no longer wait behind it.
+
+- fix: an `enroll:request` presenting an OTP may ask only for namespaces the
+  OTP's own namespaces cover, by the same rules as `otp:list`. One asking for
+  more is refused with AT0009, and the OTP is spent. The SPP, and an OTP
+  issued over CRAM or before this release, do not limit the request.
+
+# 3.19.0
+- ⚠️ BREAKING: `otp:put`, which sets the semi-permanent passcode (SPP), needs
+  full privilege: a CRAM connection, or an enrollment with `*:rw` and
+  `__manage:rw`. An enrollment holding `__manage` alone could set it before;
+  it is now refused with AT0009.
+
+- feat: `otp:list` lists the live OTPs, and the SPP, as a JSON array of
+  `{type, value, expiresAt, namespaces}`. A full-privilege connection sees
+  them all; an enrollment holding `__manage` sees only the OTPs whose
+  namespaces it holds, and never the SPP.
+
+- feat: `otp:delete:<otp>` deletes an OTP and `otp:delete:spp` the SPP, by the
+  same rules as `otp:list`. It always answers `data:ok`, so it does not reveal
+  which passcodes exist.
+
+- feat: an OTP records the namespaces of the enrollment that issued it. An OTP
+  issued before this, or over a CRAM connection, carries none, and only a
+  full-privilege connection can list or delete it.
+
+- feat: `info` lists `otp.list` and `otp.delete` as Beta.
+
+- fix: consolidate management of reserved namespaces.
+
+- fix: `batch:` answers an entry it has no verb for, or that is not a command,
+  with AT0003, and runs the rest of the batch.
+
+- fix: `update:json` applies `update`'s owner rule to the atKey it carries.
+
+- fix: the stream verb is removed: `stream:` commands, batched ones included,
+  are refused with AT0003, and a `stream:init` notification from an older
+  atServer is dropped.
+
+- build: `at_commons` to `^5.24.0`, which lists `otp:list` and `otp:delete`.
+
+# 3.18.1
+- fix: `enroll:link` refuses an immutable `_apsk` record. Every other write
+  of an enrollment's `_apsk` record, its move back when the enrollment is
+  unrevoked included, keeps the link on each key it lists once with the alg
+  and public key the link names, other than the enrollment's client
+  authentication signing key. A put, `update:meta` or `enroll:update` that
+  would take the record with those links over 500 KiB is refused with
+  AT0022.
+
+- fix: an `enroll:request`, `enroll:update`, put or `update:meta` is refused
+  with AT0022 when the `_apsk` it would leave lists the enrollment's client
+  authentication signing key beside another key, or when the `_apsk` value
+  it writes lists a kid twice or an entry without a string kid, alg and
+  pub. An `enroll:update`, or a CRAM update of `at_pkam_publickey`, is also
+  refused when the key it installs is listed beside another key or carries
+  a link, and an `enroll:update` republishing an immutable `_apsk` record
+  is refused with AT0032.
+
 # 3.18.0
 - ⚠️ BREAKING: text notifications are retired. A client's `notify` or
   `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
@@ -9,6 +214,11 @@
   this atServer unless the record has a `ttr`, and the 24-hour copies kept
   before are removed. **App authors:** `cached:public:` finds nothing for such
   a record; look the record up instead.
+
+- fix: an `enroll:request` passcode is accepted only as the SPP or as an OTP
+  issued with `otp:get`, and each OTP admits one request. OTPs stored in the
+  namespace-less form older atServers used are no longer accepted; an SPP in
+  that form still is, until `otp:put` sets an SPP, which removes it.
 
 - fix: a `plookup` that spells `publickey` in another case no longer changes
   this atServer's copy of another atSign's encryption public key.

@@ -144,6 +144,10 @@ class EnrollmentManager {
         '$atSign');
   }
 
+  /// The most an enrollment record, or an `_apsk` record with its links, may
+  /// take encoded.
+  static const int maxRecordBytes = 500 * 1024;
+
   /// The id of the enrollment the atSign's flat legacy credential migrates
   /// into.
   static const String primaryEnrollmentId = 'primary';
@@ -247,13 +251,64 @@ class EnrollmentManager {
         final EnrollDataStoreValue? primary = await primaryEnrollment();
         if (primary == null) {
           await mintPrimary(flat, signingAlgo: signingAlgo);
+          await _keepNoLinkOnAuthenticationKey(
+              primaryEnrollmentId, flat, signingAlgo);
         } else if (!sameApkamKeyMaterial(
             flat, signingAlgo, primary.apkamPublicKey, primary.signingAlgo)) {
           await _rotatePrimary(flat, signingAlgo, primary);
+          await _keepNoLinkOnAuthenticationKey(
+              primaryEnrollmentId, flat, signingAlgo);
         }
         await _deleteFlatKey();
         return true;
       });
+
+  /// Enrollment [enId]'s stored `_apsk` record at [location], the approved
+  /// one unless another is named, or null when it has none there.
+  Future<AtData?> _apskOf(String enId,
+      {String location = EnrollmentConstants.perEnrollmentApproved}) async {
+    try {
+      return await keyStore
+          .get(ApskLinks.keyFor(enId, atSign, location: location));
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
+  /// Removes any link [enId]'s `_apsk` record keeps on [apkamPublicKey], the
+  /// key that enrollment now authenticates with, for a rotation that cannot
+  /// be refused, and logs at warning what it removes or finds listed beside
+  /// that key.
+  Future<void> _keepNoLinkOnAuthenticationKey(
+      String enId, String apkamPublicKey, String? signingAlgo) async {
+    final AtData? apsk = await _apskOf(enId);
+    if (apsk == null) return;
+    final ApskWrite write = ApskLinks.settle(
+        writer: 'the rotation of enrollment $enId',
+        value: apsk.data,
+        stored: apsk,
+        isAuthenticationKey: authenticationKeyTest(apkamPublicKey, signingAlgo),
+        refusable: false,
+        limit: maxRecordBytes,
+        warn: logger.warning);
+    if (!write.proceeds ||
+        ApskLinks.linksIn(write.appMetadata).length ==
+            ApskLinks.linksIn(apsk.metaData?.appMetadata).length) {
+      return;
+    }
+    final AtMetaData metaData = apsk.metaData!..appMetadata = write.appMetadata;
+    await keyStore.put(
+        ApskLinks.keyFor(enId, atSign),
+        AtData()
+          ..data = apsk.data
+          ..metaData = metaData,
+        assertedTimestamps:
+            metaData.expiresAt == null && metaData.availableAt == null
+                ? null
+                : AtAssertedTimestamps(
+                    expiresAt: metaData.expiresAt,
+                    availableAt: metaData.availableAt));
+  }
 
   /// Lifts a revoked [primaryEnrollmentId] back to approved, leaving its key
   /// material and its stored expiry as they stand.
@@ -279,7 +334,9 @@ class EnrollmentManager {
   ///
   /// Throws [IllegalStateException] when a stored enrollment other than
   /// `primary` already holds the key, and [IllegalArgumentException] when
-  /// the value is not APKAM key material.
+  /// the value is not APKAM key material, or when `primary`'s `_apsk`,
+  /// approved, revoked or deleted, lists the key beside another key or with
+  /// a link.
   Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
       serialiseMutation(() async {
         if (apkamPublicKey.trim().isEmpty ||
@@ -300,6 +357,30 @@ class EnrollmentManager {
               'The apkamPublicKey is already held by another enrollment on '
               'this atSign; every enrollment needs a keypair of its own '
               '(held by enrollment ${holder.$1}, ${holder.$2.approval?.state})');
+        }
+        // NOTE: a revoked or deleted primary's _apsk moves back when this
+        // re-approves or re-mints primary, so it is checked wherever it
+        // stands.
+        AtData? apsk;
+        for (final String location in const [
+          EnrollmentConstants.perEnrollmentApproved,
+          EnrollmentConstants.perEnrollmentRevoked,
+          EnrollmentConstants.perEnrollmentDeleted,
+        ]) {
+          apsk = await _apskOf(primaryEnrollmentId, location: location);
+          if (apsk != null) break;
+        }
+        if (apsk != null) {
+          ApskLinks.settle(
+              writer: 'update of ${AtConstants.atPkamPublicKey}',
+              value: apsk.data,
+              stored: apsk,
+              isAuthenticationKey: authenticationKeyTest(apkamPublicKey, null),
+              refuseLinkOnAuthenticationKey: true,
+              writesRecord: false,
+              refusable: true,
+              limit: maxRecordBytes,
+              warn: logger.warning);
         }
         final EnrollDataStoreValue? primary = await primaryEnrollment();
         if (primary == null) {
@@ -372,6 +453,7 @@ class EnrollmentManager {
             'without an expiry holds a key');
       }
       await mintPrimary(flat);
+      await _keepNoLinkOnAuthenticationKey(primaryEnrollmentId, flat, null);
       await _deleteFlatKey();
       return StartupFlatKeyOutcome.migratedIntoPrimary;
     }
@@ -492,6 +574,9 @@ class EnrollmentManager {
           }
 
           AtData data = (await keyStore.get(fromKey))!;
+          if (to == EnrollmentConstants.perEnrollmentApproved) {
+            data = await _settledApsk(toKey, data);
+          }
           await keyStore.put(toKey, data, skipCommit: skipCommit);
           await keyStore.remove(fromKey, skipCommit: skipCommit);
           moved.add(fromKey);
@@ -500,6 +585,33 @@ class EnrollmentManager {
       default:
         throw ArgumentError('movePerEnrollmentData: Invalid "to": "$to"');
     }
+  }
+
+  /// [data], moving to [toKey], with the links an approved enrollment's
+  /// `_apsk` record keeps there, as every other write of that record keeps
+  /// them; any other key's [data] as it stands.
+  Future<AtData> _settledApsk(String toKey, AtData data) async {
+    final String? enId = ApskLinks.enrollmentIdOf(toKey, atSign);
+    if (enId == null) return data;
+    bool Function(String pub)? isAuthenticationKey;
+    try {
+      final EnrollDataStoreValue enVal = await getEnrollmentById(enId);
+      isAuthenticationKey =
+          authenticationKeyTest(enVal.apkamPublicKey, enVal.signingAlgo);
+    } on KeyNotFoundException {
+      isAuthenticationKey = null;
+    }
+    final ApskWrite write = ApskLinks.settle(
+        writer: 'the move of enrollment $enId\'s _apsk record',
+        value: data.data,
+        stored: data,
+        isAuthenticationKey: isAuthenticationKey,
+        refusable: false,
+        limit: maxRecordBytes,
+        warn: logger.warning);
+    if (!write.proceeds) return data;
+    data.metaData?.appMetadata = write.appMetadata;
+    return data;
   }
 
   /// The keystore key holding enrollment [enId]'s encryption private key.
@@ -593,6 +705,13 @@ class EnrollmentManager {
     await keyStore.remove(ek, skipCommit: true);
   }
 
+  /// The key of an enrollment record of this atSign: never a cached copy, nor
+  /// a record of another atSign.
+  late final RegExp _ownEnrollmentKey = RegExp('^[^.:@]+'
+      '\\.${RegExp.escape(EnrollmentConstants.enrollmentKeyPattern)}'
+      '\\.${EnrollmentConstants.enrollManageNamespace}'
+      '${RegExp.escape(canonicalAtKey(atSign))}\$');
+
   /// Every enrollment record key this atSign holds: the VISIBLE roster when
   /// [includeExpired] is false, the STORED roster when it is true.
   ///
@@ -603,14 +722,14 @@ class EnrollmentManager {
     if (!includeExpired) {
       return (await keyStore
               .getKeys(regex: EnrollmentConstants.enrollmentsRegex))
+          .where(_ownEnrollmentKey.hasMatch)
           .toList();
     }
     // NOTE `getKeys` has no include-expired form; `scanKeys` has.
-    final RegExp re = RegExp(EnrollmentConstants.enrollmentsRegex);
     final List<String> keys = [];
     await for (final String key in await keyStore.scanKeys(const KeyPattern(),
         includeExpired: true)) {
-      if (re.hasMatch(key)) keys.add(key);
+      if (_ownEnrollmentKey.hasMatch(key)) keys.add(key);
     }
     return keys;
   }
@@ -686,8 +805,12 @@ class EnrollmentManager {
   /// text otherwise.
   static bool sameApkamKeyMaterial(
       String a, String? algoA, String b, String? algoB) {
-    final List<int>? bytesA = apkamKeyMaterial(a, algoA);
-    final List<int>? bytesB = apkamKeyMaterial(b, algoB);
+    return _sameMaterial(
+        apkamKeyMaterial(a, algoA), a, apkamKeyMaterial(b, algoB), b);
+  }
+
+  static bool _sameMaterial(
+      List<int>? bytesA, String a, List<int>? bytesB, String b) {
     if (bytesA != null && bytesB != null) {
       if (bytesA.length != bytesB.length) return false;
       for (int i = 0; i < bytesA.length; i++) {
@@ -696,6 +819,22 @@ class EnrollmentManager {
       return true;
     }
     return a.trim() == b.trim();
+  }
+
+  /// Whether a public key an `_apsk` entry lists is [apkamPublicKey], the key
+  /// an enrollment authenticates with under [signingAlgo]: the same material,
+  /// read both as base64 and as hex whatever algorithm the entry names.
+  ///
+  /// [apkamPublicKey] is decoded once, for every key the test is asked about.
+  static bool Function(String pub) authenticationKeyTest(
+      String apkamPublicKey, String? signingAlgo) {
+    final List<int>? authentication =
+        apkamKeyMaterial(apkamPublicKey, signingAlgo);
+    return (String pub) =>
+        _sameMaterial(
+            apkamKeyMaterial(pub, null), pub, authentication, apkamPublicKey) ||
+        _sameMaterial(apkamKeyMaterial(pub, ApkamSignatureVerifier.eccAlgo),
+            pub, authentication, apkamPublicKey);
   }
 
   /// The enrollment stored at [ek], an elapsed one reported `expired` and
@@ -832,10 +971,31 @@ class EnrollmentManager {
   ///
   /// An un-revoke withdraws a revocation here, so the value can move
   /// BACKWARDS: a client must ask whether it changed, not whether it grew.
-  Future<DateTime?> lastRevocationForNamespace(String namespace) async {
+  Future<DateTime?> lastRevocationForNamespace(String namespace) async =>
+      _lastRevocationIn(await revocationEvents(), namespace);
+
+  /// [lastRevocationForNamespace] as `lastRevokedAt`, and as
+  /// `lastKeyHolderRevokedAt` the same answer over only the revocations of
+  /// an enrollment marked `keyHolder`, or recorded before the mark existed;
+  /// both from one read of the history.
+  Future<({DateTime? lastRevokedAt, DateTime? lastKeyHolderRevokedAt})>
+      revocationMomentsForNamespace(String namespace) async {
+    final List<EnrollmentRevocationEvent> events = await revocationEvents();
+    return (
+      lastRevokedAt: _lastRevocationIn(events, namespace),
+      lastKeyHolderRevokedAt: _lastRevocationIn(
+          events.where((e) =>
+              e.type == EnrollmentRevocationEventType.unrevoked ||
+              e.keyHolder != false),
+          namespace),
+    );
+  }
+
+  DateTime? _lastRevocationIn(
+      Iterable<EnrollmentRevocationEvent> events, String namespace) {
     final Map<String, EnrollmentRevocationEvent> lastRevoke = {};
     final Map<String, DateTime> lastUnrevoke = {};
-    for (final event in await revocationEvents()) {
+    for (final event in events) {
       if (event.type == EnrollmentRevocationEventType.unrevoked) {
         final prev = lastUnrevoke[event.enrollmentId];
         if (prev == null || event.at.isAfter(prev)) {
@@ -862,6 +1022,54 @@ class EnrollmentManager {
     }
     return latest;
   }
+
+  static const String _advertisementPrefix = 'public:__nskey.';
+
+  /// Whether [atKey] is [atSign]'s namespace-key advertisement,
+  /// `public:__nskey.<namespace>@<atSign>`.
+  static bool isNamespaceKeyAdvertisement(String atKey, String atSign) {
+    final String key = canonicalAtKey(atKey);
+    final String owner = canonicalAtKey(atSign);
+    return key.startsWith(_advertisementPrefix) &&
+        key.endsWith(owner) &&
+        key.length > _advertisementPrefix.length + owner.length;
+  }
+
+  /// Marks enrollment [enrollmentId] `keyHolder`, then runs [write], both
+  /// inside [serialiseMutation].
+  ///
+  /// Throws [UnAuthorizedException], and runs nothing, when [enrollmentId]
+  /// is not approved at that moment.
+  Future<T> writeAsKeyHolder<T>(
+          String enrollmentId, Future<T> Function() write) =>
+      serialiseMutation(() async {
+        final EnrollDataStoreValue value;
+        try {
+          value = await getEnrollmentById(enrollmentId);
+        } on KeyNotFoundException {
+          throw UnAuthorizedException(
+              'Enrollment $enrollmentId no longer exists');
+        }
+        final String? state = value.approval?.state;
+        if (state != EnrollmentStatus.approved.name) {
+          throw UnAuthorizedException(
+              'Enrollment $enrollmentId is $state, not approved');
+        }
+        if (!value.keyHolder) {
+          final AtData record =
+              (await keyStore.get(buildEnrollmentKey(enrollmentId)))!;
+          value.markKeyHolder();
+          record.data = jsonEncode(value.toJson());
+          final DateTime? storedExpiry = record.metaData?.expiresAt;
+          await _writeEnrollmentRecord(enrollmentId, record,
+              assertedTimestamps: storedExpiry == null
+                  ? null
+                  : AtAssertedTimestamps(expiresAt: storedExpiry));
+          logger.info('Enrollment $enrollmentId wrote a namespace-key '
+              'advertisement and is marked keyHolder');
+        }
+        return write();
+      });
 
   /// The at-rest key pattern for a revocation-history record, deliberately
   /// not built on [EnrollmentConstants.enrollmentKeyPattern].
@@ -1146,9 +1354,10 @@ class EnrollmentManager {
       EnrollmentRevocationEventType type =
           EnrollmentRevocationEventType.revoked}) async {
     final List<String> revoked = [];
-    // The grants each one held, captured before the write, because the event
-    // outlives the record they are stored on.
+    // The grants each one held, and its mark, captured before the write,
+    // because the event outlives the record they are stored on.
     final Map<String, Map<String, String>> grantsHeld = {};
+    final Map<String, bool> keyHolders = {};
     final Map<String, AtData> pending = {};
     for (final id in enrollmentIds) {
       final ek = buildEnrollmentKey(id);
@@ -1172,6 +1381,7 @@ class EnrollmentManager {
       value.approval!.state = EnrollmentStatus.revoked.name;
       pending[id] = atData;
       grantsHeld[id] = Map<String, String>.from(value.namespaces);
+      keyHolders[id] = value.keyHolder;
       atData.data = jsonEncode(value.toJson());
       revoked.add(id);
     }
@@ -1187,6 +1397,7 @@ class EnrollmentManager {
           namespaces: grantsHeld[id]!,
           byEnrollmentId: byEnrollmentId,
           cascadedFrom: cascadedFrom,
+          keyHolder: keyHolders[id]!,
         )
     ]);
 

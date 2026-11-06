@@ -21,6 +21,7 @@ import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
 import 'abstract_verb_handler.dart';
+import 'otp_verb_handler.dart';
 import 'package:at_secondary/src/enroll/enrollment_access.dart';
 
 /// Verb handler to process APKAM enroll requests
@@ -43,7 +44,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// The largest enrollment record the atServer will store, measured on its
   /// JSON encoding, the string that lands in the keystore.
-  static const int maxEnrollmentRecordBytes = 500 * 1024;
+  static const int maxEnrollmentRecordBytes = EnrollmentManager.maxRecordBytes;
 
   /// The longest key expiry an enrollment request may ask for: 36,525 days.
   static const int maxApkamKeysExpiryInMillis = 3155760000000;
@@ -288,9 +289,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       'status': enrollDataStoreValue.approval?.state,
       'apkamKeysExpiryInMillis':
           enrollDataStoreValue.apkamKeysExpiryDuration.inMilliseconds,
-      'expiresAt': EnrollmentManager.expiresAtField(
-          await enMgr.effectiveExpiryOf(
-              enMgr.buildEnrollmentKey(targetEnrollmentId))),
+      'expiresAt': EnrollmentManager.expiresAtField(await enMgr
+          .effectiveExpiryOf(enMgr.buildEnrollmentKey(targetEnrollmentId))),
       'metadata': enrollDataStoreValue.metadata,
     });
   }
@@ -313,10 +313,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     // Structural checks plus a size pre-filter, before an OTP is spent.
     _validateEnrollParams(enrollParams);
+    ApskLinks.settle(
+        writer: 'enroll:request',
+        value: enrollParams.apsk != null
+            ? jsonEncode(enrollParams.apsk)
+            : enrollParams.apskLegacy,
+        stored: null,
+        isAuthenticationKey: enrollParams.apkamPublicKey == null
+            ? null
+            : EnrollmentManager.authenticationKeyTest(
+                enrollParams.apkamPublicKey!, enrollParams.signingAlgo),
+        refusable: true,
+        limit: maxEnrollmentRecordBytes,
+        warn: logger.warning);
 
     if (atConnection.metaData.isAuthenticated == false) {
-      var isValid = await isPasscodeValid(enrollParams.otp);
-      if (!isValid) {
+      final redeemed = await redeemPasscode(enrollParams.otp);
+      if (!redeemed.isValid) {
         await Future.delayed(
             Duration(milliseconds: getDelayIntervalInMilliseconds()));
         throw IllegalArgumentException(
@@ -324,6 +337,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       } else {
         delayForInvalidOTPSeries.clear();
         delayForInvalidOTPSeries.addAll([0, initialDelayInMilliseconds]);
+      }
+      // NOTE checked after the OTP is spent, so a refused request cannot be
+      // retried with fewer namespaces to learn the OTP's scope.
+      final Map<String, String>? otpNamespaces = redeemed.namespaces;
+      if (otpNamespaces != null &&
+          !OtpVerbHandler.covers(
+              otpNamespaces, enrollParams.namespaces ?? {})) {
+        throw UnAuthorizedException('enroll:request asks for namespaces the'
+            ' OTP it presents does not cover');
       }
     }
 
@@ -346,7 +368,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
+    if (AbstractVerbHandler.isCramConnection(
+        atConnection.metaData as InboundConnectionMetadata)) {
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
     } else if (carriesEnrollment(inboundConnectionMetadata)) {
@@ -391,7 +414,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollParams.apkamKeysExpiryDuration!;
     }
 
-    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
+    if (AbstractVerbHandler.isCramConnection(
+        atConnection.metaData as InboundConnectionMetadata)) {
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
       // NOTE the atSign's root never expires, whatever expiry it asked for.
@@ -409,7 +433,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // separate lifecycles, and the write is unconditional.
 
       await _publishApskSigningKey(
-          newEnrollmentId, enrollmentValue, currentAtSign);
+          newEnrollmentId, enrollmentValue, currentAtSign,
+          refusable: true);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
@@ -457,7 +482,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
       // Escalation first, so a request naming MORE keeps its own diagnosis.
       verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
-      requireGrantsMatchPredecessor(predecessor.namespaces, enrollParams.namespaces);
+      requireGrantsMatchPredecessor(
+          predecessor.namespaces, enrollParams.namespaces);
       enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
@@ -465,15 +491,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // ⛔ Not for revocation: the revoke path does NOT walk this edge.
       enrollmentValue.retrofitPredecessorEnrollmentId = predecessorId;
       // A retrofit takes the predecessor's place in the approval graph.
-      enrollmentValue.parentEnrollmentId =
-          predecessor.parentEnrollmentId;
+      enrollmentValue.parentEnrollmentId = predecessor.parentEnrollmentId;
       if (enrollParams.apkamKeysExpiryDuration == null) {
         enrollmentValue.apkamKeysExpiryDuration =
             predecessor.apkamKeysExpiryDuration;
       }
       // NOTE a stated posture may narrow the predecessor's, never widen it;
       // zero asks for a permanent credential.
-      final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
+      final predecessorExpiryMs =
+          predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
       if (predecessorExpiryMs > 0 &&
@@ -525,7 +551,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // Before any write, so a refusal leaves no published _apsk behind.
       _validateRecordSize(enrollmentValue);
       await _publishApskSigningKey(
-          newEnrollmentId, enrollmentValue, currentAtSign);
+          newEnrollmentId, enrollmentValue, currentAtSign,
+          refusable: true);
       // A ttl of zero is the keystore's "never expires".
       await enMgr.put(
           newEnrollmentId,
@@ -572,7 +599,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
           entry.key == EnrollmentConstants.enrollManageNamespace;
       if (predecessorAccess == null && !isSpecial) {
-        predecessorAccess = predecessorGrants[EnrollmentConstants.allNamespaces];
+        predecessorAccess =
+            predecessorGrants[EnrollmentConstants.allNamespaces];
       }
       final held = predecessorAccess;
       if (held == null ||
@@ -740,8 +768,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['status'] = newEnrollmentStatus.name;
 
     // The revocation history for the enrollment this command NAMED. Grants
-    // are read off the record BEFORE the write, and recorded on the un-revoke
-    // too.
+    // and the mark are read off the record BEFORE the write, and recorded on
+    // the un-revoke too.
     EnrollmentRevocationEvent? revocationEvent;
     if (operation == 'revoke' || operation == 'unrevoke') {
       revocationEvent = EnrollmentRevocationEvent(
@@ -753,6 +781,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         namespaces: Map<String, String>.from(enVal.namespaces),
         byEnrollmentId: callerId,
         cascadedFrom: null,
+        keyHolder: enVal.keyHolder,
       );
     }
     // A revoke records BEFORE its write and an un-revoke AFTER it.
@@ -808,7 +837,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await _storeEncryptionKeys(enId, enrollParams, enVal,
           expiresAt: approvedExpiry);
       // Read off the RECORD, not off these approve params.
-      await _publishApskSigningKey(enId, enVal, currentAtSign);
+      await _publishApskSigningKey(enId, enVal, currentAtSign,
+          refusable: false);
       responseJson['expiresAt'] = EnrollmentManager.expiresAtField(
           await enMgr.effectiveExpiryOf(enMgr.buildEnrollmentKey(enId)));
     }
@@ -857,8 +887,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ///
   /// Reads [EnrollDataStoreValue.parentEnrollmentId], so call it after the
   /// approver has been recorded there.
-  Future<DateTime?> _settleApprovedExpiry(EnrollmentManager enMgr,
-      String enId, EnrollDataStoreValue enVal) async {
+  Future<DateTime?> _settleApprovedExpiry(
+      EnrollmentManager enMgr, String enId, EnrollDataStoreValue enVal) async {
     final DateTime now = DateTime.now().toUtc();
     final int requestedMs = enVal.apkamKeysExpiryDuration.inMilliseconds;
     final String? approverId = enVal.parentEnrollmentId;
@@ -1000,10 +1030,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     final bool republished =
         enrollParams.apsk != null || enrollParams.apskLegacy != null;
-    if (enrollParams.apkamPublicKey != null || republished) {
-      await _refuseListedKeyAsAuthenticationKey(enId, enVal, currentAtSign,
-          republished: republished);
-    }
+    final bool rekeyed = enrollParams.apkamPublicKey != null;
+    final AtData? apskRecord = rekeyed || republished
+        ? await _storedOrNull(ApskLinks.keyFor(enId, currentAtSign))
+        : null;
+    final String? apskValue =
+        republished ? _apskRecordValue(enVal) : apskRecord?.data;
+    final ApskWrite? apskWrite = rekeyed || republished
+        ? ApskLinks.settle(
+            writer: 'enroll:update: $enId',
+            value: apskValue,
+            stored: apskRecord,
+            isAuthenticationKey: EnrollmentManager.authenticationKeyTest(
+                enVal.apkamPublicKey, enVal.signingAlgo),
+            refuseLinkOnAuthenticationKey: true,
+            writesRecord: republished,
+            refusable: true,
+            limit: maxEnrollmentRecordBytes,
+            warn: logger.warning)
+        : null;
 
     if (enrollParams.metadata != null) {
       final merged = Map<String, dynamic>.from(enVal.metadata ?? {});
@@ -1030,7 +1075,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (freshRaw != null) {
       try {
         current = EnrollmentStatus.values.asNameMap()[
-            EnrollDataStoreValue.fromJson(jsonDecode(freshRaw)).approval?.state ??
+            EnrollDataStoreValue.fromJson(jsonDecode(freshRaw))
+                    .approval
+                    ?.state ??
                 ''];
       } on FormatException {
         current = null;
@@ -1052,8 +1099,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             : AtAssertedTimestamps(expiresAt: storedMeta!.expiresAt));
 
     // Republish only when the request carried a new value.
-    if (enrollParams.apsk != null || enrollParams.apskLegacy != null) {
-      await _publishApskSigningKey(enId, enVal, currentAtSign);
+    if (republished) {
+      await _writeApsk(
+          enId, currentAtSign, apskRecord, apskValue!, apskWrite!.appMetadata);
     }
 
     responseJson['enrollmentId'] = enId;
@@ -1109,19 +1157,30 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     final String apskKey = ApskLinks.keyFor(enId, currentAtSign);
     final AtData? record = await _storedOrNull(apskKey);
-    final Map<String, ApskKey> advertised =
-        ApskLinks.advertisedKeys(record?.data);
+    if (record?.metaData?.immutable == true) {
+      throw IllegalStateException('enroll:link: $enId\'s _apsk record is'
+          ' immutable, and immutable records may not be updated');
+    }
+    final ApskValue listed = ApskValue.parse(record?.data);
+    final Map<String, ApskKey> advertised = listed.keys;
     final Map<String, dynamic> stored =
         ApskLinks.linksIn(record?.metaData?.appMetadata);
+    final bool Function(String pub) isAuthenticationKey =
+        EnrollmentManager.authenticationKeyTest(
+            enVal.apkamPublicKey, enVal.signingAlgo);
 
     final Map<String, dynamic> requested = enrollParams.links!;
     final Map<String, dynamic> written = {};
     for (final MapEntry<String, dynamic> request in requested.entries) {
       final String kid = request.key;
+      if (listed.repeatedKids.contains(kid)) {
+        throw IllegalArgumentException('enroll:link: $enId\'s _apsk lists kid'
+            ' $kid more than once, so that kid takes no link');
+      }
       final ApskKey? key = advertised[kid];
       // NOTE an authentication key takes no link, and any other key takes
       // one only when spelt in padded standard base64.
-      if (key == null || _isAuthenticationKey(key.pub, enVal)) {
+      if (key == null || isAuthenticationKey(key.pub)) {
         throw IllegalArgumentException('enroll:link: $enId advertises no key'
             ' $kid that can take a link; an authentication key takes none');
       }
@@ -1135,8 +1194,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             ' ${ApskLinks.maxLinkBytes} bytes encoded');
       }
       final Map<String, dynamic>? payload = ApskLinks.payloadOf(link);
+      final Object? named = payload?['enrollmentId'];
       if (payload == null ||
-          payload['enrollmentId'] != enId ||
+          named is! String ||
+          EnrollmentManager.canonicalEnrollmentId(named) != enId ||
           payload['kid'] != kid ||
           payload['alg'] != key.alg ||
           payload['pub'] != key.pub) {
@@ -1152,16 +1213,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       written[kid] = link;
     }
 
-    final AppMetadata? appMetadata = ApskLinks.withLinks(
-        record!.metaData!.appMetadata,
-        {...ApskLinks.pruned(stored, advertised), ...written});
-    final int length = utf8.encode(record.data ?? '').length +
-        utf8.encode(jsonEncode(appMetadata?.toJson())).length;
-    if (length > maxEnrollmentRecordBytes) {
-      throw IllegalArgumentException('enroll:link: $enId\'s _apsk record would'
-          ' be $length bytes encoded with these links, over the'
-          ' $maxEnrollmentRecordBytes byte enrollment record limit');
-    }
+    final AppMetadata? appMetadata =
+        ApskLinks.withLinks(record!.metaData!.appMetadata, {
+      ...ApskLinks.pruned(stored, advertised,
+          isAuthenticationKey: isAuthenticationKey),
+      ...written
+    });
+    ApskLinks.refuseOverLimit('enroll:link: $enId', record.data, appMetadata,
+        limit: maxEnrollmentRecordBytes);
     final AtMetaData metaData = record.metaData!..appMetadata = appMetadata;
     await keyStore.put(
         apskKey,
@@ -1178,42 +1237,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enId;
     responseJson['linked'] = written.keys.toList();
   }
-
-  /// Throws [IllegalArgumentException] when [enVal]'s `apkamPublicKey`, as
-  /// this update leaves it, is a key its `_apsk`, as this update leaves it,
-  /// lists beside another key or carries a link on.
-  ///
-  /// [republished] says whether this update replaces the `_apsk` value with
-  /// [enVal]'s; otherwise the stored value stands.
-  Future<void> _refuseListedKeyAsAuthenticationKey(
-      String enId, EnrollDataStoreValue enVal, String currentAtSign,
-      {required bool republished}) async {
-    final AtData? record =
-        await _storedOrNull(ApskLinks.keyFor(enId, currentAtSign));
-    final Map<String, ApskKey> advertised = ApskLinks.advertisedKeys(
-        republished ? _apskRecordValue(enVal) : record?.data);
-    final Map<String, dynamic> links =
-        ApskLinks.linksIn(record?.metaData?.appMetadata);
-    for (final MapEntry<String, ApskKey> key in advertised.entries) {
-      if (_isAuthenticationKey(key.value.pub, enVal) &&
-          (advertised.length > 1 || links.containsKey(key.key))) {
-        throw IllegalArgumentException('enroll:update: $enId\'s _apsk would'
-            ' list its apkamPublicKey as ${key.key}, and an authentication key'
-            ' may be listed only alone and without a link');
-      }
-    }
-  }
-
-  /// Whether [pub] is the key [enVal] authenticates with, read both as base64
-  /// and as hex, whatever algorithm the `_apsk` entry names.
-  static bool _isAuthenticationKey(String pub, EnrollDataStoreValue enVal) =>
-      EnrollmentManager.sameApkamKeyMaterial(
-          pub, null, enVal.apkamPublicKey, enVal.signingAlgo) ||
-      EnrollmentManager.sameApkamKeyMaterial(
-          pub,
-          ApkamSignatureVerifier.eccAlgo,
-          enVal.apkamPublicKey,
-          enVal.signingAlgo);
 
   /// The record stored at [key], or null when there is none.
   Future<AtData?> _storedOrNull(String key) async {
@@ -1297,8 +1320,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Stores the encrypted default encryption private key and the encrypted
-  /// self encryption key against the enrollment's `__manage` keys, which an
-  /// approving app reads to convey the keys to a new enrolling app.
+  /// self encryption key, as enroll:approve carries them, under the
+  /// enrollment's `__manage` keys. The enrollment itself reads them with
+  /// `keys:get` on a connection authenticated as it.
   ///
   /// Both expire at [expiresAt], the moment the approval ends the
   /// enrollment, or never when it is null.
@@ -1394,25 +1418,48 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// verifier can reach it via plookup.
   ///
   /// A no-op when [enVal] carries neither shape. Takes the RECORD rather than
-  /// a value, so an approver cannot substitute its own. Keeps the stored
-  /// links for the keys [enVal] still advertises.
+  /// a value, so an approver cannot substitute its own. The links and
+  /// appMetadata stored are what [ApskLinks.settle] decides; where
+  /// [refusable] is false and it leaves the record as it stands, nothing is
+  /// written.
   Future<void> _publishApskSigningKey(
-      String enrollmentId, EnrollDataStoreValue enVal, currentAtSign) async {
-    final value = _apskRecordValue(enVal);
+      String enrollmentId, EnrollDataStoreValue enVal, currentAtSign,
+      {required bool refusable}) async {
+    final String? value = _apskRecordValue(enVal);
     if (value == null) {
       return;
     }
-    final apskKey = ApskLinks.keyFor(enrollmentId, currentAtSign);
-    final AtMetaData? stored = (await _storedOrNull(apskKey))?.metaData;
-    if (stored != null) {
-      stored.appMetadata = ApskLinks.carriedOver(
-          written: null, stored: stored.appMetadata, value: value);
+    final AtData? stored =
+        await _storedOrNull(ApskLinks.keyFor(enrollmentId, currentAtSign));
+    final ApskWrite write = ApskLinks.settle(
+        writer: 'the publish of $enrollmentId\'s _apsk',
+        value: value,
+        stored: stored,
+        isAuthenticationKey: EnrollmentManager.authenticationKeyTest(
+            enVal.apkamPublicKey, enVal.signingAlgo),
+        refusable: refusable,
+        limit: maxEnrollmentRecordBytes,
+        warn: logger.warning);
+    if (!write.proceeds) {
+      return;
     }
+    await _writeApsk(
+        enrollmentId, currentAtSign, stored, value, write.appMetadata);
+  }
+
+  /// Writes [value] and [appMetadata] as enrollment [enrollmentId]'s `_apsk`
+  /// record, keeping [stored]'s other metadata save a `dataSignature` over a
+  /// value this write replaces.
+  Future<void> _writeApsk(String enrollmentId, String currentAtSign,
+      AtData? stored, String value, AppMetadata? appMetadata) async {
+    final AtMetaData? metaData = stored?.metaData;
+    metaData?.appMetadata = appMetadata;
+    if (stored?.data != value) metaData?.dataSignature = null;
     await keyStore.put(
-        apskKey,
+        ApskLinks.keyFor(enrollmentId, currentAtSign),
         AtData()
           ..data = value
-          ..metaData = stored);
+          ..metaData = metaData);
   }
 
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -1500,7 +1547,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ///
   /// `lastRevokedAt` is present always, null when nothing holding the
   /// namespace has been revoked, and it can move BACKWARDS: compare it for
-  /// inequality rather than ordering it.
+  /// inequality rather than ordering it. `lastKeyHolderRevokedAt` is the same
+  /// over only the enrollments that may have held a namespace private; see
+  /// [EnrollmentManager.revocationMomentsForNamespace].
   Future<String> _fetchNamespaceInfo(
     EnrollmentManager enMgr,
     InboundConnection atConnection,
@@ -1510,9 +1559,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException('namespace is required for enroll:infons');
     }
     await _requireNamespaceAccess(enMgr, atConnection, namespace, 'infons');
-    final DateTime? lastRevokedAt =
-        await enMgr.lastRevocationForNamespace(namespace);
-    return jsonEncode({'lastRevokedAt': lastRevokedAt?.toIso8601String()});
+    final moments = await enMgr.revocationMomentsForNamespace(namespace);
+    return jsonEncode({
+      'lastRevokedAt': moments.lastRevokedAt?.toIso8601String(),
+      'lastKeyHolderRevokedAt':
+          moments.lastKeyHolderRevokedAt?.toIso8601String(),
+    });
   }
 
   /// The gate both namespace-scoped verbs sit behind: an APKAM-authenticated
@@ -1676,8 +1728,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<void> _refuseKeyHeldByAnotherEnrollment(
       String apkamPublicKey, String? signingAlgo,
       {String? excluding}) async {
-    final (String, EnrollDataStoreValue)? holder = await enMgr
-        .holderOfApkamPublicKey(apkamPublicKey, signingAlgo,
+    final (String, EnrollDataStoreValue)? holder =
+        await enMgr.holderOfApkamPublicKey(apkamPublicKey, signingAlgo,
             excluding: excluding);
     if (holder == null) return;
     final (String holderId, EnrollDataStoreValue value) = holder;
@@ -1730,7 +1782,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           // NOTE not required when the request advertises a key package:
           // such a client never generates the symmetric key.
           if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty &&
-              enrollParams.metadata?['keyPackage'] == null) {
+              enrollParams.metadata?[EnrollDataStoreValue.keyPackageEntry] ==
+                  null) {
             throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }

@@ -2389,7 +2389,7 @@ void main() {
             'metadata',
           },
           reason: 'a field added or removed here changes what every client '
-              'and every other atServer implementation reads');
+              'and every atServer implementation reads');
     });
 
     test('enroll:fetch returns the client metadata verbatim', () async {
@@ -4171,7 +4171,13 @@ void main() {
       final apsk = {
         'v': 1,
         'keys': [
-          {'use': 'sign', 'alg': 'mldsa65', 'pub': 'bmV3', 'status': 'active'}
+          {
+            'kid': 'new key',
+            'use': 'sign',
+            'alg': 'mldsa65',
+            'pub': 'bmV3',
+            'status': 'active'
+          }
         ]
       };
 

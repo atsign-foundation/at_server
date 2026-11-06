@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:at_commons/atsign.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
@@ -31,6 +33,19 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// A unique identifier generated for a client's APKAM enroll request
   String? enrollmentId;
+
+  final Completer<void> _closed = Completer<void>();
+
+  /// Completes once the connection is marked closed.
+  Future<void> get closed => _closed.future;
+
+  @override
+  set isClosed(bool isClosed) {
+    super.isClosed = isClosed;
+    if (isClosed && !_closed.isCompleted) {
+      _closed.complete();
+    }
+  }
 
   @override
   String toString() {

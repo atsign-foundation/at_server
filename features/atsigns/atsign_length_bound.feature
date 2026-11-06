@@ -5,10 +5,10 @@ Feature: An atSign has at most 55 characters
   removed: @a.b has 2 characters, and a single-code-point emoji such as 😀
   has 1. An atServer refuses a longer atSign wherever a command names one:
   the atSign a connection declares, a key's owner or recipient, a
-  notification's recipient or sender, a stream's receiver, or a blocklist
-  entry. It answers AT0003 with "invalid @sign: must have at most 55
-  characters after the @" before it looks anything up, stores, queues or
-  sends anything. An authenticated client, or a peer that has proved itself
+  notification's recipient or sender, or a blocklist entry. It answers
+  AT0003 with "invalid @sign: must have at most 55 characters after the @"
+  before it looks anything up, stores, queues or sends anything. An
+  authenticated client, or a peer that has proved itself
   by pol, keeps its connection. Any other connection is closed. An atSign of
   exactly 55 characters is accepted everywhere. An atServer does not start
   for an atSign longer than 55 characters.
@@ -86,7 +86,6 @@ Feature: An atSign has at most 55 characters
       | scan:@over                                                                                                                                  |
       | config:block:add:@over                                                                                                                      |
       | config:block:remove:@over                                                                                                                   |
-      | stream:init@over namespace:wavi startByte:0 s1 f.txt 10                                                                                     |
 
   Scenario Outline: A client's command naming an atSign of exactly 55 characters is accepted
     Given @alice's authenticated client
@@ -106,7 +105,6 @@ Feature: An atSign has at most 55 characters
       | plookup:phone.wavi@max                                  | @alice's atServer asks the atDirectory for @max               |
       | scan:@max                                               | @alice's atServer asks the atDirectory for @max               |
       | config:block:add:@max                                   | config:block:show lists @max                                  |
-      | stream:init@max namespace:wavi startByte:0 s1 f.txt 10  | a notification for @max is queued                             |
 
   Scenario Outline: An atSign is measured in characters after its @, without its dots
     Given @alice's authenticated client

@@ -18,8 +18,6 @@ import 'test_utils.dart';
 
 StreamController<String> sc = StreamController<String>();
 
-void streamCallBack(List<int> data, InboundConnection connection) {}
-
 Future<void> callback(String value, InboundConnection connection) async {
   sc.add(value);
 }
@@ -393,7 +391,7 @@ void main() async {
             equalsIgnoringCase('scan'),
             equalsIgnoringCase('info'),
           ]));
-      listener.listen(callback, streamCallBack);
+      listener.listen(callback);
       fakeConnection.socket.addData('scan\n');
       fakeConnection.socket.addData('info\n');
       await streamFuture;
@@ -411,7 +409,7 @@ void main() async {
             equalsIgnoringCase(from.trim()),
             equalsIgnoringCase(pkam.trim()),
           ]));
-      listener.listen(callback, streamCallBack);
+      listener.listen(callback);
       fakeConnection.socket.addData(lookup);
       fakeConnection.socket.addData(from);
       fakeConnection.socket.addData(pkam);
@@ -420,7 +418,7 @@ void main() async {
 
     test('validate a colon & json included command -> should pass', () async {
       var listener = InboundMessageListener(fakeConnection);
-      listener.listen(callback, streamCallBack);
+      listener.listen(callback);
       var enroll =
           'enroll:request:{"appName":"wavi","deviceName":"iphone","namespaces":{"wavi":"rw"},"otp":"<otp>","apkamPublicKey":"<apkamPublicKey>","encryptedAPKAMSymmetricKey": "<encryptedAPKAMSymmetricKey>"}\n';
       final streamFuture = expectLater(
@@ -437,7 +435,7 @@ void main() async {
       // shouldn't fail and should emit one command.
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       var listener = InboundMessageListener(fakeConnection);
-      listener.listen(callback, streamCallBack);
+      listener.listen(callback);
       var enroll =
           'enroll:request:{"appName":"wavi","deviceName":"iphone","namespaces":{"wavi":"rw"},"otp":"<otp>","apkamPublicKey":"<apkamPublicKey>","encryptedAPKAMSymmetricKey": "<encryptedAPKAMSymmetricKey>"}\n';
       final packet1 = enroll.substring(0, 5);
@@ -457,7 +455,7 @@ void main() async {
     test('validate representative command for each verb -> should pass',
         () async {
       var listener = InboundMessageListener(fakeConnection);
-      listener.listen(callback, streamCallBack);
+      listener.listen(callback);
       final streamFuture = expectLater(
           sc.stream,
           emitsInOrder(representativeListenerCommands
@@ -487,7 +485,7 @@ void main() async {
       var listener = InboundMessageListener(fakeConnection);
       final emissions = <String>[];
       final sub = sc.stream.listen(emissions.add);
-      listener.listen(callback, streamCallBack);
+      listener.listen(callback);
 
       // GlobalExceptionHandler's _getPrompt reads
       // AtSecondaryServerImpl.getInstance().currentAtSign — set it
@@ -541,8 +539,7 @@ void main() async {
       final commands = <String>[];
       InboundMessageListener(fakeConnection).listen(
           (String command, InboundConnection connection) async =>
-              commands.add(command),
-          (List<int> data, InboundConnection connection) {});
+              commands.add(command));
       for (final flow in flows) {
         fakeConnection.socket.addData(flow);
         if (gapMillis > 0) {
@@ -625,8 +622,7 @@ void main() async {
             events.add('start:$command');
             await Future.delayed(Duration(milliseconds: 20));
             events.add('end:$command');
-          },
-          (List<int> data, InboundConnection connection) {});
+          });
       fakeConnection.socket.addData('scan\ninfo\n');
       await Future.delayed(Duration(milliseconds: 150));
       expect(events, ['start:scan', 'end:scan', 'start:info', 'end:info'],
@@ -643,8 +639,7 @@ void main() async {
       final commands = <String>[];
       InboundMessageListener(unauthenticated).listen(
           (String command, InboundConnection connection) async =>
-              commands.add(command),
-          (List<int> data, InboundConnection connection) {});
+              commands.add(command));
       unauthenticated.socket
           .addData('from:@alice\nupdate:public:phone@alice 1234\nscan\n');
       await Future.delayed(Duration(milliseconds: 60));
@@ -670,8 +665,7 @@ void main() async {
             events.add('start:$command');
             await Future.delayed(Duration(milliseconds: 40));
             events.add('end:$command');
-          },
-          (List<int> data, InboundConnection connection) {});
+          });
       fakeConnection.socket.addData('scan\n');
       await Future.delayed(Duration(milliseconds: 10));
       fakeConnection.socket.addData('info\n');
@@ -757,7 +751,7 @@ void main() async {
     /// Sends [data], [pieceLength] bytes at a time when given, waits for the
     /// reply, then long enough for a close that follows it to land.
     Future<void> send(String data, {int? pieceLength}) async {
-      InboundMessageListener(client).listen(callback, streamCallBack);
+      InboundMessageListener(client).listen(callback);
       final int step = pieceLength ?? data.length;
       for (int i = 0; i < data.length; i += step) {
         client.socket.addData(
@@ -806,7 +800,7 @@ void main() async {
 
     /// Feeds [data] to a listener over [client] and waits for the reply.
     Future<void> send(FakeInboundConnection client, String data) async {
-      InboundMessageListener(client).listen(callback, streamCallBack);
+      InboundMessageListener(client).listen(callback);
       client.socket.addData(data);
       await Future.delayed(const Duration(milliseconds: 60));
     }

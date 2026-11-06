@@ -1,13 +1,14 @@
 # The atServer HTTP interface
 
 An atServer answers HTTPS `GET` requests for its atSign's `public:` records.
-It serves them on the same host and port as the atProtocol, and decides which
-of the two a connection speaks during the TLS handshake.
+It serves them on the same host and port as the Atsign Protocol, and decides
+which of the two a connection speaks during the TLS handshake.
 
 ## Reaching it
 
-Find the atServer's host and port the same way an atProtocol client does: send
-the atSign, without its `@`, to the atDirectory on its atProtocol port. It
+Find the atServer's host and port the same way an Atsign Protocol client does:
+send the atSign, without its `@`, to the atDirectory on its Atsign Protocol
+port. It
 answers `@<host>:<port>`, and `@exit`, sent on its own, closes the connection.
 
 ```
@@ -19,9 +20,10 @@ answers `@<host>:<port>`, and `@exit`, sent on its own, closes the connection.
 
 The atServer offers two ALPN protocols, `atProtocol/1.0` and `http/1.1`. A
 connection that negotiates `http/1.1` is served HTTP. A connection that
-negotiates `atProtocol/1.0`, or no protocol at all, is served the atProtocol.
+negotiates `atProtocol/1.0`, or no protocol at all, is served the Atsign
+Protocol.
 
-An HTTP client that offers no ALPN therefore reaches the atProtocol. The
+An HTTP client that offers no ALPN therefore reaches the Atsign Protocol. The
 atServer sends its `@` prompt, answers the request line with
 
 ```
@@ -37,15 +39,42 @@ default security context, so give it one that does, as `newHttpClient()` in
 [`http_test.dart`](../tests/at_functional_test/test/http_test.dart) does:
 `SecurityContext(withTrustedRoots: true)..setAlpnProtocols(['http/1.1'], false)`.
 Only that client's connections use the context, so it does not change what
-other atProtocol connections in the same process negotiate.
+other Atsign Protocol connections in the same process negotiate.
+
+### How long a connection is held
+
+An HTTP connection to an atServer may carry several requests. Once its TLS
+handshake has completed, a connection with no request in progress, or one that
+sends part of a request and then nothing, is closed within 10 seconds, and one
+whose answer is not fully sent within 30 seconds of its request, as when the
+client reads none of it, is closed then. An atServer holds at most
+`connection.http_max_limit` HTTP connections at once, 50 by default and none
+when it is 0 or less, apart from its Atsign Protocol connections; a connection
+beyond that is closed without an answer. A connection upgraded to a WebSocket
+at `/ws` is held as an Atsign Protocol connection instead.
+
+A client that keeps a connection for a later request should send that request
+within 5 seconds of the last answer. A connection idle for longer may be
+closed as the request is sent; retry such a `GET` on a new connection.
 
 ### Through the atDirectory
 
-Where the atDirectory's HTTPS server is enabled (`httpsEnabled`, on
-`httpsPort`),
-`GET https://<atDirectory>/<atSign>/<path>?<query>` answers `302` with a
-`Location` on the atServer, keeping the path and query. Without a path it
-answers the atServer's `<host>:<port>`.
+The atDirectory, like an atServer, answers HTTP on its Atsign Protocol port to
+a connection that negotiates `http/1.1` by ALPN, and on its
+HTTPS port too where that server is enabled (`httpsEnabled`, on `httpsPort`).
+`GET https://<atDirectory>/@<atSign>/<path>?<query>` answers `302` with a
+`Location` on the atServer that keeps the atSign, path and query,
+`https://<host>:<port>/@<atSign>/<path>?<query>`, which an atServer from
+3.11.1 on reads as `/<path>`, since it removes a leading `@<atSign>/` (see
+[which key a path names](#which-key-a-path-names)). Without a path it answers
+the atServer's `<host>:<port>`. An atSign it does not hold answers `404`, and a
+method other than `GET` answers `401`.
+
+Each HTTP connection to the atDirectory carries one request: the answer ends
+with `Connection: close`. Every answer carries
+`Access-Control-Allow-Origin: *`, so a web page on any origin can read it, and
+once its TLS handshake has completed, a connection that sends no complete
+request is closed within 10 seconds.
 
 ## Which key a path names
 
@@ -67,8 +96,10 @@ For `@alice`:
 | `/@alice/demo/index.html` | `public:index.html.demo@alice` |
 
 A key that does not exist, that is not public, or that holds an expired
-enrollment's per-enrollment data answers `404`. A method other than `GET`
-answers `405`, and a URI longer than 1000 characters answers `400`.
+enrollment's per-enrollment data answers `404`. A URI longer than 1000
+characters answers `400`; otherwise a method other than `GET` answers `405`. A
+`GET` whose path or query does not decode answers `400`, and one the atServer
+fails to answer, its record unreadable among them, answers `500`.
 
 The path `/ws` is not a key: a request for it is upgraded to a WebSocket.
 

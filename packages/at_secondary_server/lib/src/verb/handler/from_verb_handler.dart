@@ -216,8 +216,8 @@ class FromVerbHandler extends AbstractVerbHandler {
     var cn = secSocket.peerCertificate;
     logger.finer('CN : $cn');
     if (cn == null) {
-      logger.finer('CN is null.stream flag ${atConnection.metaData.isStream}');
-      return atConnection.metaData.isStream;
+      logger.finer('CN is null');
+      return false;
     }
 
     if (AtSecondaryConfig.clientCertificateRequired) {

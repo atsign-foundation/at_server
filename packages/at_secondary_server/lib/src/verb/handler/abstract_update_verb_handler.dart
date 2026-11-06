@@ -7,10 +7,14 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/enroll/apsk_links.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -91,6 +95,19 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       throw UnAuthorizedException(
           apkamUnauthorizedMsg(md.enrollmentId ?? 'primary', atKey));
     }
+    // NOTE a reserved namespace's records change only through the verbs that
+    // own it.
+    final String? reserved = reservedNamespaceBarringChange(atKey,
+        atSign: atSign.toAtsign(), enrollmentId: md.enrollmentId);
+    if (reserved != null) {
+      throw UnAuthorizedException('Record in reserved namespace'
+          ' ${sanitiseForLogging(reserved)} may not be updated');
+    }
+    if (isPerEnrollmentRecordForAnotherAtSign(atKey,
+        atSign: atSign.toAtsign())) {
+      throw UnAuthorizedException(
+          'A per-enrollment record may not be for another atSign');
+    }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
     switch (keyType) {
@@ -152,31 +169,63 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// Runs [write], which stores [result], so that a write of an approved
   /// enrollment's `_apsk` record keeps the links stored on it.
   ///
-  /// For such a record, [result]'s appMetadata takes the stored link map,
-  /// less links for keys the record will no longer advertise, whatever the
-  /// request sent; the read and [write] run under the enrollment lock
-  /// `enroll:link` writes under. Any other key is written as it stands.
+  /// For such a record, [result]'s appMetadata is what [ApskLinks.settle]
+  /// decides, refusing the write where that refuses it, whatever the request
+  /// sent. The read and [write] run under the enrollment lock `enroll:link`
+  /// writes under. Any other key is written as it stands.
   Future<T> keepingApskLinks<T>(
       UpdatePreProcessResult result, Future<T> Function() write) async {
-    if (ApskLinks.enrollmentIdOf(result.atKey, atSign) == null) {
+    final String? enrollmentId = ApskLinks.enrollmentIdOf(result.atKey, atSign);
+    if (enrollmentId == null) {
       return write();
     }
-    return AtSecondaryServerImpl.getInstance()
-        .enrollmentManager
-        .serialiseMutation(() async {
+    final EnrollmentManager enMgr =
+        AtSecondaryServerImpl.getInstance().enrollmentManager;
+    return enMgr.serialiseMutation(() async {
       AtData? stored;
       try {
         stored = await keyStore.get(result.atKey);
       } on KeyNotFoundException {
         stored = null;
       }
+      bool Function(String pub)? isAuthenticationKey;
+      try {
+        final EnrollDataStoreValue enVal =
+            await enMgr.getEnrollmentById(enrollmentId);
+        isAuthenticationKey = EnrollmentManager.authenticationKeyTest(
+            enVal.apkamPublicKey, enVal.signingAlgo);
+      } on KeyNotFoundException {
+        isAuthenticationKey = null;
+      }
       final AtMetaData metaData = result.atData.metaData!;
-      metaData.appMetadata = ApskLinks.carriedOver(
-          written: metaData.appMetadata,
-          stored: stored?.metaData?.appMetadata,
-          value: result.atData.data ?? stored?.data);
+      metaData.appMetadata = ApskLinks.settle(
+              writer: result.atKey,
+              value: result.atData.data ?? stored?.data,
+              stored: stored,
+              written: metaData.appMetadata,
+              isAuthenticationKey: isAuthenticationKey,
+              refusable: true,
+              limit: EnrollmentManager.maxRecordBytes,
+              warn: logger.warning)
+          .appMetadata;
       return write();
     });
+  }
+
+  /// Runs [write], which stores [result], so that a write of this atSign's
+  /// namespace-key advertisement over a connection carrying an enrollment id
+  /// first marks that enrollment; see [EnrollmentManager.writeAsKeyHolder].
+  /// Any other write runs as it stands.
+  Future<T> markingKeyHolder<T>(UpdatePreProcessResult result,
+      InboundConnectionMetadata md, Future<T> Function() write) {
+    final String? enrollmentId = md.enrollmentId;
+    if (enrollmentId == null ||
+        !EnrollmentManager.isNamespaceKeyAdvertisement(result.atKey, atSign)) {
+      return write();
+    }
+    return AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .writeAsKeyHolder(enrollmentId, write);
   }
 
   /// Queues the auto-notification for a write that has already succeeded,
@@ -415,6 +464,17 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
     if (updateParams.sharedWith.isNotNullOrEmpty) {
       updateParams.sharedWith = updateParams.sharedWith!.toAtsign();
+    }
+
+    // NOTE the owner an atKey ends in is held to the rule sharedBy is.
+    final String atKey = canonicalAtKey(updateParams.atKey ?? '');
+    final int owner = atKey.lastIndexOf('@');
+    if (owner > 0 && atKey.substring(owner) != canonicalAtKey(atSign)) {
+      final String message = 'Invalid update command - sharedBy atsign'
+          ' ${atKey.substring(owner)}'
+          ' should be same as current atsign $atSign';
+      logger.warning(message);
+      throw InvalidAtKeyException(message);
     }
 
     final Metadata? metadata = updateParams.metadata;

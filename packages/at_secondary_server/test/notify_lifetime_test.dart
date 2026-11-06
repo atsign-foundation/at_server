@@ -194,15 +194,13 @@ void main() {
     });
 
     test('from another atServer twice is received once', () async {
-      final received = <AtNotification>[];
-      final sub = notificationManager.received.stream.listen(received.add);
+      final monitor = RecordingMonitorSink();
+      notificationManager.addMonitor(monitor);
       for (var i = 0; i < 2; i++) {
         await deliver('notify:id:n5:update:messageType:key:notifier:system'
             ':ttln:60000:eph:@alice:phone.wavi@bob:v');
       }
-      await Future.delayed(Duration.zero);
-      await sub.cancel();
-      expect(received.map((n) => n.id), ['n5'],
+      expect(monitor.pushed.map((n) => n.id), ['n5'],
           reason: 'a resent eph notification is recognised as already held');
     });
 

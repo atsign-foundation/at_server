@@ -255,10 +255,6 @@ void main() {
     // 9. Assert that the scan verb does NOT return the key with __manage namespace
     // 10. Assert that the enroll:list verb returns the enrollment key
     // 11. Assert that the llookup verb on the enrollment key fails
-    // 12. Assert that the keys:get:self verb returns the default self encryption key
-    // 13. Assert that the keys:get:private verb returns the default encryption private key
-    // 14. Assert that the keys:get:selfKeyName verb returns the default self encryption key
-    // 15. Assert that the keys:get:privateKeyName verb returns the default encryption private key
     test('enroll request on CRAM authenticated connection and encryption keys',
         () async {
       await firstAtSignConnection.authenticateConnection(
@@ -422,12 +418,18 @@ void main() {
           enrollmentId: secondEnrollId,
           privateKey: secondKeys.privateKey);
 
-      // keys:get:self should return default self encryption key
-      var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
-      String selfKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:self');
-      expect(selfKeyResponse.contains(selfKey), true);
+      // keys: answers the enrollment's own two keys by name, and lists none
+      for (final String listing in [
+        'keys:get:self',
+        'keys:get:private',
+        'keys:get:public'
+      ]) {
+        expect(await socketConnection2.sendRequestToServer(listing),
+            contains('AT0009'),
+            reason: listing);
+      }
 
+      var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
       String selfKeyGetResponse = await socketConnection2
           .sendRequestToServer('keys:get:keyName:$selfKey');
       selfKeyGetResponse = selfKeyGetResponse.replaceFirst('data:', '');
@@ -436,12 +438,8 @@ void main() {
           apkamEncryptedKeysMap['encryptedSelfEncKey']);
       expect(selfKeyResponseJson['iv'], selfEncryptionKeyIV);
 
-      // keys:get:private should return private encryption key
       var privateKey =
           '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
-      String privateKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:private');
-      expect(privateKeyResponse.contains(privateKey), true);
       String privateKeyGetResponse = await socketConnection2
           .sendRequestToServer('keys:get:keyName:$privateKey');
       privateKeyGetResponse = privateKeyGetResponse.replaceFirst('data:', '');
@@ -1574,6 +1572,11 @@ void main() {
           authType: AuthType.cram);
       String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
+      // A second OTP from this full-privilege connection, for the buzz
+      // request below.
+      String buzzOtp =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
+      buzzOtp = buzzOtp.replaceAll('data:', '');
 
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
@@ -1609,7 +1612,8 @@ void main() {
               privateKey: keys.privateKey);
       expect(authResponse, 'data:success');
 
-      // Fetch OTP and submit another enrollment request
+      // An OTP from the wavi enrollment cannot ask for buzz, which that
+      // enrollment does not hold.
       otp = await enrollmentAuthenticatedConnection
           .sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
@@ -1618,6 +1622,13 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
           'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
+      expect(enrollmentResponse, startsWith('error:AT0009'));
+
+      // Submit the buzz request with the full-privilege connection's OTP
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$buzzOtp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       String secondEnrollmentId =
           jsonDecode(enrollmentResponse)['enrollmentId'];
@@ -1688,9 +1699,10 @@ void main() {
               privateKey: keys.privateKey);
       expect(authResponse, 'data:success');
 
-      // Fetch OTP and submit another enrollment request
-      otp = await enrollmentAuthenticatedConnection
-          .sendRequestToServer('otp:get');
+      // Fetch an OTP from the full-privilege connection and submit another
+      // enrollment request: an OTP from the wavi enrollment cannot ask for
+      // buzz, which it does not hold.
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
 
       await unAuthenticatedConnection.initiateConnectionWithListener(
@@ -1811,7 +1823,10 @@ void main() {
       await Future.delayed(Duration(seconds: 3), () async {
         await expectLater(
             () => enrollmentAuthenticatedConnection.sendRequestToServer('scan'),
-            throwsA(predicate((dynamic e) => e is AtTimeoutException)));
+            throwsA(isA<ConnectionInvalidException>().having(
+                (e) => e.message,
+                'message',
+                'The connection went away before a response arrived')));
       });
 
       await enrollmentAuthenticatedConnection.close();

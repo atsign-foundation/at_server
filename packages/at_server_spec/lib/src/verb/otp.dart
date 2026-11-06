@@ -16,7 +16,8 @@ class Otp extends Verb {
 
   @override
   String usage() {
-    return 'otp:get or otp:validate:<otp>';
+    return 'otp:get[:ttl:<ms>], otp:put:<spp>[:ttl:<ms>], otp:list, '
+        'or otp:delete:<otp>|spp';
   }
 
   @override

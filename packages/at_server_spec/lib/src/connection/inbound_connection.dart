@@ -10,6 +10,5 @@ abstract class InboundConnection extends AtConnection implements AtRateLimiter {
   /// This contains the value of the atsign initiated the connection
   String? initiatedBy;
 
-  void acceptRequests(Function(String, InboundConnection) callback,
-      Function(List<int>, InboundConnection) streamCallback);
+  void acceptRequests(Function(String, InboundConnection) callback);
 }

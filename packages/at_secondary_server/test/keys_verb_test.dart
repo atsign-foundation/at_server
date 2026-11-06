@@ -1,795 +1,315 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_logger.dart';
-import 'package:crypton/crypton.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
-import 'package:uuid/uuid.dart';
-import 'package:encrypt/encrypt.dart';
 
+import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
+/// A keystore whose reads are recorded and stubbed per test.
+class _ReadRecordingStore extends Mock
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {}
+
+/// Scenarios: features/enrollment/keys_verb_own_encryption_keys.feature
 void main() {
-  AtSignLogger.root_level = 'WARNING';
-  group('keys verb tests', () {
-    late KeysVerbHandler keysVerbHandler;
-    late LocalLookupVerbHandler localLookupVerbHandler;
+  verbTestsSetUpLogging();
 
-    setUpAll(() async {
-      await verbTestsSetUpAll();
+  setUpAll(() async {
+    await verbTestsSetUpAll();
+  });
+
+  final etu = ETU();
+  late KeysVerbHandler keysVerbHandler;
+
+  setUp(() async {
+    await verbTestsSetUp();
+    await etu.init();
+    keysVerbHandler = KeysVerbHandler(keyValueStore, enMgr, alice);
+  });
+
+  tearDown(() async {
+    await verbTestsTearDown();
+  });
+
+  /// The values ETU's enroll:approve stores for every enrollment it approves.
+  const String storedPrivateKey = 'encrypted default encryption private key';
+  const String storedSelfKey = 'encrypted default self encryption key';
+
+  /// An enrollment approved through enroll:approve, which stores its two
+  /// keys, with the connection then authenticated as it.
+  Future<String> approvedAndConnected(String name) async {
+    inboundConnection.metadata.enrollmentId = etu.primaryEnId;
+    final String id = await etu.createPendingEnrollment(
+        appName: name,
+        deviceName: 'device',
+        namespaces: {'wavi': 'rw'},
+        apkamKeysExpiryDuration: null);
+    await etu.approveEnrollment(etu.primaryEnId, id);
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam;
+    inboundConnection.metadata.enrollmentId = id;
+    return id;
+  }
+
+  String privateKeyOf(String id) =>
+      '$id.default_enc_private_key.__manage$alice';
+  String selfKeyOf(String id) => '$id.default_self_enc_key.__manage$alice';
+
+  String dataWritten() {
+    final String written = inboundConnection.lastWrittenData!;
+    return written.substring('data:'.length, written.indexOf('\n'));
+  }
+
+  Future<List<String>> storedKeys() async =>
+      (await (await keyValueStore.getKeys()).toList())..sort();
+
+  group('An enrollment reads its own encryption key by keyName', () {
+    test('encryption private key', () async {
+      final e = await approvedAndConnected('e');
+
+      await keysVerbHandler.process(
+          'keys:get:keyName:${privateKeyOf(e)}', inboundConnection);
+
+      expect(jsonDecode(dataWritten())['value'], storedPrivateKey);
     });
 
-    setUp(() async {
-      await verbTestsSetUp();
-      keysVerbHandler = KeysVerbHandler(keyValueStore, enMgr, alice);
-      localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
-    });
+    test('self encryption key', () async {
+      final e = await approvedAndConnected('e');
 
-    tearDown(() async {
-      await verbTestsTearDown();
-    });
+      await keysVerbHandler.process(
+          'keys:get:keyName:${selfKeyOf(e)}', inboundConnection);
 
-    test('keys verb  - put public key and check keys:get:public, llookup',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollId testPublicKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore.exists(
-              'public:encryption_$enrollId.__public_keys.__global$alice'),
-          true);
-      var keysGetCommand = 'keys:get:public';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData,
-          "data:[\"public:encryption_$enrollId.__public_keys.__global$alice\"]\n$alice@");
-      var llookUpCommand =
-          'llookup:public:encryption_$enrollId.__public_keys.__global$alice';
-      await localLookupVerbHandler.process(llookUpCommand, inboundConnection);
-      var llookupResultMap = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(llookupResultMap['value'], 'testPublicKeyValue');
-      expect(llookupResultMap['keyType'], 'rsa2048');
-      expect(llookupResultMap['enrollmentId'], enrollId);
-    });
-
-    test(
-        'keys verb  - put public key and check keys:get:public for an emoji atsign',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'publicKeyTest',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-
-      String enrollKey =
-          EnrollmentManager(keyValueStore, alice).buildEnrollmentKey(enrollId);
-      await keyValueStore.put(
-          enrollKey, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollId publicKeyTest';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(enrollKey), true);
-      expect(
-          await keyValueStore.exists(
-              'public:encryption_$enrollId.__public_keys.__global$alice'),
-          true);
-      var keysGetCommand = 'keys:get:public';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData,
-          "data:[\"public:encryption_$enrollId.__public_keys.__global$alice\"]\n$alice@");
-      var llookUpCommand =
-          'llookup:public:encryption_$enrollId.__public_keys.__global$alice';
-      await localLookupVerbHandler.process(llookUpCommand, inboundConnection);
-      var llookupResultMap = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(llookupResultMap['value'], 'publicKeyTest');
-      expect(llookupResultMap['keyType'], 'rsa2048');
-      expect(llookupResultMap['enrollmentId'], enrollId);
-    }, timeout: Timeout(Duration(minutes: 5)));
-
-    test('keys verb  - put self key and check keys:get, llookup', () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$enrollId:keyName:mykey selfKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore
-              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
-          true);
-
-      var keysGetCommand = 'keys:get:self';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData,
-          "data:[\"wavi.pixel.mykey.__self_keys.__global$alice\"]\n$alice@");
-
-      var llookUpCommand =
-          'llookup:wavi.pixel.mykey.__self_keys.__global$alice';
-      expect(
-          () async => await localLookupVerbHandler.process(
-              llookUpCommand, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthorizedException)));
-    });
-
-    test('keys verb  - put self key and check keys:get for an emoji atsign',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$enrollId:keyName:mykey selfKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore
-              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
-          true);
-
-      var keysGetCommand = 'keys:get:self';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData,
-          "data:[\"wavi.pixel.mykey.__self_keys.__global$alice\"]\n$alice@");
-
-      var llookUpCommand =
-          'llookup:wavi.pixel.mykey.__self_keys.__global$alice';
-      expect(
-          () async => await localLookupVerbHandler.process(
-              llookUpCommand, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthorizedException)));
-    });
-
-    test('keys verb  - put private key and check keys:get', () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:mykey:keyName:secretKey abcd1234';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore.exists(
-              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
-          true);
-      var keysGetCommand = 'keys:get:private';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData,
-          "data:[\"private:wavi.pixel.secretkey.__private_keys.__global$alice\"]\n$alice@");
-
-      var llookUpCommand =
-          'llookup:private:wavi.pixel.secretkey.__private_keys.__global$alice';
-      expect(
-          () async => await localLookupVerbHandler.process(
-              llookUpCommand, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthorizedException)));
-    });
-
-    test('keys verb  - put private key and check keys:get for an emoji atsign',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:mykey:keyName:secretKey abcd1234';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore.exists(
-              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
-          true);
-      var keysGetCommand = 'keys:get:private';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData,
-          "data:[\"private:wavi.pixel.secretkey.__private_keys.__global$alice\"]\n$alice@");
-
-      var llookUpCommand =
-          'llookup:private:wavi.pixel.secretkey.__private_keys.__global$alice';
-      expect(
-          () async => await localLookupVerbHandler.process(
-              llookUpCommand, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthorizedException)));
-    });
-
-    test('keys verb  - put public key and check getKeyName, delete key',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var enrollKeyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(
-          enrollKeyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollId testPublicKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(enrollKeyName), true);
-      expect(
-          await keyValueStore.exists(
-              'public:encryption_$enrollId.__public_keys.__global$alice'),
-          true);
-      var publicKeyName =
-          'public:encryption_$enrollId.__public_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$publicKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'testPublicKeyValue');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'rsa2048');
-      var deleteKeyCommand = 'keys:delete:keyName:$publicKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(publicKeyName), false);
-    });
-
-    test(
-        'keys verb with emoji atsign- put public key and check getKeyName, delete key',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var ek = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(ek, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollId testPublicKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(ek), true);
-      expect(
-          await keyValueStore.exists(
-              'public:encryption_$enrollId.__public_keys.__global$alice'),
-          true);
-      var publicKeyName =
-          'public:encryption_$enrollId.__public_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$publicKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'testPublicKeyValue');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'rsa2048');
-      var deleteKeyCommand = 'keys:delete:keyName:$publicKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(publicKeyName), false);
-    });
-
-    test('keys verb  - put self key and check getKeyName,delete key ',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var enrollKeyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(
-          enrollKeyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$enrollId:keyName:mykey selfKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(enrollKeyName), true);
-      expect(
-          await keyValueStore
-              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
-          true);
-      var selfKeyName = 'wavi.pixel.mykey.__self_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$selfKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'selfKeyValue');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'aes256');
-      var deleteKeyCommand = 'keys:delete:keyName:$selfKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(selfKeyName), false);
-    });
-
-    test(
-        'keys verb with Emoji atsign - put self key and check getKeyName,delete key ',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var enrollKeyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(
-          enrollKeyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:self:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:encryption_$enrollId:keyName:mykey selfKeyValue';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(enrollKeyName), true);
-      expect(
-          await keyValueStore
-              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
-          true);
-      var selfKeyName = 'wavi.pixel.mykey.__self_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$selfKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'selfKeyValue');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'aes256');
-      var deleteKeyCommand = 'keys:delete:keyName:$selfKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(selfKeyName), false);
-    });
-
-    test('keys verb  - put private key and check getKeyName, delete', () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:mykey:keyName:secretKey abcd1234';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore.exists(
-              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
-          true);
-      var privateKeyName =
-          'private:wavi.pixel.secretKey.__private_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$privateKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'abcd1234');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'aes256');
-      expect(getKeysResponse['encryptionKeyName'], 'mykey');
-      var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(privateKeyName), false);
-    });
-
-    test(
-        'keys verb with an emoji Atsign - put private key and check getKeyName, delete',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:mykey:keyName:secretKey abcd1234';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore.exists(
-              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
-          true);
-      var privateKeyName =
-          'private:wavi.pixel.secretKey.__private_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$privateKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'abcd1234');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'aes256');
-      expect(getKeysResponse['encryptionKeyName'], 'mykey');
-      var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(privateKeyName), false);
-    });
-
-    test(
-        'keys verb with an emoji Atsign - put private key and check getKeyName, delete',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var keysCommand =
-          'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes256:encryptionKeyName:mykey:keyName:secretKey abcd1234';
-
-      await keysVerbHandler.process(keysCommand, inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(keyName), true);
-      expect(
-          await keyValueStore.exists(
-              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
-          true);
-      var privateKeyName =
-          'private:wavi.pixel.secretKey.__private_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$privateKeyName';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(getKeysResponse['value'], 'abcd1234');
-      expect(getKeysResponse['enrollmentId'], enrollId);
-      expect(getKeysResponse['keyType'], 'aes256');
-      expect(getKeysResponse['encryptionKeyName'], 'mykey');
-      var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
-      await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(await keyValueStore.exists(privateKeyName), false);
-    });
-
-    test(
-        'keys verb - keys:get non-existent key should throw an key not found exception',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var privateKeyName =
-          'private:wavi.pixel.secretKey123.__private_keys.__global$alice';
-      var keysGetCommand = 'keys:get:keyName:$privateKeyName';
-      expect(
-          () async =>
-              await keysVerbHandler.process(keysGetCommand, inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is KeyNotFoundException &&
-              e.message == 'key $privateKeyName not found in keystore')));
-    });
-
-    test(
-        'keys verb  - put default self encryption key and verify keys:get:self',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var encryptedSelfEncryptionKey =
-          'N0bmvnW1k5oKL+/6X3HresMyG/z6yBmxzgtrn8CMEofWgxJo8RSBXIqvdNj9ZOHO';
-      var valueJson = {};
-      valueJson['value'] = encryptedSelfEncryptionKey;
-      await keyValueStore.put(
-          enMgr.keyForSEK(enrollId), AtData()..data = jsonEncode(valueJson));
-
-      var keysGetCommand = 'keys:get:self';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
-      expect(keysList, isNotEmpty);
-      expect(keysList[0], enMgr.keyForSEK(enrollId));
-    });
-
-    test('keys verb invalid syntax - invalid operation', () {
-      var verb = Keys();
-      var command = 'keys:update:hello';
-      var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
-    });
-
-    test(
-        'keys verb without specifying the operation invalid syntax - invalid operation',
-        () {
-      var verb = Keys();
-      var command =
-          'keys:public:namespace:__global:keyType:rsa2048:keyName:encryption_1278383933 testPublicKeyValue';
-      var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
-    });
-
-    test(
-        'keys verb  - put default  encryption private key and verify keys:get:private',
-        () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'approved'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-
-      var encryptionPrivateKey = RSAKeypair.fromRandom().privateKey.toString();
-      var apkamSymmetricKeyEncrypter = Encrypter(AES(Key.fromSecureRandom(32)));
-
-      var encryptedDefaultEncryptionPrivateKey = apkamSymmetricKeyEncrypter
-          .encrypt(encryptionPrivateKey, iv: IV(Uint8List(16)))
-          .base64;
-      var valueJson = {};
-      valueJson['value'] = encryptedDefaultEncryptionPrivateKey;
-      await keyValueStore.put(
-          enMgr.keyForPEK(enrollId), AtData()..data = jsonEncode(valueJson));
-
-      var keysGetCommand = 'keys:get:private';
-      await keysVerbHandler.process(keysGetCommand, inboundConnection);
-      var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
-      expect(keysList, isNotEmpty);
-      expect(keysList[0], enMgr.keyForPEK(enrollId));
-    });
-
-    test('keys:put verb without auth', () {
-      var command =
-          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_1278383933 testPublicKeyValue';
-      expect(
-          () async => await keysVerbHandler.process(command, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
-    });
-
-    test(
-        'keys:get verb without an authentication - should throw an UnAuthenticatedException',
-        () async {
-      var command = 'keys:get:nonexistentKey';
-      expect(
-          () async => await keysVerbHandler.process(command, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
-    });
-
-    test(
-        'keys:delete verb without an authentication - should throw an UnAuthenticatedException',
-        () async {
-      var command = 'keys:delete:nonexistentKey';
-      expect(
-          () async => await keysVerbHandler.process(command, inboundConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
-    });
-
-    test('keys verb on an authenticated connection without enrollmentId',
-        () async {
-      inboundConnection.metadata.isAuthenticated = true;
-      var keysGetCommand = 'keys:get:self';
-      expect(
-          () async =>
-              await keysVerbHandler.process(keysGetCommand, inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e.message ==
-                  'Keys verb cannot be accessed without an enrollmentId')));
-    });
-
-    test('keys verb on enrollment which is not approved', () async {
-      inboundConnection.metadata.isAuthenticated =
-          true; // owner connection, authenticated
-      var keysGetCommand = 'keys:get:self';
-      var enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      final enrollJson = {
-        'sessionId': '123',
-        'appName': 'wavi',
-        'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
-        'apkamPublicKey': 'testPublicKeyValue',
-        'requestType': 'newEnrollment',
-        'approval': {'state': 'pending'}
-      };
-      var keyName = '$enrollId.new.enrollments.__manage$alice';
-      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-      // NOTE processVerb, not process: `process` never reaches this refusal,
-      // which is the keys verb's own.
-      expect(
-          () async => await keysVerbHandler.processVerb(Response(),
-              keysVerbHandler.parse(keysGetCommand), inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e.message ==
-                  'Enrollment Id $enrollId is not approved. current state: pending')));
+      expect(jsonDecode(dataWritten())['value'], storedSelfKey);
     });
   });
+
+  group(
+      'Every other keys: request is refused before the store is read or '
+      'written', () {
+    final Map<String, String Function(String e, String f)> requests = {
+      'keys:put:public': (e, f) => 'keys:put:public:namespace:__global:'
+          'keyType:rsa2048:keyName:encryption_$e planted',
+      'keys:put:self': (e, f) => 'keys:put:self:namespace:__global:'
+          'appName:wavi:deviceName:pixel:keyType:aes256:'
+          'encryptionKeyName:encryption_$e:keyName:myAESkey planted',
+      'keys:put:private': (e, f) => 'keys:put:private:namespace:__global:'
+          'appName:wavi:deviceName:pixel:keyType:aes:'
+          'encryptionKeyName:myAESkey:keyName:myPrivateKey planted',
+      'keys:put of __nskey': (e, f) =>
+          'keys:put:public:namespace:app:keyName:__nskey planted',
+      'keys:delete of its own key': (e, f) =>
+          'keys:delete:keyName:${privateKeyOf(e)}',
+      'keys:get:private': (e, f) => 'keys:get:private',
+      'keys:get:self': (e, f) => 'keys:get:self',
+      'keys:get:public': (e, f) => 'keys:get:public',
+      "keys:get of enrollment F's key": (e, f) =>
+          'keys:get:keyName:${privateKeyOf(f)}',
+      'keys:get of the CRAM secret': (e, f) =>
+          'keys:get:keyName:privatekey:at_secret',
+      'keys:get with a visibility': (e, f) =>
+          'keys:get:self:keyName:${selfKeyOf(e)}',
+      'keys:get with a namespace': (e, f) =>
+          'keys:get:namespace:__global:keyName:${selfKeyOf(e)}',
+      'keys:get with a value': (e, f) =>
+          'keys:get:keyName:${privateKeyOf(e)} planted',
+    };
+    for (final MapEntry(key: String label, value: build) in requests.entries) {
+      test(label, () async {
+        final f = await approvedAndConnected('f');
+        final e = await approvedAndConnected('e');
+        await keyValueStore.put(
+            'privatekey:at_secret', AtData()..data = 'cram secret');
+        final List<String> before = await storedKeys();
+
+        await expectLater(
+            keysVerbHandler.process(build(e, f), inboundConnection),
+            throwsA(isA<UnAuthorizedException>()));
+
+        expect(await storedKeys(), before,
+            reason: 'nothing is stored or deleted');
+        expect(inboundConnection.lastWrittenData ?? '',
+            isNot(contains('encrypted default')),
+            reason: 'nothing is listed or answered');
+      });
+    }
+  });
+
+  test('A connection carrying no enrollment id is refused', () async {
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.cram;
+    inboundConnection.metadata.enrollmentId = null;
+    final List<String> before = await storedKeys();
+
+    await expectLater(
+        keysVerbHandler.process(
+            'keys:get:keyName:${selfKeyOf(etu.primaryEnId)}',
+            inboundConnection),
+        throwsA(isA<AtEnrollmentException>().having((e) => e.message, 'message',
+            'Keys verb cannot be accessed without an enrollmentId')));
+    expect(await storedKeys(), before);
+  });
+
+  group('A connection whose enrollment record is missing', () {
+    late _ReadRecordingStore store;
+    late KeysVerbHandler handler;
+
+    setUp(() {
+      store = _ReadRecordingStore();
+      when(() => store.get(any())).thenAnswer((invocation) =>
+          keyValueStore.get(invocation.positionalArguments.single as String));
+      handler = KeysVerbHandler(store, enMgr, alice);
+    });
+
+    // NOTE processVerb, not process: process closes a connection whose
+    // enrollment has no record before any handler runs.
+    Future<Response> keysGet(String keyName) async {
+      final Response response = Response();
+      await handler.processVerb(response,
+          handler.parse('keys:get:keyName:$keyName'), inboundConnection);
+      return response;
+    }
+
+    test('is answered while its record is present', () async {
+      final e = await approvedAndConnected('e');
+
+      final Response response = await keysGet(selfKeyOf(e));
+
+      expect(jsonDecode(response.data!)['value'], storedSelfKey);
+      verify(() => store.get(enMgr.keyForSEK(e))).called(1);
+    });
+
+    test('is refused before the key is read', () async {
+      final e = await approvedAndConnected('e');
+      await keyValueStore.remove(enMgr.buildEnrollmentKey(e), skipCommit: true);
+      final List<String> before = await storedKeys();
+
+      await expectLater(
+          keysGet(selfKeyOf(e)), throwsA(isA<UnAuthorizedException>()));
+
+      verifyNever(() => store.get(any()));
+      expect(await storedKeys(), before,
+          reason: 'nothing is stored or deleted');
+    });
+  });
+
+  test('A legacy pkam: connection finds no encryption key', () async {
+    await enMgr
+        .serialiseMutation(() => enMgr.mintPrimary('legacy pkam public key'));
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.pkamLegacy;
+    inboundConnection.metadata.enrollmentId =
+        EnrollmentManager.primaryEnrollmentId;
+
+    await expectLater(
+        keysVerbHandler.process(
+            'keys:get:keyName:${privateKeyOf('primary')}', inboundConnection),
+        throwsA(isA<KeyNotFoundException>()));
+  });
+
+  test(
+      'A refused request from an enrollment that is not approved is refused '
+      'for its form', () async {
+    inboundConnection.metadata.enrollmentId = etu.primaryEnId;
+    final String e = await etu.createPendingEnrollment(
+        appName: 'e',
+        deviceName: 'device',
+        namespaces: {'wavi': 'rw'},
+        apkamKeysExpiryDuration: null);
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam;
+    inboundConnection.metadata.enrollmentId = e;
+
+    // NOTE processVerb, not process: process refuses an enrollment that is
+    // not approved before any handler runs.
+    await expectLater(
+        keysVerbHandler.processVerb(
+            Response(),
+            keysVerbHandler.parse('keys:put:public:namespace:__global:'
+                'keyType:rsa2048:keyName:encryption_$e planted'),
+            inboundConnection),
+        throwsA(isA<UnAuthorizedException>()));
+  });
+
+  test('an enrollment that is not approved is refused its own key', () async {
+    inboundConnection.metadata.enrollmentId = etu.primaryEnId;
+    final String e = await etu.createPendingEnrollment(
+        appName: 'e',
+        deviceName: 'device',
+        namespaces: {'wavi': 'rw'},
+        apkamKeysExpiryDuration: null);
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam;
+    inboundConnection.metadata.enrollmentId = e;
+
+    // NOTE processVerb, not process: process refuses an enrollment that is
+    // not approved before any handler runs.
+    await expectLater(
+        keysVerbHandler.processVerb(
+            Response(),
+            keysVerbHandler.parse('keys:get:keyName:${selfKeyOf(e)}'),
+            inboundConnection),
+        throwsA(isA<AtEnrollmentException>()
+            .having((e) => e.message, 'message', contains('is not approved'))));
+  });
+
+  test('a keyName naming its own key in another case names the same key',
+      () async {
+    final e = await approvedAndConnected('e');
+
+    await keysVerbHandler.process(
+        'keys:get:keyName:${selfKeyOf(e).toUpperCase()}', inboundConnection);
+
+    expect(jsonDecode(dataWritten())['value'], storedSelfKey);
+  });
+
+  test('an approved enrollment whose key is not stored is told so', () async {
+    final e = await approvedAndConnected('e');
+    await keyValueStore.remove(enMgr.keyForPEK(e), skipCommit: true);
+
+    await expectLater(
+        keysVerbHandler.process(
+            'keys:get:keyName:${privateKeyOf(e)}', inboundConnection),
+        throwsA(isA<KeyNotFoundException>().having((e) => e.message, 'message',
+            'key ${enMgr.keyForPEK(e)} not found in keystore')));
+  });
+
+  test('keys verb invalid syntax - invalid operation', () {
+    expect(() => getVerbParam(Keys().syntax(), 'keys:update:hello'),
+        throwsA(isA<InvalidSyntaxException>()));
+  });
+
+  test('keys verb without an operation is invalid syntax', () {
+    expect(
+        () => getVerbParam(
+            Keys().syntax(),
+            'keys:public:namespace:__global:keyType:rsa2048:'
+            'keyName:encryption_1278383933 testPublicKeyValue'),
+        throwsA(isA<InvalidSyntaxException>()));
+  });
+
+  for (final String command in [
+    'keys:put:public:namespace:__global:keyType:rsa2048:'
+        'keyName:encryption_1278383933 testPublicKeyValue',
+    'keys:get:keyName:anything',
+    'keys:delete:keyName:anything',
+  ]) {
+    test('$command without authentication is refused as unauthenticated',
+        () async {
+      inboundConnection.metaData.isAuthenticated = false;
+      await expectLater(keysVerbHandler.process(command, inboundConnection),
+          throwsA(isA<UnAuthenticatedException>()));
+    });
+  }
 }

@@ -15,6 +15,7 @@ void main() {
         namespaces: {'wavi': 'rw', '__manage': 'r'},
         byEnrollmentId: 'bbbb-2222',
         cascadedFrom: 'cccc-3333',
+        keyHolder: true,
       ).toJson();
 
       expect(json, {
@@ -24,6 +25,7 @@ void main() {
         'namespaces': {'wavi': 'rw', '__manage': 'r'},
         'byEnrollmentId': 'bbbb-2222',
         'cascadedFrom': 'cccc-3333',
+        'keyHolder': true,
       });
     });
 
@@ -36,6 +38,7 @@ void main() {
             namespaces: {'wavi': 'rw'},
             byEnrollmentId: null,
             cascadedFrom: null,
+            keyHolder: null,
           ).toJson()['event'],
           'unrevoked',
           reason: 'the two kinds are distinguished by this literal alone, and '
@@ -51,6 +54,7 @@ void main() {
         namespaces: {'wavi': 'rw'},
         byEnrollmentId: 'ssss-4444',
         cascadedFrom: null,
+        keyHolder: null,
       ).toJson();
 
       expect(json['event'], 'superseded');
@@ -68,6 +72,7 @@ void main() {
         namespaces: const {},
         byEnrollmentId: null,
         cascadedFrom: null,
+        keyHolder: null,
       ).toJson();
 
       expect(json.containsKey('byEnrollmentId'), false,
@@ -78,6 +83,48 @@ void main() {
       expect(json.keys.toSet(), {'event', 'enrollmentId', 'at', 'namespaces'});
     });
 
+    test('a mark that is not set is written false, never omitted', () {
+      final json = EnrollmentRevocationEvent(
+        type: EnrollmentRevocationEventType.superseded,
+        enrollmentId: 'aaaa-1111',
+        at: at,
+        namespaces: {'wavi': 'rw'},
+        byEnrollmentId: 'ssss-4444',
+        cascadedFrom: null,
+        keyHolder: false,
+      ).toJson();
+
+      expect(json['keyHolder'], false,
+          reason: 'an absent keyHolder reads as an event recorded before the '
+              'mark existed, which counts as a key holder\'s revocation');
+    });
+
+    test('an event recorded before the mark existed reads back with no mark',
+        () {
+      expect(
+          EnrollmentRevocationEvent.fromJson({
+            'event': 'revoked',
+            'enrollmentId': 'aaaa-1111',
+            'at': '2026-08-31T12:34:56.789Z',
+            'namespaces': {'wavi': 'rw'},
+          }).keyHolder,
+          isNull);
+    });
+
+    test('a mark that is not a boolean reads back as no mark', () {
+      final event = EnrollmentRevocationEvent.fromJson({
+        'event': 'revoked',
+        'enrollmentId': 'aaaa-1111',
+        'at': '2026-08-31T12:34:56.789Z',
+        'namespaces': {'wavi': 'rw'},
+        'keyHolder': 'false',
+      });
+      expect(event.keyHolder, isNull,
+          reason: 'the event is kept, and counted as a key holder\'s '
+              'revocation, rather than dropped from the history');
+      expect(event.enrollmentId, 'aaaa-1111');
+    });
+
     test('every field survives the round trip', () {
       final event = EnrollmentRevocationEvent(
         type: EnrollmentRevocationEventType.revoked,
@@ -86,6 +133,7 @@ void main() {
         namespaces: {'wavi': 'rw'},
         byEnrollmentId: 'bbbb-2222',
         cascadedFrom: 'cccc-3333',
+        keyHolder: false,
       );
       final back = EnrollmentRevocationEvent.fromJson(event.toJson());
 
@@ -95,6 +143,7 @@ void main() {
       expect(back.namespaces, event.namespaces);
       expect(back.byEnrollmentId, event.byEnrollmentId);
       expect(back.cascadedFrom, event.cascadedFrom);
+      expect(back.keyHolder, event.keyHolder);
     });
 
     test('a record written with no namespaces reads back as none, not null',

@@ -4,8 +4,11 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_key_length.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -58,15 +61,29 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var operation =
         SecondaryUtil.getOperationType(verbParams[AtConstants.operation]);
     var value = verbParams[AtConstants.atValue];
-    var key = '${verbParams[AtConstants.atKey]!}$atSign';
+    final String keyNamed = verbParams[AtConstants.atKey]!;
+    if (!isWellFormedAtKey(keyNamed)) {
+      throw InvalidSyntaxException(
+          'Notification key is not a well-formed atKey');
+    }
+    final String? reserved = reservedNamespaceOf(keyNamed);
+    if (reserved != null) {
+      throw UnAuthorizedException('Notification may not use reserved namespace'
+          ' ${sanitiseForLogging(reserved)}');
+    }
+    var key = '$keyNamed$atSign';
 
     final recipients = _recipients(verbParams[AtConstants.forAtSign]);
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     // NOTE each recipient's key is judged whole, as notify judges it, and
     // every one before any is stored, so a refusal stores nothing.
+    final bool cached = cachedByRecipient(
+        hasTtr: verbParams[AtConstants.ttr] != null,
+        isDelete: operation == OperationType.delete);
     for (final forAtSign in recipients) {
       final recipientKey = '$forAtSign:$key';
+      refuseOverlongNotificationKey(recipientKey, cached: cached);
       if (!await isAuthorized(inboundConnectionMetadata, atKey: recipientKey)) {
         throw UnAuthorizedException(
             'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'

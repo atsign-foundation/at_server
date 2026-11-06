@@ -6,7 +6,9 @@ import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/config/at_config.dart';
 import 'package:test/test.dart';
 
-var storageDir = '${Directory.current.path}/test/hive';
+import 'test_storage.dart';
+
+var storageDir = testStoragePath('test/hive');
 late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
 void main() async {
   group('Verify blocklist configuration behaviour', () {
@@ -125,7 +127,7 @@ Future<void> setUpFunc(String storageDir) async {
 
 Future<void> tearDownFunc() async {
   await _atConfigTestFactory.close();
-  var dir = Directory('test/hive/');
+  var dir = Directory(storageDir);
   if (await dir.exists()) {
     await dir.delete(recursive: true);
   }

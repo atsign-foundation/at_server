@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/http_connections.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_utils/at_utils.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -29,7 +29,9 @@ class _FakeWebSocket extends Fake implements WebSocket {
   Future close([int? code, String? reason]) async => closed = true;
 }
 
-class _FakeSecureServerSocket extends Fake implements SecureServerSocket {}
+class _FakeHttpConnections extends Fake implements HttpConnections {}
+
+class _FakeSocket extends Fake implements Socket {}
 
 void main() {
   late MockInboundConnectionManager manager;
@@ -38,6 +40,7 @@ void main() {
     verbTestsSetUpLogging();
     registerFallbackValue(_FakeSecureSocket());
     registerFallbackValue(_FakeWebSocket());
+    registerFallbackValue(_FakeSocket());
     registerFallbackValue((String _, InboundConnection __) {});
     registerFallbackValue((List<int> _, InboundConnection __) {});
   });
@@ -63,8 +66,8 @@ void main() {
     final socket = _FakeSecureSocket();
 
     final uncaught = await uncaughtFrom(() =>
-        AtSecondaryServerImpl.getInstance().acceptSocket(
-            socket, PseudoServerSocket(_FakeSecureServerSocket())));
+        AtSecondaryServerImpl.getInstance()
+            .acceptSocket(socket, _FakeHttpConnections()));
 
     expect(uncaught, isEmpty);
     expect(socket.destroyed, isTrue);
@@ -74,7 +77,7 @@ void main() {
       'an unexpected error once the connection is pooled closes the connection',
       () async {
     final MockInboundConnection connection = MockInboundConnection();
-    when(() => connection.acceptRequests(any(), any()))
+    when(() => connection.acceptRequests(any()))
         .thenThrow(StateError('injected'));
     when(() => connection.close()).thenAnswer((_) async {});
     when(() => manager.createSocketConnection(any(),
@@ -82,8 +85,8 @@ void main() {
     final socket = _FakeSecureSocket();
 
     final uncaught = await uncaughtFrom(() =>
-        AtSecondaryServerImpl.getInstance().acceptSocket(
-            socket, PseudoServerSocket(_FakeSecureServerSocket())));
+        AtSecondaryServerImpl.getInstance()
+            .acceptSocket(socket, _FakeHttpConnections()));
 
     expect(uncaught, isEmpty);
     verify(() => connection.close()).called(1);
@@ -91,12 +94,13 @@ void main() {
 
   test('an unexpected error setting up a WebSocket closes only that WebSocket',
       () async {
-    when(() => manager.createWebSocketConnection(any(),
+    when(() => manager.createWebSocketConnection(any(), any(),
         sessionId: any(named: 'sessionId'))).thenThrow(StateError('injected'));
     final ws = _FakeWebSocket();
 
-    final uncaught = await uncaughtFrom(
-        () => AtSecondaryServerImpl.getInstance().webSocketListener(ws));
+    final uncaught = await uncaughtFrom(() =>
+        AtSecondaryServerImpl.getInstance()
+            .webSocketListener(ws, _FakeSocket()));
 
     expect(uncaught, isEmpty);
     expect(ws.closed, isTrue);

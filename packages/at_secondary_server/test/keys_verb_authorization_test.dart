@@ -9,11 +9,11 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// Verifies that the `keys:get`/`keys:delete` by-name branches enforce
-/// per-enrollment authorization: an enrollment scoped only to the `wavi`
-/// namespace (no `__manage`) must NOT be able to read the raw CRAM secret or
-/// keys in namespaces it was never granted, nor delete arbitrary keys — while
-/// still being able to access keys tagged with its own enrollmentId.
+/// An enrollment scoped only to the `wavi` namespace (no `__manage`) can
+/// neither read nor delete through `keys:` any key but its own two
+/// encryption keys: not the raw CRAM secret, not a key in a namespace it was
+/// never granted, and not a key whose value names its enrollmentId or
+/// another's.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -99,11 +99,11 @@ void main() {
       expect(await keyValueStore.exists(victimKey), isTrue);
     });
 
-    test('wavi-scoped app CAN read its own enrollment-tagged key', () async {
+    test('cannot read a key whose value names its own enrollmentId',
+        () async {
       await setUpNarrowlyScopedApprovedEnrollment();
       final enId = inboundConnection.metadata.enrollmentId!;
 
-      // A key legitimately created via keys:put carries the caller's enrollmentId.
       const ownKey = 'public:encryption_self.__public_keys.__global@alice';
       final ownValue = jsonEncode({
         'value': 'my-own-public-key',
@@ -112,23 +112,18 @@ void main() {
       });
       await keyValueStore.put(ownKey, AtData()..data = ownValue);
 
-      await keysVerbHandler.process(
-          'keys:get:keyName:$ownKey', inboundConnection);
-
-      expect(inboundConnection.lastWrittenData, contains('my-own-public-key'),
-          reason: 'legitimate self-owned key access must still work');
+      await expectLater(
+          keysVerbHandler.process(
+              'keys:get:keyName:$ownKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+      expect(inboundConnection.lastWrittenData ?? '',
+          isNot(contains('my-own-public-key')));
     });
 
     test('cannot READ a keys-verb key tagged with another enrollmentId',
         () async {
       await setUpNarrowlyScopedApprovedEnrollment();
 
-      // A well-formed keys-verb value (a Map carrying an enrollmentId) that
-      // belongs to a DIFFERENT enrollment. This exercises the discriminating
-      // branch of the gate — `decoded is Map && decoded[enrollmentId] == enId`
-      // — which the other refuse tests never reach because they use non-JSON
-      // values (those only hit the jsonDecode-throws → refuse path). This is
-      // the canonical "A cannot read B's key" isolation case.
       final foreignEnId = Uuid().v4();
       const foreignKey = 'public:encryption_self.__public_keys.__global@alice';
       final foreignValue = jsonEncode({

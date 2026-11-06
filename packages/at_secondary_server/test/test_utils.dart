@@ -23,16 +23,21 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/notification/monitor_sink.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
+
+import 'test_storage.dart';
 
 class MockAtCommitLog extends Mock implements AtCommitLog {}
 
@@ -108,6 +113,36 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
 }
 
 class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
+
+/// A monitor feed that keeps every notification it is pushed, writing none.
+class RecordingMonitorSink implements MonitorSink {
+  /// A feed for [connection], or for a connection of its own.
+  RecordingMonitorSink([InboundConnection? connection])
+      : connection = connection ?? DummyInboundConnection();
+
+  @override
+  final InboundConnection connection;
+
+  /// Every notification pushed to this feed, in order.
+  final List<AtNotification> pushed = <AtNotification>[];
+
+  bool closed = false;
+
+  @override
+  Future<void> get idle => Future<void>.value();
+
+  @override
+  int get queued => 0;
+
+  @override
+  void push(AtNotification n, {LivePushReport? report}) {
+    pushed.add(n);
+    report?.settle(report.expect(), null);
+  }
+
+  @override
+  void close() => closed = true;
+}
 
 class MockInboundConnectionManager extends Mock
     implements InboundConnectionManager {}
@@ -196,6 +231,10 @@ late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
 late AtNotificationKeystore notifStore;
 late NotificationManager notificationManager;
+
+/// The telemetry [notificationManager] reports through, off until a test
+/// enables it.
+late AtServerTelemetry serverTelemetry;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
 
@@ -218,7 +257,7 @@ Function() get socketOnDoneFn => _currentSocketListener.onDone;
 Function(Exception e, StackTrace st) get socketOnErrorFn =>
     _currentSocketListener.onError;
 
-String storageDir = '${Directory.current.path}/unit_test_storage';
+String storageDir = testStoragePath('unit_test_storage');
 AtCommitLog atCommitLog = MockAtCommitLog();
 AtAccessLog atAccessLog = MockAtAccessLog();
 
@@ -378,7 +417,9 @@ verbTestsSetUp(
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
       notifStore,
-      NotifyConnectionsPool(addressFinder, outboundConnectionFactory));
+      NotifyConnectionsPool(addressFinder, outboundConnectionFactory),
+      telemetry: NotificationTelemetry(
+          serverTelemetry = AtServerTelemetry(heartbeatInterval: null)));
   registerFallbackValue(AtNotificationBuilder().build());
 
   cacheManager = atServer.cacheManager = AtCacheManager(
@@ -445,6 +486,7 @@ Future<void> verbTestsTearDown() async {
   // NOTE the manager must be closed, as the server's own stop() does, or an
   // undelivered notification is retried for the rest of the file.
   await notificationManager.close();
+  await serverTelemetry.shutdown();
   await atServer.persistenceFactory.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {

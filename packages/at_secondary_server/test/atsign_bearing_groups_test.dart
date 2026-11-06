@@ -27,8 +27,6 @@ final Map<String, String> commands = {
   'DeleteVerbHandler.forAtSign': 'delete:$over:phone.wavi@alice',
   'DeleteVerbHandler.atSign': 'delete:phone.wavi$over',
   'ConfigVerbHandler.atSign': 'config:block:add:@carol $over',
-  'StreamVerbHandler.receiver':
-      'stream:init$over namespace:wavi startByte:0 s1 f.txt 10',
   'NotifyVerbHandler.forAtSign':
       'notify:update:messageType:key:$over:phone.wavi@alice:v',
   'NotifyVerbHandler.atSign':

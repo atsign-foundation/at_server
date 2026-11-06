@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:at_root_server/src/client/at_root_client_pool.dart';
-import 'package:at_persistence_root_server/at_persistence_root_server.dart';
+import 'package:at_root_server/src/directory_lookup.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_commons/at_commons.dart';
 
@@ -12,12 +12,12 @@ class RootClient {
   late Socket _socket;
   String? _address;
   int? _port;
-  static final _keyStoreManager = KeystoreManagerImpl();
+  final DirectoryLookup _lookup;
   final _buffer = StringBuffer(capacity: 255);
   int notFoundCount = 0;
   late RootClientState state;
 
-  RootClient(Socket s) {
+  RootClient(Socket s, {required DirectoryLookup lookup}) : _lookup = lookup {
     _socket = s;
     _address = _socket.remoteAddress.address;
     _port = _socket.remotePort;
@@ -44,7 +44,8 @@ class RootClient {
         return;
       } else {
         if (_buffer.isEnd()) {
-          var result = await _keyStoreManager.getKeyStore().get(lookupPayload);
+          final String? key = directoryKeyOf(lookupPayload);
+          var result = key == null ? null : await _lookup(key);
           logger.info(
               '$_address:$_port Looked up: $lookupPayload | Found: $result');
 

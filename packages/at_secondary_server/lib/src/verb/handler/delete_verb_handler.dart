@@ -5,8 +5,10 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/reserved_namespace.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -89,30 +91,38 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     assert(deleteKey.isNotEmpty);
     // NOTE the keystore's own fold, not a copy of it: the checks below decide
     // by string equality against this value.
-    deleteKey = canonicalAtKey(deleteKey);
+    final String keyToDelete = canonicalAtKey(deleteKey);
 
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
     bool isAuthorized =
-        await super.isAuthorized(inboundConnectionMetadata, atKey: deleteKey);
+        await super.isAuthorized(inboundConnectionMetadata, atKey: keyToDelete);
 
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-          ' is not authorized to delete key: $deleteKey');
+          ' is not authorized to delete key: $keyToDelete');
+    }
+    // NOTE a reserved namespace's records change only through the verbs that
+    // own it.
+    final String? reserved = reservedNamespaceBarringChange(deleteKey,
+        atSign: AtSecondaryServerImpl.getInstance().currentAtSign,
+        enrollmentId: inboundConnectionMetadata.enrollmentId);
+    if (reserved != null) {
+      throw UnAuthorizedException('Record in reserved namespace'
+          ' ${sanitiseForLogging(reserved)} may not be deleted');
     }
     bool cramSecretExisted = false;
-    final String removedKey = deleteKey;
     try {
       await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .serialiseIfApsk(removedKey, () async {
+          .serialiseIfApsk(keyToDelete, () async {
         // NOTE cached data is exempt: another atSign's cached copy may always
         // be deleted.
         if (verbParams['isCached'] != 'true') {
-          if (await keyStore.exists(removedKey)) {
-            AtData atData = (await keyStore.get(removedKey))!;
+          if (await keyStore.exists(keyToDelete)) {
+            AtData atData = (await keyStore.get(keyToDelete))!;
             if (atData.metaData?.immutable == true) {
               bool force = verbParams[AtConstants.force] == AtConstants.force;
               if (!force) {
@@ -124,16 +134,16 @@ class DeleteVerbHandler extends ChangeVerbHandler {
         }
         // NOTE read immediately before the removal: removing a key the store
         // does not hold is not an error here.
-        cramSecretExisted = removedKey == AtConstants.atCramSecret &&
-            await keyStore.exists(removedKey);
-        var result = await keyStore.remove(removedKey,
+        cramSecretExisted = keyToDelete == AtConstants.atCramSecret &&
+            await keyStore.exists(keyToDelete);
+        var result = await keyStore.remove(keyToDelete,
             skipCommit: verbParams[WireParams.noCommit] != null,
             deletedAt: deletedAt);
         response.data = result?.toString();
-        logger.finer('delete success. delete key: $removedKey');
+        logger.finer('delete success. delete key: $keyToDelete');
       });
     } on KeyNotFoundException {
-      logger.warning('key $deleteKey does not exist in keystore');
+      logger.warning('key $keyToDelete does not exist in keystore');
       rethrow;
     }
 
@@ -146,7 +156,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
 
     try {
-      if (!deleteKey.startsWith('@')) {
+      if (!keyToDelete.startsWith('@')) {
         return;
       }
       var forAtSign = verbParams[AtConstants.forAtSign];

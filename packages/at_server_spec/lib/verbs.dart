@@ -18,7 +18,6 @@ export 'package:at_server_spec/src/verb/pol.dart';
 export 'package:at_server_spec/src/verb/proxy_lookup.dart';
 export 'package:at_server_spec/src/verb/scan.dart';
 export 'package:at_server_spec/src/verb/stats.dart';
-export 'package:at_server_spec/src/verb/stream.dart';
 export 'package:at_server_spec/src/verb/sync.dart';
 export 'package:at_server_spec/src/verb/sync_from.dart';
 export 'package:at_server_spec/src/verb/update.dart';
