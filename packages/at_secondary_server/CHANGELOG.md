@@ -1,3 +1,7 @@
+# 3.20.1
+- fix: an atServer closes the connection, writing nothing, when a client sends
+  `@exit`, rather than answering it with AT0003.
+
 # 3.20.0
 - ⚠️ BREAKING: `keys:` answers only an enrollment's own two encryption
   keys, `keys:get:keyName:<enrollmentId>.default_enc_private_key.__manage@<atSign>`

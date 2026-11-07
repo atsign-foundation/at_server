@@ -246,7 +246,8 @@ class InboundCommandValidator {
   /// starts like an HTTP request, [InvalidSyntaxException] for any other
   /// unknown verb or one longer than 64 characters, and
   /// [UnAuthenticatedException] when the verb needs an authenticated
-  /// connection that [connection] is not.
+  /// connection that [connection] is not. The command `@exit` passes whether
+  /// or not [connection] has authenticated.
   static void validate(List<int> bytes, AtConnection connection) {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
@@ -271,6 +272,11 @@ class InboundCommandValidator {
     // `monitor ` substring inside an `update` value, letting an
     // unauthenticated client bypass the auth check on `update`.
     if (command.startsWith('scan ') || command.startsWith('monitor ')) {
+      return;
+    }
+
+    // NOTE only the whole, short command `@exit` passes, never a prefix.
+    if (bytes.length < minBytesForValidation && command == '@exit') {
       return;
     }
 
