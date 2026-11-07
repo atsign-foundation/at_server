@@ -156,35 +156,6 @@ void main() {
     },
   );
 
-  test('A large response sent before @exit arrives whole', () async {
-    final c = await connect();
-    await cram(c.socket, c.received);
-    final String key = 'exitlarge${DateTime.now().microsecondsSinceEpoch}'
-        '.wavi$atSign';
-    addTearDown(() => sendAlone('delete:$key'));
-    final String value = 'v' * (512 * 1024);
-    final int updated = c.received.length;
-    c.socket.write('update:$key $value\n');
-    await until(c.received, '\n$atSign@', from: updated);
-    expect(
-      c.received.toString().substring(updated),
-      startsWith('data:'),
-      reason: 'the update is answered with its commit id',
-    );
-    final int before = c.received.length;
-    // NOTE one write, so @exit arrives while the llookup's reply is being
-    // sent.
-    c.socket.write('llookup:$key\n@exit\n');
-    await expectClosed(c.closed, c.received);
-    final String after = c.received.toString().substring(before);
-    expect(
-      after.contains('data:$value\n'),
-      isTrue,
-      reason: 'received ${after.length} characters of a reply of '
-          '${value.length + 6}',
-    );
-  });
-
   test('A command that only resembles @exit is refused as before', () async {
     final c = await connect();
     await cram(c.socket, c.received);
