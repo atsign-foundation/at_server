@@ -74,6 +74,7 @@ class ClosingConnection extends FakeInboundConnection {
 void main() {
   setUpAll(() {
     verbTestsSetUpLogging();
+    registerFallbackValue(const Stream<dynamic>.empty());
   });
 
   late FakeInboundConnection connection;
@@ -93,10 +94,8 @@ void main() {
 
     dispatched = <String>[];
     listener = InboundMessageListener(connection)
-      ..listen(
-          (String command, InboundConnection c) async =>
-              dispatched.add(command),
-          (List<int> data, InboundConnection c) {});
+      ..listen((String command, InboundConnection c) async =>
+          dispatched.add(command));
   }
 
   /// Returns once the connection is closed or written to, or after two
@@ -192,13 +191,19 @@ void main() {
       // whatever the atServer does with @exit.
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice'.toAtsign();
 
-      final wsConnection = InboundWebSocketConnection(ws, '123', null);
+      final written = <dynamic>[];
+      when(() => ws.addStream(any())).thenAnswer((invocation) {
+        (invocation.positionalArguments[0] as Stream<dynamic>)
+            .listen(written.add);
+        return Completer<void>().future;
+      });
+
+      final wsConnection =
+          InboundWebSocketConnection(ws, FakeSocket(), '123', null);
       when(() => pool.remove(wsConnection)).thenReturn(null);
       final wsDispatched = <String>[];
-      wsConnection.acceptRequests(
-          (String command, InboundConnection c) async =>
-              wsDispatched.add(command),
-          (List<int> data, InboundConnection c) {});
+      wsConnection.acceptRequests((String command, InboundConnection c) async =>
+          wsDispatched.add(command));
       incoming.add('@exit\n');
       final deadline = DateTime.now().add(Duration(seconds: 2));
       while (!closed && DateTime.now().isBefore(deadline)) {
@@ -206,6 +211,8 @@ void main() {
       }
 
       verify(() => ws.close()).called(1);
+      expect(written, isEmpty,
+          reason: 'the atServer writes nothing in reply to @exit');
       verifyNever(() => ws.add(any()));
       expect(wsDispatched, isEmpty);
       expect(handler.records.where((r) => r.level >= Level.WARNING), isEmpty,
