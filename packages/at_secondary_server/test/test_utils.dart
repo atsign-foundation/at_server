@@ -200,9 +200,6 @@ class FakeSocket extends Fake implements Socket {
   Future<void> close() async {
     closeCalled = true;
   }
-
-  @override
-  Future<void> flush() async {}
 }
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
