@@ -151,11 +151,12 @@ void main() {
         await Future.delayed(Duration(milliseconds: 5));
       }
 
+      expect(written, isEmpty,
+          reason: 'the atServer writes nothing in reply to @exit, but wrote '
+              '$written');
+      verifyNever(() => ws.add(any()));
       verify(() => ws.close()).called(1);
       verify(() => pool.remove(wsConnection)).called(1);
-      expect(written, isEmpty,
-          reason: 'the atServer writes nothing in reply to @exit');
-      verifyNever(() => ws.add(any()));
       expect(wsDispatched, isEmpty);
     });
   });
