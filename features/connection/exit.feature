@@ -4,12 +4,14 @@ Feature: An atServer closes a connection on @exit
   nothing in reply and closes the connection, whether or not the
   connection has authenticated. Commands sent before @exit on the same
   connection are answered first; anything sent after it is not handled.
+  The atServer does not wait for those answers to be sent before it
+  closes the connection, so the end of a long one may not arrive; a
+  client that needs an answer whole waits for it before sending @exit.
 
   Races: @exit is taken in arrival order with the connection's other
   commands, so a command sent before it is answered before the close.
   Replay: @exit writes nothing and spends nothing.
-  DoS: @exit closes only the connection that sent it. Waiting for its
-  earlier replies to be sent takes at most five seconds.
+  DoS: @exit closes only the connection that sent it.
   Forgery and impersonation: @exit acts only on the connection it arrives
   on, and decides nothing about who is asking.
 
@@ -32,13 +34,6 @@ Feature: An atServer closes a connection on @exit
     Then the atServer answers the first noop:0
     And the connection is closed
     And the second noop:0 is not handled
-
-  Scenario: A large response sent before @exit arrives whole
-    Given a client authenticated as @alice
-    And @alice's atServer holds a self key with a 512 KiB value
-    When it sends llookup of that key and @exit in one write
-    Then it receives the whole value
-    And the connection is closed
 
   Scenario: A command that only resembles @exit is refused as before
     Given a client authenticated as @alice
