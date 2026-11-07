@@ -1,3 +1,7 @@
+# 3.20.1
+- fix: an atServer closes the connection, writing nothing, when a client sends
+  `@exit`, rather than answering it with AT0003.
+
 # 3.20.0
 - ⚠️ BREAKING: `keys:` answers only an enrollment's own two encryption
   keys, `keys:get:keyName:<enrollmentId>.default_enc_private_key.__manage@<atSign>`
@@ -290,10 +294,6 @@
 - fix: an `enroll:request` is refused with AT0022 unless its
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
-
-- fix: an atServer closes the connection, writing nothing, when a client sends
-  `@exit`, rather than answering it with AT0003. Replies to commands sent
-  before it are sent in full first, waiting at most five seconds.
 
 - fix: an atSign of more than 55 characters after its `@` is refused with
   AT0003 wherever a command names one, a `batch:` entry included; exactly 55
