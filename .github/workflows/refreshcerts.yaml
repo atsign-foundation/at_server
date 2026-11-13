@@ -39,12 +39,10 @@ jobs:
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Install Python Libraries
         run: |-
-          sudo apt-get install python3-poetry-plugin-export
           uv venv
           . .venv/bin/activate
           cd tools
-          poetry export --format requirements.txt --output requirements.txt
-          uv pip install --require-hashes -r requirements.txt
+          uv sync --locked --active
       # Ensure runner trusts our CA
       - name: Add Custom CA to Runner Trust Store
         run: |

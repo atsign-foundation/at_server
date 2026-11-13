@@ -1,16 +1,10 @@
-[tool.poetry]
+[project]
 name = "at-server-tools"
-version = "0.2.2"
+version = "0.3.0"
 description = "Package declaring dependencies for ACME certs script"
-authors = ["Chris Swan <@cpswan>"]
-readme = "README.md"
-packages = [{include = "at_server_tools"}]
-
-[tool.poetry.dependencies]
-python = "^3.11"
-requests = "2.34.2"
-dnspython = "2.9.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+authors = [{ name = "Chris Swan" }]
+requires-python = ">=3.11"
+dependencies = [
+    "dnspython==2.9.2",
+    "requests==2.34.2",
+]
