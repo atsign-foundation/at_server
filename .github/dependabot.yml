@@ -43,13 +43,13 @@ updates:
     ignore:
       - dependency-name: "sqlite3"
         versions: [">= 3.0.0-0"]
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/tools" # Location of package manifests
     schedule:
       interval: "daily"
     cooldown:
       default-days: 7
     groups:
-      pip:
+      uv:
         patterns:
           - "*"
