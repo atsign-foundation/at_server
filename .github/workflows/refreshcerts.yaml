@@ -50,7 +50,7 @@ jobs:
           sudo update-ca-certificates
       # Install NoPorts and atKeys
       - name: Setup NoPorts and Authentication
-        uses: atsign-foundation/noports-action@464b931232f49cd302ecf5eb913cfe2c778fbd6e # v1.0.0
+        uses: atsign-foundation/noports-action@6373ad25c6e82323ef6f41805432e33555299b17 # v1.0.1
         with:
           atsign: '@stepcaprod'
           atkeys-secret: ${{ secrets.ATKEYS_STEPCAPROD }}
