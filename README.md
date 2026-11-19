@@ -51,6 +51,10 @@ cannot be run standalone, and instead make use of a number of
 virtual machines. Tests are arranged so that cross testing happens between
 the version under test, and production releases.
 
+* [client_checks](./tests/client_checks/) runs at_client_sdk's live packs
+against an atServer built from this checkout, so an atServer change that
+breaks the reference SDK shows up before it reaches trunk.
+
 ## tools
 
 * the virtual environment makes use of certificates that need to be refreshed
