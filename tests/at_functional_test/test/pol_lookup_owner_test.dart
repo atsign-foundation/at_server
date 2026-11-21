@@ -3,10 +3,11 @@ import 'dart:io';
 
 import 'package:at_functional_test/connection/answer_reader.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
-import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+
+import 'pol_peer.dart';
 
 /// Catalogue: features/lookup/pol_lookup_owner.feature
 ///
@@ -16,29 +17,10 @@ import 'package:uuid/uuid.dart';
 void main() {
   const String xavier = '@xavier';
   const String jeremy = '@jeremy';
-  const String rootDomain = 'vip.ve.atsign.zone';
-  final int rootPort =
-      int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '') ?? 64;
 
   late SecondaryAddress xavierAddress;
   late OutboundConnectionFactory xavierClient;
   late OutboundConnectionFactory jeremyClient;
-
-  Future<SecondaryAddress> addressOf(String atSign) =>
-      CacheableSecondaryAddressFinder(rootDomain, rootPort)
-          .findSecondary(atSign);
-
-  Future<OutboundConnectionFactory> clientOf(String atSign) async {
-    final SecondaryAddress address = await addressOf(atSign);
-    final OutboundConnectionFactory client = await OutboundConnectionFactory()
-        .initiateConnectionWithListener(atSign, address.host, address.port);
-    expect(await client.authenticateConnection(), 'data:success',
-        reason: 'the client of $atSign must authenticate');
-    return client;
-  }
-
-  Future<String> send(OutboundConnectionFactory client, String command) async =>
-      (await client.sendRequestToServer(command)).trim();
 
   setUpAll(() async {
     xavierAddress = await addressOf(xavier);
@@ -52,39 +34,9 @@ void main() {
   });
 
   /// A connection to @xavier's atServer on which @jeremy has proved itself by
-  /// pol, presenting the virtualenv's client certificate as every atServer
-  /// in it does to another, and the reader of its answers.
-  Future<(SecureSocket, Future<String?> Function())> polAsJeremy() async {
-    const String certs = '../../tools/build_virtual_environment/ve_base/'
-        'contents/atsign/secondary/base/certs/mtls';
-    final SecureSocket socket =
-        await SecureSocket.connect(xavierAddress.host, xavierAddress.port,
-            context: SecurityContext(withTrustedRoots: true)
-              ..useCertificateChain('$certs/fullchain.pem')
-              ..usePrivateKey('$certs/privkey.pem'));
-    addTearDown(socket.destroy);
-    final Future<String?> Function() next = answersOf(socket);
-
-    final String signingKey =
-        (await send(jeremyClient, 'llookup:$jeremy:signing_privatekey$jeremy'))
-            .replaceFirst('data:', '');
-    socket.write('from:$jeremy\n');
-    final String? proof = await next();
-    expect(proof, startsWith('data:proof:'));
-    final List<String> sessionAndChallenge =
-        proof!.substring('data:proof:'.length).split(':');
-    final String cookie = 'public:${sessionAndChallenge[0]}';
-    addTearDown(() => send(jeremyClient, 'delete:$cookie'));
-    expect(
-        await send(
-            jeremyClient,
-            'update:$cookie '
-            '${AuthenticationUtils.generatePKAMDigest(signingKey, sessionAndChallenge[1])}'),
-        startsWith('data:'));
-    socket.write('pol\n');
-    expect(await next(), '$jeremy@');
-    return (socket, next);
-  }
+  /// pol, and the reader of its answers.
+  Future<(SecureSocket, Future<String?> Function())> polAsJeremy() =>
+      polAs(jeremy, jeremyClient, xavierAddress);
 
   group(
       'A peer that has proved itself by pol may look up only the keys of the '
