@@ -39,12 +39,10 @@ jobs:
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Install Python Libraries
         run: |-
-          sudo apt-get install python3-poetry-plugin-export
           uv venv
           . .venv/bin/activate
           cd tools
-          poetry export --format requirements.txt --output requirements.txt
-          uv pip install --require-hashes -r requirements.txt
+          uv sync --locked --active
       # Ensure runner trusts our CA
       - name: Add Custom CA to Runner Trust Store
         run: |
@@ -52,7 +50,7 @@ jobs:
           sudo update-ca-certificates
       # Install NoPorts and atKeys
       - name: Setup NoPorts and Authentication
-        uses: atsign-foundation/noports-action@464b931232f49cd302ecf5eb913cfe2c778fbd6e # v1.0.0
+        uses: atsign-foundation/noports-action@6373ad25c6e82323ef6f41805432e33555299b17 # v1.0.1
         with:
           atsign: '@stepcaprod'
           atkeys-secret: ${{ secrets.ATKEYS_STEPCAPROD }}
@@ -98,7 +96,7 @@ jobs:
       # create PR with renewed certificates
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           commit-message: 'chore: New certificates for at_server'
