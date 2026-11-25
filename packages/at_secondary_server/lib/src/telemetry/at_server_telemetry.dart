@@ -28,12 +28,14 @@ final class AtServerTelemetry {
 
   /// Starts sending telemetry, beginning with the started event. [serverId]
   /// is the atSign and [bootId] the per-start id that also prefixes every
-  /// batch's sequence.
+  /// batch's sequence. Each heartbeat reports the enrollments
+  /// [connectedEnrollments] counts when it is sent.
   void enable({
     required AtTelemetryLogRecordExporter exporter,
     required String serverId,
     required String bootId,
     String? serviceVersion,
+    ConnectedEnrollments? connectedEnrollments,
   }) {
     if (_telemetry != null) {
       throw StateError('Telemetry is already enabled');
@@ -53,6 +55,7 @@ final class AtServerTelemetry {
     if (interval != null) {
       _heartbeat = AtServerHeartbeatScheduler(
         telemetry: this,
+        connectedEnrollments: connectedEnrollments,
         interval: interval,
       )..start();
     }

@@ -406,6 +406,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             serverId: currentAtSign.toString(),
             bootId: bootId,
             serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+            connectedEnrollments: () =>
+                inboundConnectionManager.pool.getConnectedEnrollments(),
           );
         }
       } on Object catch (error) {

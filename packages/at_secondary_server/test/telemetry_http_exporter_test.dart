@@ -509,7 +509,8 @@ void main() {
       });
     });
 
-    test('the heartbeat carries no attributes', () async {
+    test('without a connection source, the heartbeat carries no attributes',
+        () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];
       final AtServerTelemetry telemetry = AtServerTelemetry(
