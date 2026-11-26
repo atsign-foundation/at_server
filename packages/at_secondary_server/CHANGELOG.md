@@ -1,4 +1,4 @@
-# 3.20.1
+# 3.21.0
 - fix: an atServer closes the connection, writing nothing, when a client sends
   `@exit`, rather than answering it with AT0003.
 
