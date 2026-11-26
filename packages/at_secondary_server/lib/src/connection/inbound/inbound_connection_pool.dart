@@ -176,6 +176,29 @@ class InboundConnectionPool {
     return count;
   }
 
+  /// Returns, for each enrollment with an active connection authenticated by
+  /// pkam as this atServer's atSign, how many such connections it has. A
+  /// legacy pkam connection counts toward primary; CRAM, other atSigns and
+  /// unauthenticated connections are not counted.
+  Map<String, int> getConnectedEnrollments() {
+    final Map<String, int> counts = <String, int>{};
+    for (final InboundConnection connection in _connections.toList()) {
+      final AtConnectionMetaData metaData = connection.metaData;
+      if (connection.isInValid() ||
+          metaData is! InboundConnectionMetadata ||
+          !metaData.isAuthenticated ||
+          (metaData.authType != AuthType.apkam &&
+              metaData.authType != AuthType.pkamLegacy)) {
+        continue;
+      }
+      if (metaData.enrollmentId case final String enrollmentId) {
+        counts.update(enrollmentId, (int count) => count + 1,
+            ifAbsent: () => 1);
+      }
+    }
+    return counts;
+  }
+
   /// Return total capacity of connection manager of connection pool.
   int totalConnectionSize() {
     return getConnections().length;

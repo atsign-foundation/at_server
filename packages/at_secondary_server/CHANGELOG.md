@@ -2,6 +2,19 @@
 - fix: an atServer closes the connection, writing nothing, when a client sends
   `@exit`, rather than answering it with AT0003.
 
+- feat: an atServer whose telemetry is on reports in each `lifecycle.heartbeat`
+  which enrollments are connected. `atsign.atserver.connected_enrollment_count`
+  is always present and counts the enrollments with at least one open
+  connection authenticated by `pkam:` as the atServer's own atSign; a legacy
+  pkam connection counts as `primary`. When it is above 0,
+  `atsign.atserver.connected_enrollments` lists, sorted by id, each
+  enrollment's id (`atsign.enrollment.id`) and how many connections it has
+  open (`atsign.connection.count`), at most 100 of them. Connections
+  authenticated by `cram:`, by another atSign, or not at all are not counted,
+  so revoking an enrollment, which closes its connections, drops it from the
+  next heartbeat. If the connections cannot be read, the heartbeat is sent
+  without either attribute and a warning is logged.
+
 # 3.20.0
 - ⚠️ BREAKING: `keys:` answers only an enrollment's own two encryption
   keys, `keys:get:keyName:<enrollmentId>.default_enc_private_key.__manage@<atSign>`

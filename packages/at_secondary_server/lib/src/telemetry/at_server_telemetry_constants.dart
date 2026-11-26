@@ -22,3 +22,8 @@ const String notificationFromAttribute = 'atsign.notification.from';
 const String notificationToAttribute = 'atsign.notification.to';
 const String notificationPushCountAttribute = 'atsign.notification.push_count';
 const String notificationPushedToAttribute = 'atsign.notification.pushed_to';
+const String connectedEnrollmentCountAttribute =
+    'atsign.atserver.connected_enrollment_count';
+const String connectedEnrollmentsAttribute =
+    'atsign.atserver.connected_enrollments';
+const String connectionCountAttribute = 'atsign.connection.count';

@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
 
-import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
@@ -13,13 +11,9 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/notification_telemetry.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:crypto/crypto.dart';
@@ -199,7 +193,7 @@ void main() {
 
     test('A legacy pkam connection is listed as primary', () async {
       final _MonitorConnection connection = _MonitorConnection();
-      await _legacyPkam(connection);
+      await legacyPkam(connection);
       expect(connection.metadata.enrollmentId, 'primary',
           reason: 'precondition: legacy pkam stands on primary');
       await monitor(connection);
@@ -213,7 +207,7 @@ void main() {
 
     test('A CRAM connection that ran enroll:request is not listed', () async {
       final _MonitorConnection connection = _cram();
-      final String e3 = await _cramEnrollRequest(connection);
+      final String e3 = await cramEnrollRequest(connection);
       expect(connection.metadata.enrollmentId, e3,
           reason: 'precondition: the connection carries the new id');
       await monitor(connection);
@@ -416,7 +410,7 @@ void main() {
 
       test('a client authenticates with pkam', () async {
         final _MonitorConnection connection = _MonitorConnection();
-        await _legacyPkam(connection);
+        await legacyPkam(connection);
         expect(connection.metadata.isAuthenticated, isTrue,
             reason: 'precondition');
         await pumpEventQueue();
@@ -424,7 +418,7 @@ void main() {
       });
 
       test("a CRAM connection's enroll:request is approved", () async {
-        await _cramEnrollRequest(_cram());
+        await cramEnrollRequest(_cram());
         await pumpEventQueue();
         expect(connectionEvents(), isEmpty);
       });
@@ -632,49 +626,3 @@ _MonitorConnection _cram() => _MonitorConnection()
   ..metadata.isAuthenticated = true
   ..metadata.authType = AuthType.cram
   ..metadata.sessionID = 'cram-${Uuid().v4()}';
-
-/// Authenticates [connection] with a legacy pkam, as a flat credential.
-Future<void> _legacyPkam(DummyInboundConnection connection) async {
-  final keyPair = await MlDsa65PureDartAlgo().generateKeyPair();
-  await keyValueStore.put(AtConstants.atPkamPublicKey,
-      AtData()..data = base64Encode(keyPair.publicKey),
-      skipCommit: true);
-  const String sessionId = 'pkam-session';
-  const String challenge = 'a-per-connection-challenge';
-  await keyValueStore.put(
-      'private:$sessionId$alice', AtData()..data = challenge);
-  final signature = await MlDsa65PureDartAlgo().signBytes(
-      Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
-      secretKey: keyPair.secretKey);
-  connection.metadata.sessionID = sessionId;
-  final Response response = Response();
-  await PkamVerbHandler(keyValueStore).processVerb(
-      response,
-      getVerbParam(VerbSyntax.pkam,
-          'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
-      connection);
-  expect(response.data, 'success', reason: 'precondition: legacy pkam');
-}
-
-/// Sends an enroll:request on CRAM [connection], approved on the spot, and
-/// returns the new enrollment's id.
-Future<String> _cramEnrollRequest(DummyInboundConnection connection) async {
-  final OtpVerbHandler otp = OtpVerbHandler(keyValueStore);
-  final String passcode = otp.generateOTP();
-  await otp.savePasscode(passcode, ttl: 5000, isSpp: false);
-  final Response response = Response();
-  await EnrollVerbHandler(keyValueStore, enMgr, notificationManager)
-      .processVerb(
-          response,
-          getVerbParam(
-              VerbSyntax.enroll,
-              'enroll:request:{"otp":"$passcode","appName":"chat"'
-              ',"deviceName":"phone","namespaces":{"wavi":"rw"}'
-              ',"apkamPublicKey":"pk-${Uuid().v4()}"'
-              ',"encryptedAPKAMSymmetricKey":"sym"}'),
-          connection);
-  final Map<String, Object?> body =
-      jsonDecode(response.data!) as Map<String, Object?>;
-  expect(body['status'], 'approved', reason: 'precondition');
-  return body['enrollmentId'] as String;
-}
